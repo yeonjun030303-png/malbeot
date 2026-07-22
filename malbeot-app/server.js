@@ -9,12 +9,11 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-/* ============ 서버 메모리 저장소 (모든 접속자가 공유) ============ */
-let users = {};        // userId -> user
-let posts = [];        // 게시물 배열
-let chats = {};        // roomId -> { roomId, userIds:[a,b], messages:[] }
-let socketToUser = {}; // socket.id -> userId
-let userToSocket = {}; // userId -> 최신 socket.id
+let users = {};
+let posts = [];
+let chats = {};
+let socketToUser = {};
+let userToSocket = {};
 
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 const genId = (p) => `${p}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
@@ -25,7 +24,6 @@ function broadcastPosts() { io.emit('posts:updated'); }
 
 io.on('connection', (socket) => {
 
-  /* ---------- 로그인 / 회원가입 ---------- */
   socket.on('auth:login', (data, cb) => {
     let user = Object.values(users).find(u => u.phone === data.phone);
     if (!user) {
@@ -57,7 +55,6 @@ io.on('connection', (socket) => {
     broadcastUsers();
   });
 
-  /* ---------- 프로필 수정 ---------- */
   socket.on('profile:update', (data, cb) => {
     const userId = socketToUser[socket.id];
     const user = users[userId];
@@ -67,7 +64,6 @@ io.on('connection', (socket) => {
     broadcastUsers();
   });
 
-  /* ---------- 홈 유저 리스트 ---------- */
   socket.on('users:get_list', (filters, cb) => {
     let list = Object.values(users);
     if (filters.region && filters.region !== '전체') list = list.filter(u => u.region === filters.region);
@@ -76,7 +72,6 @@ io.on('connection', (socket) => {
     cb({ success: true, users: list });
   });
 
-  /* ---------- 커뮤니티 게시물 ---------- */
   socket.on('posts:get_list', (filters, cb) => {
     const now = Date.now();
     let list = posts.filter(p => (now - (p.updatedAt || p.createdAt)) < THIRTY_DAYS);
@@ -138,7 +133,6 @@ io.on('connection', (socket) => {
     broadcastPosts();
   });
 
-  /* ---------- 댓글 / 대댓글 ---------- */
   socket.on('comments:add', (data, cb) => {
     const userId = socketToUser[socket.id];
     const user = users[userId];
@@ -177,7 +171,6 @@ io.on('connection', (socket) => {
     broadcastPosts();
   });
 
-  /* ---------- 채팅 ---------- */
   socket.on('chat:get_list', (cb) => {
     const userId = socketToUser[socket.id];
     const list = Object.values(chats)
@@ -189,7 +182,6 @@ io.on('connection', (socket) => {
     cb({ success: true, rooms: list });
   });
 
-  // 프로필에서 "메시지 보내기"로 처음 대화를 시작할 때 (쌀 50개 차감 로직 포함)
   socket.on('chat:start_or_send', (data, cb) => {
     const userId = socketToUser[socket.id];
     const user = users[userId];
@@ -255,7 +247,6 @@ io.on('connection', (socket) => {
     if (cb) cb({ success: true });
   });
 
-  /* ---------- 차단 / 신고 ---------- */
   socket.on('user:block', (targetId, cb) => {
     const userId = socketToUser[socket.id];
     const user = users[userId];
@@ -276,7 +267,6 @@ io.on('connection', (socket) => {
     cb && cb({ success: true });
   });
 
-  /* ---------- 연결 종료 ---------- */
   socket.on('disconnect', () => {
     const userId = socketToUser[socket.id];
     if (userId && users[userId]) {
@@ -290,7 +280,3 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => console.log(`말벗 서버 실행 중: http://localhost:${PORT}`));
-// server.js 하단(server.listen 호출 전)에 추가
-app.get('/docs', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'docs.html'));
-});
