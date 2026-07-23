@@ -1,6 +1,38 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+  <!-- Firebase 실시간 데이터베이스 연결 스크립트 -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getDatabase, ref, set, push, onValue, update, remove, onChildAdded } 
+    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+  // 내 Firebase 설정
+  const firebaseConfig = {
+    apiKey: "AIzaSyAYmBBGDBy4KiaSmTyrToy7M7M6xDgUt9c",
+    authDomain: "malbeot-test-e6b54.firebaseapp.com",
+    databaseURL: "https://malbeot-test-e6b54-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "malbeot-test-e6b54",
+    storageBucket: "malbeot-test-e6b54.firebasestorage.app",
+    messagingSenderId: "263752958081",
+    appId: "1:263752958081:web:e4769fc5ccadf02569cd80",
+    measurementId: "G-BPJ0HPD37Y"
+  };
+
+  // Firebase 및 DB 초기화
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // 어디서든 쓸 수 있게 전역 변수로 할당
+  window.db = db;
+  window.fbRef = ref;
+  window.fbSet = set;
+  window.fbPush = push;
+  window.fbOnValue = onValue;
+  window.fbOnChildAdded = onChildAdded;
+
+  console.log("🔥 Firebase Realtime Database 세팅 완료!");
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>말벗 - 실시간으로 마음을 나누는 소통 커뮤니티</title>
