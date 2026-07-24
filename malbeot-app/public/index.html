@@ -1,38 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <!-- Firebase 실시간 데이터베이스 연결 스크립트 -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, push, onValue, update, remove, onChildAdded } 
-    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
-  // 내 Firebase 설정
-  const firebaseConfig = {
-    apiKey: "AIzaSyAYmBBGDBy4KiaSmTyrToy7M7M6xDgUt9c",
-    authDomain: "malbeot-test-e6b54.firebaseapp.com",
-    databaseURL: "https://malbeot-test-e6b54-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "malbeot-test-e6b54",
-    storageBucket: "malbeot-test-e6b54.firebasestorage.app",
-    messagingSenderId: "263752958081",
-    appId: "1:263752958081:web:e4769fc5ccadf02569cd80",
-    measurementId: "G-BPJ0HPD37Y"
-  };
-
-  // Firebase 및 DB 초기화
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-
-  // 어디서든 쓸 수 있게 전역 변수로 할당
-  window.db = db;
-  window.fbRef = ref;
-  window.fbSet = set;
-  window.fbPush = push;
-  window.fbOnValue = onValue;
-  window.fbOnChildAdded = onChildAdded;
-
-  console.log("🔥 Firebase Realtime Database 세팅 완료!");
-</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>말벗 - 실시간으로 마음을 나누는 소통 커뮤니티</title>
@@ -60,6 +28,11 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 #splashScreen.fade-out{opacity:0;pointer-events:none;}
 #splashScreen .splash-logo{font-size:34px;font-weight:900;color:var(--primary);letter-spacing:2px;text-align:center;}
 #splashScreen .splash-sub{font-size:12px;color:var(--text-muted);margin-top:8px;text-align:center;}
+
+#notifyBanner{position:absolute;top:0;left:0;right:0;background:#212529;color:#fff;padding:14px 18px;z-index:500;transform:translateY(-100%);transition:transform .25s ease;line-height:1.4;cursor:pointer;}
+#notifyBanner.show{transform:translateY(0);}
+#notifyBanner .nb-title{font-weight:800;font-size:15px;margin-bottom:2px;}
+#notifyBanner .nb-body{font-size:13px;color:#f1f3f5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
 .app-header{height:56px;background:#fff;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:10;flex-shrink:0;}
 .header-title{font-size:17px;font-weight:800;color:var(--text-main);}
@@ -90,11 +63,11 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 .post-row-top{display:flex;align-items:center;gap:8px;}
 .post-meta{flex:1;min-width:0;}
 .post-meta-line1{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;}
-.post-meta-line1 .nick{font-size:13px;font-weight:700;color:var(--primary);}
+.post-meta-line1 .nick{font-size:13px;font-weight:700;color:var(--primary);cursor:pointer;}
 .post-meta-line1 .tagxs{font-size:11px;color:var(--text-muted);}
 .post-time{font-size:11px;color:var(--text-muted);white-space:nowrap;}
 .post-dots-btn{background:none;border:none;color:var(--text-muted);font-size:14px;cursor:pointer;padding:4px 6px;}
-.post-preview{font-size:13px;color:var(--text-main);margin:8px 0 8px 0;line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;}
+.post-preview{font-size:13px;color:var(--text-main);margin:8px 0 8px 0;line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-clamp:2;}
 .post-actions{display:flex;gap:16px;align-items:center;}
 .post-action-btn{background:none;border:none;font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;cursor:pointer;font-weight:600;}
 .post-action-btn.liked{color:var(--danger);}
@@ -178,8 +151,23 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 .msg-bubble{padding:9px 13px;border-radius:14px;font-size:13px;line-height:1.4;color:#000;}
 .msg-row.mine .msg-bubble{background:var(--chat-mine);border-bottom-right-radius:4px;}
 .msg-row.other .msg-bubble{background:#fff;border:1px solid #d8e6f2;border-bottom-left-radius:4px;}
-.msg-bubble img{max-width:160px;border-radius:8px;display:block;}
+.msg-bubble img{max-width:160px;border-radius:8px;display:block;cursor:zoom-in;}
 .msg-time{font-size:10px;color:#868e96;margin-top:2px;}
+.msg-status-row{display:flex;align-items:flex-end;gap:5px;}
+.msg-row.mine .msg-status-row{flex-direction:row;}
+.msg-status{font-size:10px;color:var(--text-muted);white-space:nowrap;margin-top:2px;}
+.msg-status.read{color:var(--primary);font-weight:700;}
+.chat-row-time-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
+.chat-row-unread-badge{background:var(--danger);color:#fff;border-radius:999px;min-width:18px;height:18px;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 5px;}
+.chat-photo-preview-bar{display:none;align-items:center;gap:10px;padding:8px 14px;background:var(--bg-subtle);border-top:1px solid var(--border-color);}
+.chat-photo-preview-bar.active{display:flex;}
+.chat-photo-preview-bar img{width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--border-color);}
+.chat-photo-preview-bar .cpp-text{flex:1;font-size:12px;color:var(--text-muted);}
+.chat-photo-preview-bar .cpp-cancel{background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:6px;}
+.image-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:none;align-items:center;justify-content:center;padding:20px;}
+.image-lightbox.active{display:flex;}
+.image-lightbox img{max-width:100%;max-height:100%;border-radius:6px;}
+.image-lightbox .lb-close{position:absolute;top:18px;right:18px;color:#fff;font-size:26px;background:none;border:none;cursor:pointer;}
 .msg-system{align-self:center;background:rgba(0,0,0,.06);color:var(--text-muted);font-size:11px;border-radius:99px;padding:4px 14px;}
 .chat-input-bar{padding:10px;background:#fff;display:flex;gap:8px;align-items:center;flex-shrink:0;}
 .chat-input-bar input[type=text]{flex:1;border:1px solid var(--border-color);border-radius:99px;padding:9px 14px;outline:none;}
@@ -192,6 +180,16 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 .ad-video-box{background:#000;color:#fff;height:150px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:14px 0;text-align:center;}
 .ad-progress-bar{width:80%;height:6px;background:#333;border-radius:3px;margin-top:12px;overflow:hidden;}
 .ad-progress-fill{height:100%;width:0;background:var(--primary);transition:width 1s linear;}
+
+/* 마이페이지 - 스크롤 없이 한눈에 보이도록 압축 */
+#tab-mypage .settings-card{padding:12px;border-radius:14px;}
+#tab-mypage h2{font-size:14px;margin-bottom:6px;}
+#tab-mypage h3{font-size:13px;}
+#tab-mypage .form-group{margin-bottom:8px;}
+#tab-mypage .photo-slots{justify-content:flex-start;margin-top:4px;}
+#tab-mypage .photo-slot{flex:none;width:56px;height:56px;border-radius:50%;aspect-ratio:auto;}
+#tab-mypage .mypage-stack{gap:8px;}
+#tab-mypage textarea{min-height:40px;}
 </style>
 </head>
 <body>
@@ -203,11 +201,38 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
   </div>
 </div>
 
-<div id="authModal" class="modal-overlay active">
+<div id="notifyBanner" onclick="hideNotifyBanner()"></div>
+
+<!-- 랜딩(로그인/회원가입 선택) -->
+<div id="landingScreen" class="modal-overlay active" style="background:#fff;">
+  <div style="text-align:center;width:100%;max-width:320px;">
+    <h1 style="font-size:36px;color:var(--primary);font-weight:900;margin-bottom:6px;">말벗</h1>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:40px;">지금 이 순간, 실시간으로 이어지는 편안한 대화</p>
+    <button class="btn btn-primary btn-block" style="margin-bottom:10px;height:46px;" onclick="showLoginForm()">로그인</button>
+    <button class="btn btn-secondary btn-block" style="height:46px;" onclick="showSignupFlow()">회원가입</button>
+  </div>
+</div>
+
+<!-- 로그인 (전화번호만) -->
+<div id="loginModal" class="modal-overlay">
+  <div class="modal-card">
+    <h3 style="margin-bottom:14px;text-align:center;">로그인</h3>
+    <div class="form-group">
+      <label>가입하신 휴대폰 번호</label>
+      <input type="tel" id="loginPhone" placeholder="010-1234-5678">
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="closeModal('loginModal');openModal('landingScreen')">뒤로</button>
+      <button class="btn btn-primary" style="flex:2;" onclick="submitPhoneLogin()">로그인</button>
+    </div>
+  </div>
+</div>
+
+<!-- 회원가입 -->
+<div id="authModal" class="modal-overlay">
   <div class="modal-card">
     <div style="text-align:center;margin-bottom:16px;">
       <h1 style="font-size:26px;color:var(--primary);font-weight:800;"><i class="fa-solid fa-comments" style="color:var(--pink-avatar);"></i> 말벗</h1>
-      <p style="font-size:12px;color:var(--text-muted);">지금 이 순간, 실시간으로 이어지는 편안한 대화</p>
       <p id="authStepIndicator" style="font-size:11px;color:var(--primary);font-weight:700;margin-top:6px;">1 / 3 단계 · 본인인증</p>
     </div>
     <form id="authForm" onsubmit="return false;">
@@ -227,6 +252,9 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
             <button type="button" id="btnVerifySms" class="btn btn-primary btn-sm">인증 확인</button>
           </div>
           <span id="smsVerifyStatus" style="font-size:11px;margin-top:2px;"></span>
+        </div>
+        <div style="margin-top:10px;text-align:center;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('authModal');openModal('landingScreen')">뒤로</button>
         </div>
       </div>
       <div id="authStep2" class="hidden">
@@ -271,9 +299,9 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
       </div>
       <div id="authStep3" class="hidden">
         <h4 style="font-size:14px;margin-bottom:10px;"><i class="fa-solid fa-camera"></i> 프로필 사진 등록</h4>
-        <div class="scam-warning-text"><i class="fa-solid fa-triangle-exclamation"></i> <strong>스캠 및 사기 계정 예방 안내</strong><br>말벗은 신뢰할 수 있는 소통을 위해 <strong>프로필 사진을 최소 1개 이상 등록하는 것이 필수</strong>입니다. 사진을 등록하지 않으면 성별 기본 이미지가 자동 적용됩니다.</div>
+        <div class="scam-warning-text"><i class="fa-solid fa-triangle-exclamation"></i> <strong>스캠 및 사기 계정 예방 안내</strong><br>사진을 등록하지 않으면 성별 기본 이미지가 자동 적용됩니다.</div>
         <div class="form-group">
-          <label>프로필 사진 등록 (선택 — 미등록 시 성별 기본 이미지 적용)</label>
+          <label>프로필 사진 등록 (선택)</label>
           <div class="photo-slots">
             <div class="photo-slot" onclick="triggerRegPhotoInput()">
               <img id="regPhotoPreview" class="photo-preview hidden" alt="등록 사진">
@@ -328,14 +356,14 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
     </section>
 
     <section id="tab-mypage" class="tab-content">
-      <div style="display:flex;flex-direction:column;gap:14px;">
-        <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:16px;">
+      <div class="mypage-stack" style="display:flex;flex-direction:column;gap:14px;">
+        <div class="settings-card" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:16px;">
           <h2 style="font-size:16px;margin-bottom:6px;"><i class="fa-solid fa-id-card"></i> 내 프로필 편집</h2>
           <div class="form-group">
             <label>내 대표 사진</label>
             <div class="photo-slots"><div class="photo-slot" onclick="triggerEditPhotoInput()">
               <img id="editPhotoPreview" class="photo-preview hidden" alt="수정 사진">
-              <span id="editPhotoPlaceholder"><i class="fa-solid fa-plus"></i><br>사진 변경</span>
+              <span id="editPhotoPlaceholder"><i class="fa-solid fa-plus"></i></span>
             </div></div>
             <input type="file" id="editPhotoInput" accept="image/*" class="hidden" onchange="handleEditPhotoUpload(event)">
           </div>
@@ -357,15 +385,14 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
               <div class="form-group" style="flex:1;"><label>성별</label><select id="editGender"><option value="female">여성 (핑크)</option><option value="male">남성 (파란색)</option></select></div>
               <div class="form-group" style="flex:1;"><label>나이</label><select id="editAge"></select></div>
             </div>
-            <div class="form-group"><label>자기소개</label><textarea id="editBio" rows="3" placeholder="자신만의 이야기를 편하게 소개해주세요."></textarea></div>
+            <div class="form-group"><label>자기소개</label><textarea id="editBio" rows="2" placeholder="자신만의 이야기를 편하게 소개해주세요."></textarea></div>
             <button type="submit" class="btn btn-primary btn-block"><i class="fa-solid fa-floppy-disk"></i> 프로필 변경 저장</button>
           </form>
         </div>
 
-        <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:16px;">
+        <div class="settings-card" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:16px;">
           <h3><i class="fa-solid fa-bowl-rice" style="color:var(--warning);"></i> 내 대화 쌀</h3>
-          <p style="font-size:12px;margin:6px 0;color:var(--text-muted);">새로운 상대방에게 처음 메시지를 보낼 때 쌀 50개가 차감됩니다.</p>
-          <div style="background:var(--bg-subtle);padding:14px;border-radius:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border-color);">
+          <div style="background:var(--bg-subtle);padding:12px;border-radius:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border-color);margin-top:8px;">
             <div>현재 쌀: <strong id="mypagePointCount" style="color:var(--primary);font-size:18px;">100</strong></div>
             <button id="btnWatchAdModal" class="btn btn-secondary btn-sm"><i class="fa-solid fa-video"></i> 무료 광고 충전</button>
           </div>
@@ -501,6 +528,11 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
         <b>성매매·성추행·성희롱</b> 등 범죄 관련 대화, <b>아동 대상 간음·성적 알선</b> 발생 시 수사기관에 신고될 수 있습니다. 사진 전송, 외부 링크 클릭, 카톡 아이디·전화번호 등 <b>개인정보 유출을 미끼로 금전을 요구</b>하는 피싱 범죄에 주의하세요.
       </div>
       <div id="chatMessageArea" class="chat-messages-area"></div>
+      <div id="chatPhotoPreviewBar" class="chat-photo-preview-bar">
+        <img id="chatPhotoPreviewImg" src="" alt="보낼 사진 미리보기">
+        <div class="cpp-text">이 사진을 전송할까요?</div>
+        <button class="cpp-cancel" onclick="cancelPendingChatImage()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
       <div class="chat-input-bar">
         <button class="chat-attach-btn" onclick="triggerChatImageInput()"><i class="fa-solid fa-image"></i></button>
         <input type="file" id="chatImageInput" accept="image/*" class="hidden" onchange="handleChatImageUpload(event)">
@@ -508,6 +540,10 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
         <button class="chat-send-btn" id="btnSendMsg"><i class="fa-solid fa-paper-plane"></i></button>
       </div>
     </div>
+  </div>
+  <div id="imageLightbox" class="image-lightbox" onclick="closeImageLightbox()">
+    <button class="lb-close" onclick="closeImageLightbox()"><i class="fa-solid fa-xmark"></i></button>
+    <img id="imageLightboxImg" src="" alt="사진 크게 보기">
   </div>
 </div>
 
@@ -530,15 +566,84 @@ let editingPostId = null;
 let blockReportContext = null;
 let profilePhotoIndex = 0;
 let isSmsVerified = false;
+let pendingSignupPhone = "";
 
 const REPORT_CATEGORIES = ['더러운 글 또는 사진','개인정보 유출','그루밍·성착취 변태','금전 요구','프로필 도용','환전 사기','피싱 사기','마약 판매','불건전 만남','욕설','이 외에 위반된 사항','기타'];
 
 function escapeHtml(s){ return s ? String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;") : ''; }
+// 010-1234-5678, 01012345678 등 어떤 형식으로 입력해도 숫자만 남겨서 통일
+function normalizePhone(p){ return (p||'').replace(/[^0-9]/g,''); }
 function saveSession(){ sessionStorage.setItem('malbeot_session', JSON.stringify(currentUser)); }
 function closeModal(id){ document.getElementById(id).classList.remove('active'); }
 function openModal(id){ document.getElementById(id).classList.add('active'); }
 function openFullScreen(id){ document.getElementById(id).classList.add('active'); }
 function closeFullScreen(id){ document.getElementById(id).classList.remove('active'); }
+
+/* ===================== 상단 알림 배너 ===================== */
+let notifyBannerTimer = null;
+function showNotifyBanner({title, body}){
+  const el = document.getElementById('notifyBanner');
+  el.innerHTML = (title ? `<div class="nb-title">${escapeHtml(title)}</div>` : '') + (body ? `<div class="nb-body">${escapeHtml(body)}</div>` : '');
+  el.classList.add('show');
+  clearTimeout(notifyBannerTimer);
+  notifyBannerTimer = setTimeout(()=>el.classList.remove('show'), 3500);
+}
+function hideNotifyBanner(){ document.getElementById('notifyBanner').classList.remove('show'); clearTimeout(notifyBannerTimer); }
+
+/* 로그인 세션이 끊겼을 때, 지금 보고 있던 화면 위에 로그인 화면이 겹쳐 뜨지 않도록
+   열려 있던 모든 모달/전체화면을 닫고 최초 화면(landingScreen)만 보이게 함 */
+function resetToLandingScreen(){
+  document.querySelectorAll('.modal-overlay.active, .full-screen-overlay.active').forEach(el=>{
+    if (el.id !== 'landingScreen') el.classList.remove('active');
+  });
+  openModal('landingScreen');
+}
+
+/* ESC 키로 현재 열려 있는 화면/모달 닫기 (위에 떠 있는 것부터 우선 처리) */
+document.addEventListener('keydown', (e)=>{
+  if (e.key !== 'Escape') return;
+  const isActive = id => document.getElementById(id) && document.getElementById(id).classList.contains('active');
+  if (isActive('miniAlertModal')) return closeModal('miniAlertModal');
+  if (isActive('ageModal')) return closeModal('ageModal');
+  if (isActive('reportCategoryModal')) return closeModal('reportCategoryModal');
+  if (isActive('blockReportModal')) return closeModal('blockReportModal');
+  if (isActive('adModal')) return closeModal('adModal');
+  if (isActive('chatModal')) return closeModal('chatModal');
+  if (isActive('loginModal')) { closeModal('loginModal'); return openModal('landingScreen'); }
+  if (isActive('authModal')) { closeModal('authModal'); return openModal('landingScreen'); }
+  if (isActive('messageComposeScreen')) return closeFullScreen('messageComposeScreen');
+  if (isActive('composeScreen')) return closeComposeScreen();
+  if (isActive('postDetailScreen')) return closeFullScreen('postDetailScreen');
+  if (isActive('profileDetailScreen')) return closeFullScreen('profileDetailScreen');
+  if (isActive('riceChargeScreen')) return closeFullScreen('riceChargeScreen');
+});
+
+/* 사진을 압축(리사이즈+재인코딩)해서 base64로 반환.
+   원본 사진을 그대로 base64로 올리면 용량이 너무 커져 소켓 전송이 실패하거나
+   Firebase 저장이 실패하는 경우가 있어(=> "글 작성이 안 됨" 버그), 항상 이 함수를 거치게 함 */
+function compressImageFile(file, maxDim = 1080, quality = 0.72){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (ev)=>{
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = ()=>{
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width >= height) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+          else { width = Math.round(width * (maxDim / height)); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 function showMiniAlert(text, buttons){
   document.getElementById('miniAlertText').textContent = text;
@@ -629,19 +734,84 @@ window.addEventListener('load', ()=>{
   }, 900);
 });
 
+/* ===================== 로그인/회원가입 화면 전환 ===================== */
+function showLoginForm(){ closeModal('landingScreen'); openModal('loginModal'); }
+function showSignupFlow(){ closeModal('landingScreen'); openModal('authModal'); setAuthStep(1); }
+
+// 로그인: 가입된 번호면 즉시(알림 없이) 로그인, 아니면 커스텀 알림으로 "예" 클릭 시 회원가입으로 이동
+function submitPhoneLogin(){
+  const phone = normalizePhone(document.getElementById('loginPhone').value);
+  if (!phone) return showMiniAlert('전화번호를 입력하세요.', [{label:'확인', primary:true}]);
+  socket.emit('auth:login', {phone}, (res)=>{
+    if (res.success){
+      currentUser = res.user; saveSession(); closeModal('loginModal'); initApp();
+    } else {
+      closeModal('loginModal');
+      showMiniAlert('가입된 번호가 없습니다. 회원가입 하시겠습니까?', [
+        {label:'아니오', primary:false, onClick:()=>{ openModal('landingScreen'); }},
+        {label:'예', primary:true, onClick:()=>{
+          pendingSignupPhone = phone;
+          document.getElementById('inputPhone').value = phone;
+          openModal('authModal'); setAuthStep(1);
+        }}
+      ]);
+    }
+  });
+}
+
+/* 세션 자동 복구 (같은 브라우저로 재접속했을 때) */
 socket.on('connect', ()=>{
   if (currentUser && currentUser.phone){
-    socket.emit('auth:login', currentUser, (res)=>{
-      if (res.success){ currentUser = res.user; saveSession(); closeModal('authModal'); initApp(); }
+    socket.emit('auth:login', {phone: currentUser.phone}, (res)=>{
+      if (res.success){
+        currentUser = res.user; saveSession();
+        closeModal('landingScreen'); closeModal('loginModal'); closeModal('authModal');
+        initApp();
+      } else {
+        currentUser = null; sessionStorage.removeItem('malbeot_session');
+        resetToLandingScreen();
+      }
     });
   }
 });
 socket.on('users:updated', ()=>{ loadHomeUserList(); if (currentProfileUserId) refreshOpenProfileIfNeeded(); });
 socket.on('posts:updated', ()=>{ loadCommunityPosts(); if (currentPostId && document.getElementById('postDetailScreen').classList.contains('active')) refreshPostDetail(); });
-socket.on('chat:new_message', ({roomId, message})=>{
-  if (activeRoomId === roomId) appendChatBubble(message);
+socket.on('chat:new_message', ({roomId, message, senderNickname})=>{
+  const isFromOther = message.senderId !== 'system' && (!currentUser || message.senderId !== currentUser.id);
+  const preview = message.type === 'image' ? '(사진)' : (message.text || '');
+  if (activeRoomId === roomId) {
+    appendChatBubble(message);
+    // 채팅창을 이미 보고 있는 중에 상대 메시지가 왔다면 곧바로 읽음 처리
+    if (isFromOther) socket.emit('chat:mark_read', roomId, ()=>{});
+  } else if (isFromOther) {
+    showNotifyBanner({ title: senderNickname || '메시지', body: preview });
+    notifyOutOfFocus(senderNickname || '말벗', preview);
+  }
   loadChatRoomList();
 });
+socket.on('notify:new', (n)=>{
+  showNotifyBanner({ body: n.text });
+  notifyOutOfFocus('말벗', n.text);
+});
+
+/* ===================== 브라우저(웹) 알림 =====================
+   * 탭이 백그라운드/최소화 상태일 때만 OS 알림을 띄움 (포그라운드일 땐 상단 배너로 충분)
+   * 주의: 이 웹 알림은 "브라우저(탭)가 열려 있는 동안"에만 동작합니다.
+     브라우저를 완전히 종료한 상태에서도 알림을 받으려면 서비스워커+푸시서버 구성이 별도로 필요합니다. */
+function requestNotificationPermission(){
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().catch(()=>{});
+  }
+}
+function notifyOutOfFocus(title, body){
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  if (!document.hidden) return; // 앱을 보고 있는 중이면 상단 배너로 충분, 중복 알림 방지
+  try {
+    const n = new Notification(title, { body, tag: 'malbeot-notify' });
+    n.onclick = ()=>{ window.focus(); n.close(); };
+  } catch(e){ /* 일부 브라우저(예: iOS Safari 홈화면 미설치 상태)는 Notification 미지원 */ }
+}
 socket.on('chat:ended_notify', ({roomId})=>{
   if (activeRoomId === roomId) appendChatBubble({senderId:'system', text:'상대방이 대화를 종료하였습니다.', timestamp:Date.now()});
   loadChatRoomList();
@@ -650,6 +820,7 @@ socket.on('chat:blocked_notify', ({roomId})=>{
   if (activeRoomId === roomId) appendChatBubble({senderId:'system', text:'상대방이 나를 차단하였습니다.', timestamp:Date.now()});
 });
 
+/* ===================== 회원가입 (3단계) ===================== */
 function setAuthStep(n){
   document.getElementById('authStep1').classList.toggle('hidden', n!==1);
   document.getElementById('authStep2').classList.toggle('hidden', n!==2);
@@ -657,34 +828,44 @@ function setAuthStep(n){
   document.getElementById('authStepIndicator').textContent = {1:'1 / 3 단계 · 본인인증',2:'2 / 3 단계 · 기본 정보',3:'3 / 3 단계 · 사진 등록'}[n];
 }
 document.getElementById('btnRequestSms').onclick = ()=>{
-  const phone = document.getElementById('inputPhone').value.trim();
-  if (!phone) return alert('전화번호를 입력하세요.');
-  document.getElementById('terminalNotice').style.display='block';
-  document.getElementById('smsInputGroup').style.display='block';
+  const phone = normalizePhone(document.getElementById('inputPhone').value);
+  if (!phone) return showMiniAlert('전화번호를 입력하세요.', [{label:'확인', primary:true}]);
+  document.getElementById('inputPhone').value = phone;
+  socket.emit('auth:check_phone', {phone}, (res)=>{
+    if (res.exists){
+      showMiniAlert('이미 등록된 번호입니다. 로그인해주세요.', [{label:'확인', primary:true, onClick:()=>{
+        closeModal('authModal');
+        document.getElementById('loginPhone').value = phone;
+        openModal('loginModal');
+      }}]);
+      return;
+    }
+    document.getElementById('terminalNotice').style.display='block';
+    document.getElementById('smsInputGroup').style.display='block';
+  });
 };
 document.getElementById('btnVerifySms').onclick = ()=>{
   const code = document.getElementById('inputSmsCode').value.trim();
   if (code==='1234'){ isSmsVerified=true; document.getElementById('smsVerifyStatus').style.color='var(--success)'; document.getElementById('smsVerifyStatus').textContent='✔ 휴대폰 인증 완료'; setAuthStep(2); }
-  else alert('터미널에 표시된 1234를 정확히 입력해주세요.');
+  else showMiniAlert('터미널에 표시된 1234를 정확히 입력해주세요.', [{label:'확인', primary:true}]);
 };
 document.getElementById('btnBackStep1').onclick = ()=>setAuthStep(1);
 document.getElementById('btnBackStep2').onclick = ()=>setAuthStep(2);
 document.getElementById('btnGoStep3').onclick = ()=>{
-  if (!document.getElementById('regNickname').value.trim()) return alert('별명을 입력하세요.');
-  if (!document.getElementById('agreeLegal').checked) return alert('이용 약관에 동의해주세요.');
+  if (!document.getElementById('regNickname').value.trim()) { showMiniAlert('별명을 입력하세요.', [{label:'확인', primary:true}]); return; }
+  if (!document.getElementById('agreeLegal').checked) { showMiniAlert('이용 약관에 동의해주세요.', [{label:'확인', primary:true}]); return; }
   setAuthStep(3);
 };
 function triggerRegPhotoInput(){ document.getElementById('regPhotoInput').click(); }
-function handleRegPhotoUpload(e){
+async function handleRegPhotoUpload(e){
   const file = e.target.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev)=>{ regPhotoBase64 = ev.target.result; const p=document.getElementById('regPhotoPreview'); p.src=regPhotoBase64; p.classList.remove('hidden'); document.getElementById('regPhotoPlaceholder').classList.add('hidden'); };
-  reader.readAsDataURL(file);
+  regPhotoBase64 = await compressImageFile(file);
+  const p=document.getElementById('regPhotoPreview'); p.src=regPhotoBase64; p.classList.remove('hidden'); document.getElementById('regPhotoPlaceholder').classList.add('hidden');
 }
 document.getElementById('authForm').onsubmit = ()=>{
-  if (!isSmsVerified) return alert('본인인증을 먼저 진행해 주세요.');
+  if (!isSmsVerified) { showMiniAlert('본인인증을 먼저 진행해 주세요.', [{label:'확인', primary:true}]); return; }
   const authData = {
-    phone: document.getElementById('inputPhone').value.trim(),
+    phone: normalizePhone(document.getElementById('inputPhone').value),
     nickname: document.getElementById('regNickname').value.trim(),
     region: document.getElementById('regRegion').value,
     gender: document.getElementById('regGender').value,
@@ -692,13 +873,20 @@ document.getElementById('authForm').onsubmit = ()=>{
     bio: '반갑습니다!',
     photos: regPhotoBase64 ? [regPhotoBase64] : []
   };
-  socket.emit('auth:login', authData, (res)=>{
+  socket.emit('auth:signup', authData, (res)=>{
     if (res.success){ currentUser = res.user; saveSession(); closeModal('authModal'); initApp(); }
-    else alert(res.message || '가입 중 오류가 발생했습니다.');
+    else if (res.alreadyExists){
+      showMiniAlert('이미 등록된 번호입니다.', [{label:'확인', primary:true, onClick:()=>{
+        closeModal('authModal');
+        document.getElementById('loginPhone').value = authData.phone;
+        openModal('loginModal');
+      }}]);
+    } else showMiniAlert(res.message || '가입 중 오류가 발생했습니다.', [{label:'확인', primary:true}]);
   });
 };
 
-function initApp(){ updateUserUI(); loadHomeUserList(); loadCommunityPosts(); loadProfileToForm(); switchTab('tab-home'); }
+/* ===================== 앱 초기화 / 탭 ===================== */
+function initApp(){ updateUserUI(); loadHomeUserList(); loadCommunityPosts(); loadProfileToForm(); switchTab('tab-home'); requestNotificationPermission(); }
 function updateUserUI(){
   if (!currentUser) return;
   document.getElementById('userPoints').textContent = currentUser.points;
@@ -728,14 +916,14 @@ document.querySelectorAll('.bottom-nav .nav-item').forEach(item=>item.addEventLi
 ['filterRegion','filterGender'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{ loadHomeUserList(); loadCommunityPosts(); }));
 function getFilterValues(){ return { region:document.getElementById('filterRegion').value, gender:document.getElementById('filterGender').value, ageMin, ageMax }; }
 
+/* ===================== 홈 (나 자신 포함, 서버에서 프로필 수정 최신순으로 옴) ===================== */
 function loadHomeUserList(){
   socket.emit('users:get_list', getFilterValues(), (res)=>{ if (res.success) renderUserCards(res.users); });
 }
 function renderUserCards(list){
   const c = document.getElementById('homeUserList'); c.innerHTML='';
-  const others = (list||[]).filter(u=>!currentUser || u.id!==currentUser.id);
-  if (!others.length){ c.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">조건에 맞는 유저가 없습니다.</div>`; return; }
-  others.forEach(u=>{
+  if (!list || !list.length){ c.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">조건에 맞는 유저가 없습니다.</div>`; return; }
+  list.forEach(u=>{
     const div = document.createElement('div'); div.className='user-card'; div.onclick=()=>openProfileDetailScreen(u.id);
     div.innerHTML = `${avatarHtmlFor(u,'avatar')}<div style="flex:1;"><span class="user-nickname">${escapeHtml(u.nickname)}</span>
       <div style="display:flex;gap:6px;margin-top:4px;"><span class="tag">${u.region}</span><span class="tag">${u.gender==='female'?'여성':'남성'}</span><span class="tag">${u.age}세</span></div>
@@ -744,6 +932,7 @@ function renderUserCards(list){
   });
 }
 
+/* ===================== 커뮤니티 ===================== */
 function loadCommunityPosts(){
   socket.emit('posts:get_list', getFilterValues(), (res)=>{ if (res.success) renderPosts(res.posts); });
 }
@@ -755,10 +944,10 @@ function renderPosts(list){
     const div = document.createElement('div'); div.className='post-row';
     div.innerHTML = `
       <div class="post-row-top">
-        <img class="avatar-sm" src="${p.authorPhoto||''}" onerror="this.style.display='none'">
+        <img class="avatar-sm" src="${p.authorPhoto||''}" onclick="event.stopPropagation();openProfileDetailScreen('${p.authorId}')" onerror="this.style.display='none'">
         <div class="post-meta">
           <div class="post-meta-line1">
-            <span class="nick">${escapeHtml(p.authorNickname)}</span>
+            <span class="nick" onclick="event.stopPropagation();openProfileDetailScreen('${p.authorId}')">${escapeHtml(p.authorNickname)}</span>
             <span class="tagxs">${p.authorRegion} · ${p.authorGender==='female'?'여성':'남성'} · ${p.authorAge}세</span>
           </div>
         </div>
@@ -787,28 +976,34 @@ function openComposeScreenForEdit(post){
 function resetComposePhotoBox(){ document.getElementById('composePhotoBox').innerHTML = `<i class="fa-solid fa-camera fa-lg"></i><span style="margin-top:4px;">사진 등록하기</span>`; }
 function setComposePhotoPreview(src){ document.getElementById('composePhotoBox').innerHTML = `<img src="${src}" style="width:100%;height:100%;object-fit:cover;">`; }
 function triggerComposePhotoInput(){ document.getElementById('composePhotoInput').click(); }
-function handleComposePhotoUpload(e){
+async function handleComposePhotoUpload(e){
   const file=e.target.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=(ev)=>{ composePhotoBase64=ev.target.result; setComposePhotoPreview(composePhotoBase64); };
-  reader.readAsDataURL(file);
+  composePhotoBase64 = await compressImageFile(file);
+  setComposePhotoPreview(composePhotoBase64);
 }
 function closeComposeScreen(){ closeFullScreen('composeScreen'); }
 function submitCompose(){
   const content = document.getElementById('composeTextarea').value.trim();
-  if (!content) return alert('내용을 입력하세요.');
+  if (!content) { showMiniAlert('내용을 입력하세요.', [{label:'확인', primary:true}]); return; }
   if (editingPostId){
     socket.emit('posts:update', {id:editingPostId, content, photo:composePhotoBase64}, (res)=>{
-      if (res.success){ closeComposeScreen(); loadCommunityPosts(); if (currentPostId===editingPostId) refreshPostDetail(); }
+      if (res && res.success){
+        closeComposeScreen(); loadCommunityPosts();
+        if (currentPostId===editingPostId) refreshPostDetail();
+        showMiniAlert('글을 수정하였습니다.', [{label:'확인', primary:true}]);
+      } else {
+        showMiniAlert('글 수정에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해주세요.', [{label:'확인', primary:true}]);
+      }
     });
     return;
   }
-  if (!confirm('이야기를 올리면 1일 기준 쌀 50개가 지급됩니다. 등록하시겠습니까?')) return;
   socket.emit('posts:create', {content, photo:composePhotoBase64}, (res)=>{
-    if (res.success){
+    if (res && res.success){
       currentUser.points = res.points; updateUserUI(); saveSession();
       closeComposeScreen(); loadCommunityPosts();
-      if (res.earned) alert('오늘 첫 글 작성으로 쌀 50개가 충전되었습니다.');
+      if (res.earned) showMiniAlert('오늘 첫 글 작성으로 포인트 지급이 완료되었습니다. (쌀 50개)', [{label:'확인', primary:true}]);
+    } else {
+      showMiniAlert('글 등록에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해주세요.', [{label:'확인', primary:true}]);
     }
   });
 }
@@ -914,10 +1109,11 @@ function deletePostFully(id){
   socket.emit('posts:delete', {id}, (res)=>{ if (res.success){ closeModal('reportCategoryModal'); closePostDetailScreen(); } });
 }
 
+/* ===================== 프로필 상세 ===================== */
 function openProfileDetailScreen(userId){
   currentProfileUserId = userId; profilePhotoIndex = 0;
   socket.emit('users:get_list', {region:'전체', gender:'전체', ageMin:19, ageMax:99}, (res)=>{
-    const user = (currentUser && currentUser.id===userId) ? currentUser : (res.users||[]).find(u=>u.id===userId);
+    const user = (res.users||[]).find(u=>u.id===userId);
     if (!user) return;
     currentProfileUserCache = user;
     renderProfileDetail(user);
@@ -955,6 +1151,7 @@ function renderProfileDetail(user){
     </div>`;
 }
 
+/* ===================== 메시지 작성 화면 ===================== */
 function openMessageComposeScreen(){
   const user = currentProfileUserCache; if (!user) return;
   document.getElementById('msgComposeBody').innerHTML = `
@@ -968,9 +1165,12 @@ function openMessageComposeScreen(){
   openFullScreen('messageComposeScreen');
 }
 function closeMessageComposeScreen(){ closeFullScreen('messageComposeScreen'); }
+document.getElementById('msgComposeInput').addEventListener('keydown', (e)=>{
+  if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendFirstMessage(); }
+});
 function sendFirstMessage(){
   const text = document.getElementById('msgComposeInput').value.trim();
-  if (!text) return alert('메시지 내용을 입력하세요.');
+  if (!text) { showMiniAlert('메시지 내용을 입력하세요.', [{label:'확인', primary:true}]); return; }
   socket.emit('chat:start_or_send', {targetId: currentProfileUserId, text}, (res)=>{
     if (!res.success){
       if (res.needPoints){
@@ -979,7 +1179,7 @@ function sendFirstMessage(){
           {label:'충전하기', primary:true, onClick:()=>openFullScreen('riceChargeScreen')}
         ]);
       } else {
-        alert(res.message || '메시지를 보낼 수 없습니다.');
+        showMiniAlert(res.message || '메시지를 보낼 수 없습니다.', [{label:'확인', primary:true}]);
       }
       return;
     }
@@ -990,6 +1190,7 @@ function sendFirstMessage(){
 }
 function closeRiceChargeScreen(){ closeFullScreen('riceChargeScreen'); }
 
+/* ===================== 차단 / 신고 ===================== */
 function openBlockReportModal(type, id){ blockReportContext = {type, id: id||currentProfileUserId}; openModal('blockReportModal'); }
 function handleBlockAction(){
   closeModal('blockReportModal');
@@ -1012,8 +1213,20 @@ function submitReport(category){
   showMiniAlert('신고가 접수되었습니다. 신고해 주신 내용은 말벗이 순차적으로 위반사항을 확인하여 유저를 이용제한/경고 등 조치하도록 하겠습니다.', [{label:'확인', primary:true}]);
 }
 
+/* ===================== 채팅 리스트 ===================== */
 function loadChatRoomList(){
   socket.emit('chat:get_list', (res)=>{ if (res.success){ currentChatRooms = res.rooms; renderChatRoomList(); } });
+}
+// 방 하나의 안읽은 메시지 개수: 상대가 보낸 메시지 중, 내가 마지막으로 읽은 시각(readAt[내id]) 이후에 온 것들
+function getUnreadCount(room){
+  if (!currentUser) return 0;
+  const myReadAt = (room.readAt && room.readAt[currentUser.id]) || 0;
+  return (room.messages||[]).filter(m => m.senderId !== 'system' && m.senderId !== currentUser.id && m.timestamp > myReadAt).length;
+}
+function lastMsgPreviewText(lastMsg){
+  if (!lastMsg || (!lastMsg.text && !lastMsg.type)) return '';
+  if (lastMsg.type === 'image') return '(사진)';
+  return lastMsg.text || '';
 }
 function renderChatRoomList(){
   const c = document.getElementById('chatRoomList'); c.innerHTML='';
@@ -1027,6 +1240,7 @@ function renderChatRoomList(){
   rooms.forEach(room=>{
     const lastMsg = room.messages[room.messages.length-1] || {};
     const target = room.targetUser || {};
+    const unread = getUnreadCount(room);
     const wrap = document.createElement('div'); wrap.className='chat-row-wrap';
     wrap.innerHTML = `
       <div class="chat-row-delete" onclick="deleteRoomFromList('${room.roomId}')"><i class="fa-solid fa-trash-can"></i></div>
@@ -1034,13 +1248,16 @@ function renderChatRoomList(){
         ${avatarHtmlFor(target,'avatar-sm')}
         <div class="chat-row-text">
           <div class="chat-row-nick">${escapeHtml(target.nickname||'')}</div>
-          <div class="chat-row-last">${escapeHtml(lastMsg.text||'')}</div>
+          <div class="chat-row-last">${escapeHtml(lastMsgPreviewText(lastMsg))}</div>
         </div>
-        <div class="chat-row-time">${lastMsg.timestamp?formatRelativeTime(lastMsg.timestamp):''}</div>
+        <div class="chat-row-time-wrap">
+          <div class="chat-row-time">${lastMsg.timestamp?formatRelativeTime(lastMsg.timestamp):''}</div>
+          ${unread>0 ? `<div class="chat-row-unread-badge">${unread>99?'99+':unread}</div>` : ''}
+        </div>
       </div>`;
     const fg = wrap.querySelector('.chat-row-fg');
     attachSwipe(fg);
-    fg.addEventListener('click', ()=>{ if (fg.dataset.swiped==='1') return; openChatModal(room.roomId, target, room.messages); });
+    fg.addEventListener('click', ()=>{ if (fg.dataset.swiped==='1') return; openChatModal(room.roomId, target, room); });
     c.appendChild(wrap);
   });
 }
@@ -1061,15 +1278,25 @@ function deleteRoomFromList(roomId){
   socket.emit('chat:end', roomId, ()=>loadChatRoomList());
 }
 
-function openChatModal(roomId, target, messages){
+/* ===================== 채팅방 ===================== */
+let activeRoomTargetId = null;      // 지금 열려있는 방의 상대방 id
+let activeRoomTargetReadAt = 0;     // 상대방이 마지막으로 이 방을 읽은 시각(이 시각 이전 내 메시지는 "읽음")
+let pendingChatImageBase64 = null;  // 전송 전 미리보기 중인 사진
+
+function openChatModal(roomId, target, room){
   activeRoomId = roomId;
+  activeRoomTargetId = target.id;
+  activeRoomTargetReadAt = (room && room.readAt && room.readAt[target.id]) || 0;
+  cancelPendingChatImage();
   const avatarEl = document.getElementById('chatHeaderAvatar');
   if (target.photos && target.photos[0]) { avatarEl.src = target.photos[0]; avatarEl.style.display='block'; }
   else { avatarEl.style.display='none'; }
+  avatarEl.onclick = ()=>{ if (target.id) openProfileDetailScreen(target.id); };
   document.getElementById('chatTargetName').textContent = target.nickname || '';
   const area = document.getElementById('chatMessageArea'); area.innerHTML=''; area.dataset.lastDate='';
   let lastDate = null;
-  (messages||[]).forEach(m=>{
+  const messages = (room && room.messages) || [];
+  messages.forEach(m=>{
     if (m.timestamp){
       const dateStr = new Date(m.timestamp).toDateString();
       if (dateStr !== lastDate){ const sep=document.createElement('div'); sep.className='chat-date-sep'; sep.textContent=formatDateSep(m.timestamp); area.appendChild(sep); lastDate=dateStr; area.dataset.lastDate=dateStr; }
@@ -1078,6 +1305,12 @@ function openChatModal(roomId, target, messages){
   });
   area.scrollTop = area.scrollHeight;
   openModal('chatModal');
+  // 실제로 채팅창에 들어온 시점에만 "읽음" 처리 (알림만 봤을 땐 처리 안 함)
+  socket.emit('chat:mark_read', roomId, (res)=>{ if (res && res.success) loadChatRoomList(); });
+}
+function msgStatusText(m){
+  if (!currentUser || m.senderId !== currentUser.id || !m.timestamp) return '';
+  return (activeRoomTargetReadAt && m.timestamp <= activeRoomTargetReadAt) ? '읽음' : '전송됨';
 }
 function appendChatBubble(m, checkDate=true){
   const area = document.getElementById('chatMessageArea');
@@ -1086,26 +1319,79 @@ function appendChatBubble(m, checkDate=true){
     if (dateStr !== area.dataset.lastDate){ const sep=document.createElement('div'); sep.className='chat-date-sep'; sep.textContent=formatDateSep(m.timestamp); area.appendChild(sep); area.dataset.lastDate=dateStr; }
   }
   if (m.senderId==='system'){ const div=document.createElement('div'); div.className='msg-system'; div.textContent=m.text; area.appendChild(div); area.scrollTop=area.scrollHeight; return; }
-  const row = document.createElement('div'); row.className = 'msg-row ' + (currentUser && m.senderId===currentUser.id?'mine':'other');
+  const isMine = currentUser && m.senderId===currentUser.id;
+  const row = document.createElement('div'); row.className = 'msg-row ' + (isMine?'mine':'other');
+  if (m.timestamp) row.dataset.ts = m.timestamp;
   const bubble = document.createElement('div'); bubble.className='msg-bubble';
-  if (m.type==='image') bubble.innerHTML = `<img src="${m.data}">`; else bubble.textContent = m.text;
+  if (m.type==='image'){
+    const img = document.createElement('img');
+    img.src = m.data; img.alt='사진';
+    img.onclick = ()=>openImageLightbox(m.data);
+    bubble.appendChild(img);
+  } else {
+    bubble.textContent = m.text;
+  }
+  const statusRow = document.createElement('div'); statusRow.className='msg-status-row';
+  if (isMine){
+    const st = document.createElement('div'); st.className='msg-status'; st.textContent = msgStatusText(m);
+    if (st.textContent === '읽음') st.classList.add('read');
+    statusRow.appendChild(st);
+  }
   row.appendChild(bubble);
-  if (m.timestamp){ const t=document.createElement('div'); t.className='msg-time'; t.textContent=formatClockTime(m.timestamp); row.appendChild(t); }
+  if (m.timestamp){ const t=document.createElement('div'); t.className='msg-time'; t.textContent=formatClockTime(m.timestamp); statusRow.appendChild(t); }
+  row.appendChild(statusRow);
   area.appendChild(row);
   area.scrollTop = area.scrollHeight;
 }
+// 상대가 이 방을 읽었다는 신호를 받으면, 내가 보낸 메시지들의 상태를 "읽음"으로 갱신
+socket.on('chat:read_update', ({roomId, readerId, readAt})=>{
+  if (roomId !== activeRoomId || readerId !== activeRoomTargetId) return;
+  activeRoomTargetReadAt = readAt;
+  document.querySelectorAll('#chatMessageArea .msg-row.mine').forEach(row=>{
+    const ts = Number(row.dataset.ts||0);
+    const st = row.querySelector('.msg-status');
+    if (!st || !ts) return;
+    const read = ts <= activeRoomTargetReadAt;
+    st.textContent = read ? '읽음' : '전송됨';
+    st.classList.toggle('read', read);
+  });
+});
+function openImageLightbox(src){ document.getElementById('imageLightboxImg').src = src; document.getElementById('imageLightbox').classList.add('active'); }
+function closeImageLightbox(){ document.getElementById('imageLightbox').classList.remove('active'); }
+
 document.getElementById('btnSendMsg').onclick = ()=>{
+  if (!activeRoomId) return;
+  // 미리보기 중인 사진이 있으면 사진부터 전송
+  if (pendingChatImageBase64){
+    const img = pendingChatImageBase64;
+    cancelPendingChatImage();
+    socket.emit('chat:send_image', {roomId:activeRoomId, image:img}, (res)=>{
+      if (!res || !res.success) showMiniAlert((res && res.message) || '사진 전송에 실패했습니다.', [{label:'확인', primary:true}]);
+    });
+    return;
+  }
   const text = document.getElementById('chatInputText').value.trim();
-  if (!text || !activeRoomId) return;
-  socket.emit('chat:send_message', {roomId:activeRoomId, text});
+  if (!text) return;
+  socket.emit('chat:send_message', {roomId:activeRoomId, text}, (res)=>{
+    if (!res || !res.success) showMiniAlert((res && res.message) || '메시지 전송에 실패했습니다.', [{label:'확인', primary:true}]);
+  });
   document.getElementById('chatInputText').value='';
 };
+document.getElementById('chatInputText').addEventListener('keydown', (e)=>{
+  if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); document.getElementById('btnSendMsg').click(); }
+});
 function triggerChatImageInput(){ document.getElementById('chatImageInput').click(); }
-function handleChatImageUpload(e){
+async function handleChatImageUpload(e){
   const file = e.target.files[0]; if(!file || !activeRoomId) return;
-  const reader = new FileReader();
-  reader.onload = (ev)=>{ socket.emit('chat:send_image', {roomId:activeRoomId, image: ev.target.result}); };
-  reader.readAsDataURL(file);
+  pendingChatImageBase64 = await compressImageFile(file);
+  document.getElementById('chatPhotoPreviewImg').src = pendingChatImageBase64;
+  document.getElementById('chatPhotoPreviewBar').classList.add('active');
+  e.target.value = '';
+}
+function cancelPendingChatImage(){
+  pendingChatImageBase64 = null;
+  document.getElementById('chatPhotoPreviewBar').classList.remove('active');
+  document.getElementById('chatPhotoPreviewImg').src = '';
 }
 function triggerExitChat(){
   showMiniAlert('정말로 대화를 종료하시겠어요?', [
@@ -1114,12 +1400,12 @@ function triggerExitChat(){
   ]);
 }
 
+/* ===================== 프로필 편집 ===================== */
 function triggerEditPhotoInput(){ document.getElementById('editPhotoInput').click(); }
-function handleEditPhotoUpload(e){
+async function handleEditPhotoUpload(e){
   const file=e.target.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=(ev)=>{ editPhotoBase64=ev.target.result; const p=document.getElementById('editPhotoPreview'); p.src=editPhotoBase64; p.classList.remove('hidden'); document.getElementById('editPhotoPlaceholder').classList.add('hidden'); };
-  reader.readAsDataURL(file);
+  editPhotoBase64 = await compressImageFile(file);
+  const p=document.getElementById('editPhotoPreview'); p.src=editPhotoBase64; p.classList.remove('hidden'); document.getElementById('editPhotoPlaceholder').classList.add('hidden');
 }
 function loadProfileToForm(){
   if (!currentUser) return;
@@ -1133,7 +1419,7 @@ function loadProfileToForm(){
 }
 document.getElementById('profileForm').onsubmit = ()=>{
   const nickname = document.getElementById('editNickname').value.trim();
-  if (!nickname) return alert('별명을 입력하세요.');
+  if (!nickname) { showMiniAlert('별명을 입력하세요.', [{label:'확인', primary:true}]); return; }
   const data = {
     nickname, region: document.getElementById('editRegion').value,
     gender: document.getElementById('editGender').value,
@@ -1142,7 +1428,7 @@ document.getElementById('profileForm').onsubmit = ()=>{
     photos: editPhotoBase64 ? [editPhotoBase64] : []
   };
   socket.emit('profile:update', data, (res)=>{
-    if (res.success){ currentUser = res.user; saveSession(); updateUserUI(); alert('프로필이 저장되었습니다.'); }
+    if (res.success){ currentUser = res.user; saveSession(); updateUserUI(); showMiniAlert('프로필이 저장되었습니다.', [{label:'확인', primary:true}]); }
   });
 };
 document.getElementById('btnWatchAdModal').onclick = ()=>{ openModal('adModal'); adWatchCount=0; playAdSequence(); };
@@ -1161,10 +1447,10 @@ function playAdSequence(){
 document.getElementById('btnCompleteAd').onclick = ()=>{
   const todayStr = new Date().toISOString().slice(0,10);
   if (currentUser.lastAdChargeDate!==todayStr) currentUser.adWatchCountToday=0;
-  if ((currentUser.adWatchCountToday||0)>=3){ alert('오늘 무료 충전 한도(하루 3회)를 모두 초과하였습니다.'); closeModal('adModal'); return; }
+  if ((currentUser.adWatchCountToday||0)>=3){ showMiniAlert('오늘 무료 충전 한도(하루 3회)를 모두 초과하였습니다.', [{label:'확인', primary:true}]); closeModal('adModal'); return; }
   const newCount = (currentUser.adWatchCountToday||0)+1;
   socket.emit('profile:update', { adWatchCountToday:newCount, lastAdChargeDate:todayStr, points: currentUser.points+50 }, (res)=>{
-    if (res.success){ currentUser = res.user; saveSession(); updateUserUI(); alert(`쌀 50개가 충전되었습니다. (오늘 충전 횟수: ${newCount}/3)`); closeModal('adModal'); }
+    if (res.success){ currentUser = res.user; saveSession(); updateUserUI(); showMiniAlert(`쌀 50개가 충전되었습니다. (오늘 충전 횟수: ${newCount}/3)`, [{label:'확인', primary:true}]); closeModal('adModal'); }
   });
 };
 document.getElementById('btnCloseAd').onclick = ()=>closeModal('adModal');
