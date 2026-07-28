@@ -25,6 +25,7 @@ let socketToUser = {};
 let userToSocket = {};
 
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+const ONE_DAY = 24 * 60 * 60 * 1000;
 const genId = (p) => `${p}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 const roomIdFor = (a, b) => [a, b].sort().join('_room_');
 
@@ -67,13 +68,18 @@ async function saveRoomMeta(roomId, meta) {
 }
 async function addMessage(roomId, msg) {
   const ref = db.ref(`chats/${roomId}/messages`).push();
+  msg.id = ref.key;
   await ref.set(msg);
+  return msg;
 }
 async function deleteRoom(roomId) {
   await db.ref(`chats/${roomId}`).remove();
 }
-async function setReadAt(roomId, userId, ts) {
-  await db.ref(`chats/${roomId}/readAt/${userId}`).set(ts);
+
+// data URL의 mime 타입을 보고 이미지/동영상을 구분 (video/* 이면 동영상)
+function detectMediaType(dataUrl) {
+  if (!dataUrl) return null;
+  return /^data:video\//.test(dataUrl) ? 'video' : 'image';
 }
 
 // 게시물/댓글에 작성자의 "현재" 닉네임/지역/성별/나이/사진을 실시간으로 붙여주는 함수
@@ -85,15 +91,26 @@ async function enrichPosts(rawPosts) {
     const rawComments = p.comments ? Object.values(p.comments) : [];
     const comments = rawComments.map(c => {
       const cu = users[c.authorId] || {};
-      return { ...c, authorNickname: cu.nickname || '(탈퇴한 사용자)' };
+      return {
+        ...c,
+        authorNickname: cu.nickname || '(탈퇴한 사용자)',
+        authorPhoto: (cu.photos && cu.photos[0]) || '',
+        authorGender: cu.gender || 'female',
+        authorPhotoPosition: cu.photoPosition || null
+      };
     });
+    // viewedBy(조회자별 마지막 조회 시각)는 조회수 집계용 내부 데이터라 클라이언트로는 내려주지 않음
+    const { viewedBy, ...postRest } = p;
     return {
-      ...p,
+      ...postRest,
       authorNickname: author.nickname || '(탈퇴한 사용자)',
       authorRegion: author.region || '',
       authorGender: author.gender || 'female',
       authorAge: author.age || 0,
       authorPhoto: (author.photos && author.photos[0]) || '',
+      authorPhotoPosition: author.photoPosition || null,
+      mediaType: p.photo ? detectMediaType(p.photo) : null,
+      viewCount: p.viewCount || 0,
       comments
     };
   });
@@ -108,6 +125,123 @@ function notifyUser(userId, payload) {
   const sId = userToSocket[userId];
   if (sId) io.to(sId).emit('notify:new', payload);
 }
+
+// ===== 정렬 카테고리 (기본순 / 인기순 / 거리순 / 조회수순) =====
+// 게시글(커뮤니티) 정렬. list는 이미 최신순(기본순)으로 정렬된 상태로 들어온다고 가정.
+function sortPostsByType(list, sortType, myRegion) {
+  switch (sortType) {
+    case 'popular': // 인기순: 좋아요 많은 순
+      return [...list].sort((a, b) => (b.likes || 0) - (a.likes || 0));
+    case 'distance': // 거리순: 같은 지역 우선, 그 안에서는 최신순
+      if (!myRegion) return list;
+      return [...list].sort((a, b) => {
+        const aSame = a.authorRegion === myRegion ? 1 : 0;
+        const bSame = b.authorRegion === myRegion ? 1 : 0;
+        if (aSame !== bSame) return bSame - aSame;
+        return (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt);
+      });
+    case 'views': // 조회수순
+      return [...list].sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
+    default: // 기본순
+      return list;
+  }
+}
+
+// 유저(홈) 정렬
+function sortUsersByType(list, sortType, myRegion) {
+  switch (sortType) {
+    case 'popular': // 인기순: 팔로워 수 + 프로필 공감 수 합산
+      return [...list].sort((a, b) => {
+        const aScore = (a.followerIds ? a.followerIds.length : 0) + (a.profileLikedBy ? a.profileLikedBy.length : 0);
+        const bScore = (b.followerIds ? b.followerIds.length : 0) + (b.profileLikedBy ? b.profileLikedBy.length : 0);
+        return bScore - aScore;
+      });
+    case 'distance': // 거리순: 같은 지역 우선
+      if (!myRegion) return list;
+      return [...list].sort((a, b) => {
+        const aSame = a.region === myRegion ? 1 : 0;
+        const bSame = b.region === myRegion ? 1 : 0;
+        if (aSame !== bSame) return bSame - aSame;
+        return (b.profileUpdatedAt || b.lastSeen || 0) - (a.profileUpdatedAt || a.lastSeen || 0);
+      });
+    case 'views': // 유저 프로필 자체 조회수 데이터는 없어 인기순과 동일 기준으로 처리
+      return sortUsersByType(list, 'popular', myRegion);
+    default:
+      return list;
+  }
+}
+
+// ===== 말벗스토리 랜덤 알고리즘 =====
+// 조회수가 높을수록 노출 가중치가 높아지되, 내가 이미 본 스토리는 가중치를 크게 낮추고
+// 매 호출마다 랜덤값을 곱해 순서를 섞음 -> 아래/좌로 넘겨서 다시 호출할 때마다 다른 순서로 나옴
+function weightedShuffleStories(stories, userId) {
+  const withWeight = stories.map(s => {
+    const viewed = userId && s.viewedBy && s.viewedBy[userId];
+    const viewCount = s.viewCount || 0;
+    let weight = viewCount + 1;
+    if (viewed) weight = weight * 0.15; // 이미 본 스토리는 다시 뜰 확률을 크게 낮춤
+    return { post: s, weight: weight * (0.5 + Math.random()) };
+  });
+  withWeight.sort((a, b) => b.weight - a.weight);
+  return withWeight.map(w => w.post);
+}
+
+// ===== AI 말벗도우미 (매일 1회 자동 게시글 업로드) =====
+const AI_BOT_ID = 'ai_malbeot_bot';
+
+// 실제 유행곡/챌린지명을 그대로 언급하면 저작권 문제가 될 수 있어,
+// 20~30대가 공감할 만한 순화된 일상 문구로 구성함 (필요하면 이 배열만 계속 늘려서 다양화 가능)
+const AI_BOT_POST_TEMPLATES = [
+  '오늘 날씨 완전 산책하기 좋은 날이네요! 다들 오늘 뭐하고 계신가요? 🍃',
+  '요즘 다들 어떤 챌린지 하고 계세요? 저도 하나 배워보고 싶어요 😊',
+  '점심시간! 오늘은 뭐 드셨나요? 저는 든든하게 챙겨 먹었어요 🍚',
+  '주말에 다들 뭐 하실 계획이세요? 저는 재밌는 영상 찾아볼 예정이에요 🎬',
+  '요즘 노래 뭐 듣고 계세요? 플레이리스트 추천 받아요 🎧',
+  '오늘 하루도 다들 힘내세요! 소소한 행복 찾으면서 지내요 ✨',
+  '커피 한 잔의 여유, 다들 즐기고 계신가요? ☕',
+  '요즘 다들 취미 뭐 있으세요? 저도 새로운 취미 만들어보려고요!'
+];
+
+async function ensureAiBotUser() {
+  let bot = await getUser(AI_BOT_ID);
+  if (!bot) {
+    bot = {
+      id: AI_BOT_ID, phone: '', nickname: 'AI 말벗도우미',
+      region: '전체', gender: 'female', age: 99,
+      bio: '매일 소소한 이야기를 전해드리는 AI 말벗도우미예요 :)',
+      photos: [], points: 999999, isOnline: true, lastSeen: Date.now(),
+      blockedUserIds: [], lastPostDate: null, adWatchCountToday: 0,
+      lastAdChargeDate: null, profileUpdatedAt: Date.now(),
+      followingIds: [], followerIds: [], profileLikedBy: []
+    };
+    await saveUser(bot);
+  }
+  return bot;
+}
+
+async function postAsAiBotIfNeeded() {
+  try {
+    const bot = await ensureAiBotUser();
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (bot.lastPostDate === todayStr) return; // 오늘 이미 게시함
+    const text = AI_BOT_POST_TEMPLATES[Math.floor(Math.random() * AI_BOT_POST_TEMPLATES.length)];
+    const post = {
+      id: genId('p'), authorId: bot.id, content: text, photo: '', logType: 'story',
+      createdAt: Date.now(), updatedAt: Date.now(), likes: 0, likedBy: [], comments: {},
+      viewCount: 0, viewedBy: {}
+    };
+    await savePost(post);
+    bot.lastPostDate = todayStr;
+    await saveUser(bot);
+    broadcastPosts();
+    console.log('[AI 말벗도우미] 오늘의 이야기 게시 완료:', text);
+  } catch (e) { console.error('[AI 말벗도우미 게시 오류]', e); }
+}
+
+// 서버 시작 시 1회 체크 + 이후 1시간마다 날짜가 바뀌었는지 체크
+// (무료 호스팅 환경의 sleep을 고려해 별도 cron 라이브러리 없이 setInterval로 처리)
+ensureAiBotUser().then(() => postAsAiBotIfNeeded());
+setInterval(postAsAiBotIfNeeded, 60 * 60 * 1000);
 
 io.on('connection', (socket) => {
 
@@ -129,6 +263,7 @@ io.on('connection', (socket) => {
   // 회원가입 (이미 등록된 번호면 거부)
   socket.on('auth:signup', async (data, cb) => {
     try {
+      if (!/^01[0-9]{9}$/.test(data.phone || '')) return cb({ success: false, message: '휴대폰 번호를 정확히 입력해주세요. (예: 010-0000-0000)' });
       const existing = await findUserByPhone(data.phone);
       if (existing) return cb({ success: false, alreadyExists: true });
       const user = {
@@ -137,7 +272,8 @@ io.on('connection', (socket) => {
         bio: data.bio || '반갑습니다!', photos: data.photos || [], points: 100,
         isOnline: true, lastSeen: Date.now(), blockedUserIds: [],
         lastPostDate: null, adWatchCountToday: 0, lastAdChargeDate: null,
-        profileUpdatedAt: Date.now()
+        profileUpdatedAt: Date.now(),
+        followingIds: [], followerIds: [], profileLikedBy: []
       };
       await saveUser(user);
       socketToUser[socket.id] = user.id;
@@ -167,7 +303,7 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb({ success: false }); }
   });
 
-  // 홈 리스트: 나 자신 포함, 프로필 수정 최신순 정렬
+  // 홈 리스트: 나 자신 포함, filters.sort로 기본순/popular/distance/views 정렬 선택 가능
   socket.on('users:get_list', async (filters, cb) => {
     try {
       const users = await getAllUsers();
@@ -176,10 +312,14 @@ io.on('connection', (socket) => {
       if (filters.gender && filters.gender !== '전체') list = list.filter(u => u.gender === filters.gender);
       list = list.filter(u => u.age >= filters.ageMin && u.age <= filters.ageMax);
       list.sort((a, b) => (b.profileUpdatedAt || b.lastSeen || 0) - (a.profileUpdatedAt || a.lastSeen || 0));
+      const myUserId = socketToUser[socket.id];
+      const myUser = myUserId ? await getUser(myUserId) : null;
+      list = sortUsersByType(list, filters.sort, myUser && myUser.region);
       cb({ success: true, users: list });
     } catch (e) { console.error(e); cb({ success: false, users: [] }); }
   });
 
+  // 커뮤니티 리스트: filters.sort로 기본순/popular/distance/views 정렬 선택 가능
   socket.on('posts:get_list', async (filters, cb) => {
     try {
       const now = Date.now();
@@ -189,8 +329,59 @@ io.on('connection', (socket) => {
       if (filters.gender && filters.gender !== '전체') list = list.filter(p => p.authorGender === filters.gender);
       list = list.filter(p => p.authorAge >= filters.ageMin && p.authorAge <= filters.ageMax);
       list.sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
+      const myUserId = socketToUser[socket.id];
+      const myUser = myUserId ? await getUser(myUserId) : null;
+      list = sortPostsByType(list, filters.sort, myUser && myUser.region);
       cb({ success: true, posts: list });
     } catch (e) { console.error(e); cb({ success: false, posts: [] }); }
+  });
+
+  // 말벗스토리 피드: 조회수 기반 가중치 + 이미 본 스토리 감점 + 랜덤 셔플
+  // 클라이언트에서 아래/좌로 넘길 때마다 이 이벤트를 다시 호출하면 매번 새로운 랜덤 순서를 받게 됨
+  socket.on('stories:get_feed', async (filters, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const now = Date.now();
+      let raw = await getRawPosts();
+      raw = raw.filter(p => p.logType === 'log' && (now - (p.updatedAt || p.createdAt)) < THIRTY_DAYS);
+      const shuffled = weightedShuffleStories(raw, userId);
+      const enriched = await enrichPosts(shuffled);
+      cb({ success: true, stories: enriched });
+    } catch (e) { console.error(e); cb({ success: false, stories: [] }); }
+  });
+
+  // 별명 검색 (홈 화면, 포인트 좌측의 작은 검색창에서 사용) - 부분 문자열 일치, 대소문자/자모 구분 없이 매칭
+  socket.on('users:search', async (data, cb) => {
+    try {
+      const q = ((data && data.query) || '').trim().toLowerCase();
+      if (!q) return cb({ success: true, users: [] });
+      const users = await getAllUsers();
+      const list = Object.values(users).filter(u => (u.nickname || '').toLowerCase().includes(q));
+      cb({ success: true, users: list });
+    } catch (e) { console.error(e); cb({ success: false, users: [] }); }
+  });
+
+  // 커뮤니티 검색: 게시글 본문 + 댓글 내용에서 검색어를 찾음.
+  // matchedCommentIds에 담긴 댓글 id들을 클라이언트에서 최대 3줄까지 파란 강조 박스로 렌더링하면 됨
+  socket.on('posts:search', async (data, cb) => {
+    try {
+      const q = ((data && data.query) || '').trim().toLowerCase();
+      if (!q) return cb({ success: true, results: [] });
+      const list = await enrichPosts(await getRawPosts());
+      const results = [];
+      list.forEach(p => {
+        const contentMatch = (p.content || '').toLowerCase().includes(q);
+        const matchedComments = (p.comments || []).filter(c => (c.content || '').toLowerCase().includes(q));
+        if (contentMatch || matchedComments.length) {
+          results.push({
+            ...p,
+            matchedCommentIds: matchedComments.map(c => c.id).slice(0, 3)
+          });
+        }
+      });
+      results.sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
+      cb({ success: true, results, query: data.query });
+    } catch (e) { console.error(e); cb({ success: false, results: [] }); }
   });
 
   socket.on('posts:create', async (data, cb) => {
@@ -204,8 +395,9 @@ io.on('connection', (socket) => {
       await saveUser(user);
       const post = {
         id: genId('p'), authorId: user.id,
-        content: data.content, photo: data.photo || '',
-        createdAt: Date.now(), updatedAt: Date.now(), likes: 0, likedBy: [], comments: {}
+        content: (data.content || '').slice(0, 100), photo: data.photo || '', logType: data.logType || 'story',
+        createdAt: Date.now(), updatedAt: Date.now(), likes: 0, likedBy: [], comments: {},
+        viewCount: 0, viewedBy: {}
       };
       await savePost(post);
       cb({ success: true, earned, points: user.points });
@@ -218,8 +410,9 @@ io.on('connection', (socket) => {
       const userId = socketToUser[socket.id];
       const post = await getPost(data.id);
       if (!post || post.authorId !== userId) return cb({ success: false });
-      post.content = data.content;
+      post.content = (data.content || '').slice(0, 100);
       post.photo = data.photo || '';
+      post.logType = data.logType || post.logType || 'story';
       post.updatedAt = Date.now();
       await savePost(post);
       cb({ success: true });
@@ -259,6 +452,26 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb({ success: false }); }
   });
 
+  // 말벗스토리(및 게시글) 조회수 등록: 화면 진입/재진입 시점마다 호출되지만,
+  // 같은 사람이 이미 24시간 이내에 조회한 적이 있으면 무시(카운트 증가 안 함) — 24시간당 1인 1회 제한
+  socket.on('posts:view', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      if (!userId) return cb && cb({ success: false });
+      const post = await getPost(data.postId);
+      if (!post) return cb && cb({ success: false });
+      if (!post.viewedBy) post.viewedBy = {};
+      const last = post.viewedBy[userId] || 0;
+      const now = Date.now();
+      if (now - last >= ONE_DAY) {
+        post.viewedBy[userId] = now;
+        post.viewCount = (post.viewCount || 0) + 1;
+        await savePost(post);
+      }
+      cb && cb({ success: true, viewCount: post.viewCount || 0 });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
   socket.on('comments:add', async (data, cb) => {
     try {
       const userId = socketToUser[socket.id];
@@ -287,6 +500,22 @@ io.on('connection', (socket) => {
         notifyUser(post.authorId, { type: 'comment', postId: post.id, text: `${name}님이 게시글에 댓글을 달았습니다` });
       }
     } catch (e) { console.error(e); cb({ success: false }); }
+  });
+
+  socket.on('comments:like', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const post = await getPost(data.postId);
+      const c = post && post.comments && post.comments[data.commentId];
+      if (!c) return cb && cb({ success: false });
+      if (!c.likedBy) c.likedBy = [];
+      const i = c.likedBy.indexOf(userId);
+      if (i !== -1) { c.likedBy.splice(i, 1); c.likes = Math.max(0, (c.likes || 1) - 1); }
+      else { c.likedBy.push(userId); c.likes = (c.likes || 0) + 1; }
+      await savePost(post);
+      cb && cb({ success: true });
+      broadcastPosts();
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
   socket.on('comments:edit', async (data, cb) => {
@@ -332,8 +561,8 @@ io.on('connection', (socket) => {
         const otherId = room.userIds.find(id => id !== userId);
         const targetUser = await getUser(otherId);
         const messages = room.messages ? Object.values(room.messages) : [];
-        const readAt = room.readAt || {};
-        rooms.push({ roomId, targetUser, messages, readAt });
+        const unreadCount = messages.filter(m => m.senderId !== userId && m.senderId !== 'system' && !m.read).length;
+        rooms.push({ roomId, targetUser, messages, unreadCount });
       }
       cb({ success: true, rooms });
     } catch (e) { console.error(e); cb({ success: false, rooms: [] }); }
@@ -358,9 +587,7 @@ io.on('connection', (socket) => {
         await saveRoomMeta(roomId, { roomId, userIds: [user.id, target.id] });
         await addMessage(roomId, { senderId: 'system', text: '대화가 시작되었습니다. (쌀 50개 차감)', timestamp: Date.now() });
       }
-      const msg = { senderId: user.id, text: data.text, timestamp: Date.now() };
-      await addMessage(roomId, msg);
-      await setReadAt(roomId, user.id, Date.now());
+      const msg = await addMessage(roomId, { senderId: user.id, text: data.text, timestamp: Date.now(), read: false });
       cb({ success: true, roomId, points: user.points });
       [user.id, target.id].forEach(uid => {
         const sId = userToSocket[uid];
@@ -370,53 +597,167 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb({ success: false }); }
   });
 
-  socket.on('chat:send_message', async (data, cb) => {
+  socket.on('chat:send_message', async (data) => {
     try {
       const userId = socketToUser[socket.id];
       const room = await getRoom(data.roomId);
-      if (!room || !room.userIds.includes(userId)) return cb && cb({ success: false, message: '대화방을 찾을 수 없습니다.' });
-      const msg = { senderId: userId, text: data.text, timestamp: Date.now() };
-      await addMessage(data.roomId, msg);
-      await setReadAt(data.roomId, userId, msg.timestamp);
+      if (!room || !room.userIds.includes(userId)) return;
+      const msg = await addMessage(data.roomId, { senderId: userId, text: data.text, timestamp: Date.now(), read: false });
       const sender = await getUser(userId);
-      cb && cb({ success: true, message: msg });
       room.userIds.forEach(uid => {
         const sId = userToSocket[uid];
         if (sId) io.to(sId).emit('chat:new_message', { roomId: data.roomId, message: msg, senderNickname: sender && sender.nickname });
       });
-    } catch (e) { console.error(e); cb && cb({ success: false, message: '메시지 전송 중 오류가 발생했습니다.' }); }
+    } catch (e) { console.error(e); }
   });
 
-  socket.on('chat:send_image', async (data, cb) => {
+  socket.on('chat:send_image', async (data) => {
     try {
       const userId = socketToUser[socket.id];
       const room = await getRoom(data.roomId);
-      if (!room || !room.userIds.includes(userId)) return cb && cb({ success: false, message: '대화방을 찾을 수 없습니다.' });
-      if (!data.image) return cb && cb({ success: false, message: '이미지 데이터가 비어 있습니다.' });
-      const msg = { senderId: userId, type: 'image', data: data.image, timestamp: Date.now() };
-      await addMessage(data.roomId, msg);
-      await setReadAt(data.roomId, userId, msg.timestamp);
+      if (!room || !room.userIds.includes(userId)) return;
+      const msg = await addMessage(data.roomId, { senderId: userId, type: 'image', data: data.image, timestamp: Date.now(), read: false });
       const sender = await getUser(userId);
-      cb && cb({ success: true, message: msg });
       room.userIds.forEach(uid => {
         const sId = userToSocket[uid];
         if (sId) io.to(sId).emit('chat:new_message', { roomId: data.roomId, message: msg, senderNickname: sender && sender.nickname });
       });
-    } catch (e) { console.error(e); cb && cb({ success: false, message: '사진 전송 중 오류가 발생했습니다. (용량이 너무 클 수 있어요)' }); }
+    } catch (e) { console.error(e); }
   });
 
-  // 채팅방에 실제로 들어와서 메시지를 읽었을 때만 호출됨 (알림 확인만으로는 호출 안 됨)
-  socket.on('chat:mark_read', async (roomId, cb) => {
+  // 채팅방을 열람하면(=내 채팅창에 들어오면) 상대가 보낸 안읽은 메시지를 모두 읽음 처리
+  socket.on('chat:mark_read', async (data) => {
     try {
       const userId = socketToUser[socket.id];
-      const room = await getRoom(roomId);
-      if (!room || !room.userIds.includes(userId)) return cb && cb({ success: false });
-      const ts = Date.now();
-      await setReadAt(roomId, userId, ts);
-      cb && cb({ success: true, readAt: ts });
-      const otherId = room.userIds.find(id => id !== userId);
-      const sId = userToSocket[otherId];
-      if (sId) io.to(sId).emit('chat:read_update', { roomId, readerId: userId, readAt: ts });
+      const room = await getRoom(data.roomId);
+      if (!room || !room.userIds || !room.userIds.includes(userId)) return;
+      const messages = room.messages || {};
+      const updates = {};
+      Object.keys(messages).forEach(mid => {
+        const m = messages[mid];
+        if (m && m.senderId !== userId && m.senderId !== 'system' && !m.read) {
+          updates[`chats/${data.roomId}/messages/${mid}/read`] = true;
+        }
+      });
+      if (Object.keys(updates).length) {
+        await db.ref().update(updates);
+        const otherId = room.userIds.find(id => id !== userId);
+        const sId = userToSocket[otherId];
+        if (sId) io.to(sId).emit('chat:read_receipt', { roomId: data.roomId });
+      }
+    } catch (e) { console.error(e); }
+  });
+
+  // 팔로우 / 언팔로우 토글 (알림은 발생시키지 않음)
+  socket.on('user:follow', async (targetId, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const user = await getUser(userId);
+      const target = await getUser(targetId);
+      if (!user || !target || userId === targetId) return cb && cb({ success: false });
+      user.followingIds = user.followingIds || [];
+      target.followerIds = target.followerIds || [];
+      const isFollowing = user.followingIds.includes(targetId);
+      if (isFollowing) {
+        user.followingIds = user.followingIds.filter(id => id !== targetId);
+        target.followerIds = target.followerIds.filter(id => id !== userId);
+      } else {
+        user.followingIds.push(targetId);
+        target.followerIds.push(userId);
+      }
+      await saveUser(user);
+      await saveUser(target);
+      cb && cb({ success: true, following: !isFollowing });
+      broadcastUsers();
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 특정 유저를 팔로우하는 사람 목록 (제3자도 조회 가능)
+  socket.on('user:get_followers', async (targetId, cb) => {
+    try {
+      const target = await getUser(targetId);
+      const ids = (target && target.followerIds) || [];
+      const users = await getAllUsers();
+      const list = ids.map(id => users[id]).filter(Boolean);
+      cb && cb({ success: true, users: list });
+    } catch (e) { console.error(e); cb && cb({ success: false, users: [] }); }
+  });
+
+  // 특정 유저가 팔로우하는 사람 목록 (제3자도 조회 가능) - 팔로잉 목록 모달용
+  socket.on('user:get_following', async (targetId, cb) => {
+    try {
+      const target = await getUser(targetId);
+      const ids = (target && target.followingIds) || [];
+      const users = await getAllUsers();
+      const list = ids.map(id => users[id]).filter(Boolean);
+      cb && cb({ success: true, users: list });
+    } catch (e) { console.error(e); cb && cb({ success: false, users: [] }); }
+  });
+
+  // 프로필 공감 토글 (알림은 발생시키지 않음, 제3자도 공감자 목록 조회 가능)
+  socket.on('profile:like', async (targetId, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const target = await getUser(targetId);
+      if (!target || userId === targetId) return cb && cb({ success: false });
+      target.profileLikedBy = target.profileLikedBy || [];
+      const i = target.profileLikedBy.indexOf(userId);
+      let liked = false;
+      if (i !== -1) target.profileLikedBy.splice(i, 1);
+      else { target.profileLikedBy.push(userId); liked = true; }
+      await saveUser(target);
+      cb && cb({ success: true, liked, count: target.profileLikedBy.length });
+      broadcastUsers();
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  socket.on('user:get_profile_likers', async (targetId, cb) => {
+    try {
+      const target = await getUser(targetId);
+      const ids = (target && target.profileLikedBy) || [];
+      const users = await getAllUsers();
+      const list = ids.map(id => users[id]).filter(Boolean);
+      cb && cb({ success: true, users: list });
+    } catch (e) { console.error(e); cb && cb({ success: false, users: [] }); }
+  });
+
+  // 차단한 회원 목록 조회 (프로필 목록처럼 그대로 재사용할 수 있게 유저 객체 배열로 반환)
+  socket.on('user:get_blocked_list', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const user = await getUser(userId);
+      if (!user) return cb({ success: false, users: [] });
+      const ids = user.blockedUserIds || [];
+      const users = await getAllUsers();
+      const list = ids.map(id => users[id]).filter(Boolean);
+      cb({ success: true, users: list });
+    } catch (e) { console.error(e); cb({ success: false, users: [] }); }
+  });
+
+  // 차단 해제
+  socket.on('user:unblock', async (targetId, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const user = await getUser(userId);
+      if (!user) return cb && cb({ success: false });
+      user.blockedUserIds = (user.blockedUserIds || []).filter(id => id !== targetId);
+      await saveUser(user);
+      cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 명시적 로그아웃 (연결은 유지한 채 온라인 상태만 즉시 내려줌)
+  socket.on('auth:logout', async (cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      if (userId) {
+        const user = await getUser(userId);
+        if (user) { user.isOnline = false; user.lastSeen = Date.now(); await saveUser(user); }
+        delete userToSocket[userId];
+        delete socketToUser[socket.id];
+        broadcastUsers();
+      }
+      cb && cb({ success: true });
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
