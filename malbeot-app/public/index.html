@@ -1846,7 +1846,7 @@ function renderCommentItem(p,c,allComments){
             <div style="font-size:13px;margin-top:2px;">${renderCommentContent(r.content)}</div>
             <div style="margin-top:4px;display:flex;gap:10px;align-items:center;">
               <button class="post-action-btn" onclick="toggleLikeComment('${p.id}','${r.id}')"><i class="fa-regular fa-heart"></i> ${(r.likes||0)}</button>
-              ${rMine?`<button class="post-action-btn" onclick="editComment('${p.id}','${r.id}')">수정</button><button class="post-action-btn" onclick="deleteComment('${p.id}','${r.id}')">삭제</button>`:''}
+              ${rMine?`<button class="post-action-btn" onclick="editComment('${p.id}','${r.id}')">수정</button><button class="post-action-btn" onclick="deleteComment('${p.id}','${r.id}')">삭제</button>`:(currentUser&&currentUser.isAdmin?`<button class="post-action-btn" style="color:var(--danger);" onclick="deleteComment('${p.id}','${r.id}')">삭제(관리자)</button>`:'')}
             </div>
           </div>
       </div>
@@ -1865,7 +1865,7 @@ function renderCommentItem(p,c,allComments){
           <div style="margin-top:4px;display:flex;gap:10px;align-items:center;">
             <button class="post-action-btn" onclick="toggleLikeComment('${p.id}','${c.id}')"><i class="fa-regular fa-heart"></i> ${(c.likes||0)}</button>
             <button class="post-action-btn" onclick="showReplyInput('${p.id}','${c.id}','${(c.authorNickname||'').replace(/'/g,"\\'")}')">답글달기</button>
-            ${isMine?`<button class="post-action-btn" onclick="editComment('${p.id}','${c.id}')">수정</button><button class="post-action-btn" onclick="deleteComment('${p.id}','${c.id}')">삭제</button>`:''}
+            ${isMine?`<button class="post-action-btn" onclick="editComment('${p.id}','${c.id}')">수정</button><button class="post-action-btn" onclick="deleteComment('${p.id}','${c.id}')">삭제</button>`:(currentUser&&currentUser.isAdmin?`<button class="post-action-btn" style="color:var(--danger);" onclick="deleteComment('${p.id}','${c.id}')">삭제(관리자)</button>`:'')}
           </div>
         </div>
       </div>
@@ -1912,13 +1912,15 @@ function openPostDetailMenu(){ if (currentPostCache) openPostMenuGeneric(current
 // 내가 쓴 글이면 수정/삭제, 남이 쓴 글이면 차단/신고 메뉴로 분기 (커뮤니티 목록의 점3개, 상세화면의 점3개 공통 사용)
 function openPostMenuGeneric(p){
   if (!p) return;
-  if (currentUser && p.authorId===currentUser.id){
+  const isOwner = currentUser && p.authorId===currentUser.id;
+  const isAdmin = currentUser && currentUser.isAdmin;
+  if (isOwner || isAdmin){
     document.getElementById('reportBackBtn').classList.add('hidden');
     document.getElementById('reportConfirmButtons').classList.add('hidden');
     document.getElementById('reportCategoryModalTitle').textContent = '설정';
     document.getElementById('reportCategoryList').innerHTML = `
-      <div class="category-item" onclick="closeModal('reportCategoryModal');openComposeScreenForEdit(${JSON.stringify(p).replace(/"/g,'&quot;')})"><i class="fa-solid fa-pen"></i> 수정하기</div>
-      <div class="category-item" style="color:var(--danger);" onclick="confirmDeletePostFully('${p.id}')"><i class="fa-solid fa-trash-can"></i> 삭제하기</div>
+      ${isOwner ? `<div class="category-item" onclick="closeModal('reportCategoryModal');openComposeScreenForEdit(${JSON.stringify(p).replace(/"/g,'&quot;')})"><i class="fa-solid fa-pen"></i> 수정하기</div>` : ''}
+      <div class="category-item" style="color:var(--danger);" onclick="confirmDeletePostFully('${p.id}')"><i class="fa-solid fa-trash-can"></i> 삭제하기${isAdmin && !isOwner ? ' (관리자)' : ''}</div>
       <div class="category-item" style="text-align:center;color:var(--text-muted);" onclick="closeModal('reportCategoryModal')">취소</div>`;
     openModal('reportCategoryModal');
   } else {

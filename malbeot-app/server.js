@@ -283,6 +283,12 @@ async function postAsAiBotIfNeeded() {
 ensureAiBotUser().then(() => postAsAiBotIfNeeded());
 setInterval(postAsAiBotIfNeeded, 60 * 60 * 1000);
 
+// 관리자 전화번호 목록. Render/​.env의 ADMIN_PHONES에 "01012345678,01099998888"처럼
+// 콤마로 구분해서 등록해두면, 그 번호로 로그인한 사람은 커뮤니티 글/댓글을 누구 것이든
+// 삭제할 수 있게 됨 (신고 시스템과 별개로 즉시 삭제 가능한 권한).
+const ADMIN_PHONES = (process.env.ADMIN_PHONES || '').split(',').map(s => s.trim()).filter(Boolean);
+function isAdminPhone(phone) { return !!phone && ADMIN_PHONES.includes(phone); }
+
 io.on('connection', (socket) => {
 
   // 전화번호만으로 로그인 (세션 자동복구 + "로그인" 버튼 둘 다 이걸 씀)
@@ -295,7 +301,7 @@ io.on('connection', (socket) => {
       await saveUser(user);
       socketToUser[socket.id] = user.id;
       userToSocket[user.id] = socket.id;
-      cb({ success: true, user });
+      cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) } });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -318,7 +324,7 @@ io.on('connection', (socket) => {
       await saveUser(user);
       socketToUser[socket.id] = user.id;
       userToSocket[user.id] = socket.id;
-      cb({ success: true, user });
+      cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) } });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -338,7 +344,7 @@ io.on('connection', (socket) => {
       if (!user) return cb({ success: false });
       Object.assign(user, data, { profileUpdatedAt: Date.now() });
       await saveUser(user);
-      cb({ success: true, user });
+      cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) } });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -471,7 +477,10 @@ io.on('connection', (socket) => {
     try {
       const userId = socketToUser[socket.id];
       const post = await getPost(data.id);
-      if (!post || post.authorId !== userId) return cb({ success: false });
+      if (!post) return cb({ success: false });
+      const requester = await getUser(userId);
+      const admin = requester && isAdminPhone(requester.phone);
+      if (post.authorId !== userId && !admin) return cb({ success: false });
       await deletePostDb(data.id);
       cb({ success: true });
       broadcastPosts();
@@ -585,7 +594,10 @@ io.on('connection', (socket) => {
       const post = await getPost(data.postId);
       if (!post || !post.comments) return cb({ success: false });
       const c = post.comments[data.commentId];
-      if (!c || c.authorId !== userId) return cb({ success: false });
+      if (!c) return cb({ success: false });
+      const requester = await getUser(userId);
+      const admin = requester && isAdminPhone(requester.phone);
+      if (c.authorId !== userId && !admin) return cb({ success: false });
       delete post.comments[data.commentId];
       Object.keys(post.comments).forEach(cid => {
         if (post.comments[cid].parentId === data.commentId) delete post.comments[cid];
