@@ -21,9 +21,13 @@
   --chat-bg:#eaf3fb; --chat-mine:#ffe066;
 }
 *{box-sizing:border-box;margin:0;padding:0;font-family:var(--font-main);}
-body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:center;align-items:center;min-height:100vh;font-size:14px;}
-.app-container{width:100%;max-width:480px;height:100vh;max-height:900px;background:#fff;display:flex;flex-direction:column;position:relative;box-shadow:var(--shadow-lg);overflow:hidden;}
-@media (min-width:500px){.app-container{border-radius:24px;height:92vh;}}
+/* 모바일 브라우저의 100vh는 주소창 높이까지 포함해 실제 화면보다 커지는 경우가 있어,
+   그로 인해 상단/하단 고정 영역이 스크롤 전엔 화면 밖으로 밀려 보이던 문제가 있었음.
+   html/body를 고정(overflow:hidden)하고 100dvh(동적 뷰포트 높이)를 우선 사용하도록 수정. */
+html,body{height:100%;overflow:hidden;position:fixed;width:100%;overscroll-behavior:none;}
+body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:center;align-items:center;min-height:100vh;min-height:100dvh;font-size:14px;}
+.app-container{width:100%;max-width:480px;height:100vh;height:100dvh;max-height:900px;background:#fff;display:flex;flex-direction:column;position:relative;box-shadow:var(--shadow-lg);overflow:hidden;}
+@media (min-width:500px){.app-container{border-radius:24px;height:92vh;height:92dvh;}}
 
 #splashScreen{position:fixed;inset:0;background:#fff;z-index:99999;display:flex;align-items:center;justify-content:center;transition:opacity .4s ease;}
 #splashScreen.fade-out{opacity:0;pointer-events:none;}
@@ -268,9 +272,6 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
 .community-subtab-btn{flex:1;padding:9px 0;text-align:center;font-size:12px;font-weight:700;color:var(--text-muted);background:var(--bg-subtle);border-radius:8px;cursor:pointer;border:none;}
 .community-subtab-btn.active{background:var(--primary);color:#fff;}
 </style>
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
 </head>
 <body>
 
@@ -764,6 +765,14 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <div><div class="sli-label">알림 허용</div><div class="sli-sub">새 메시지·댓글·공감 알림을 받습니다</div></div>
         <div class="toggle-switch" id="toggleNotify" onclick="toggleSetting('notificationsEnabled')"><div class="knob"></div></div>
       </div>
+      <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
+        <div style="margin-bottom:8px;"><div class="sli-label">키워드 알림</div><div class="sli-sub">등록한 단어가 포함된 글이 새로 등록되거나 수정되면 알림을 받습니다</div></div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="keywordInput" placeholder="예: 공부" maxlength="20" style="flex:1;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;outline:none;background:var(--bg-subtle);color:var(--text-main);font-size:13px;">
+          <button class="btn btn-secondary" style="padding:8px 14px;font-size:13px;" onclick="addNotifyKeyword()">추가</button>
+        </div>
+        <div id="keywordTagList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;"></div>
+      </div>
 
       <div class="settings-section-title">계정</div>
       <div class="settings-list-item" onclick="triggerLogout()">
@@ -833,7 +842,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
   <div id="chatModal" class="modal-overlay">
     <div class="modal-card chat-window-card" style="height:88vh;">
       <div class="chat-header-row">
-        <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="document.getElementById('chatModal').classList.remove('active')"><i class="fa-solid fa-arrow-left"></i></button>
+        <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeChatModal()"><i class="fa-solid fa-arrow-left"></i></button>
         <img id="chatHeaderAvatar" class="chat-header-avatar" src="" alt="" style="cursor:pointer;" onclick="openProfileFromChatHeader()">
         <div class="chat-header-nick" id="chatTargetName" style="cursor:pointer;" onclick="openProfileFromChatHeader()">말벗</div>
         <div style="margin-left:auto;display:flex;gap:4px;">
@@ -947,7 +956,7 @@ function closeTopmostScreen(){
   if (isActive('reportCategoryModal')) return closeModal('reportCategoryModal');
   if (isActive('blockReportModal')) return closeModal('blockReportModal');
   if (isActive('adModal')) return closeModal('adModal');
-  if (isActive('chatModal')) return closeModal('chatModal');
+  if (isActive('chatModal')) return closeChatModal();
   if (isActive('loginModal')) { closeModal('loginModal'); return openModal('landingScreen'); }
   if (isActive('authModal')) { closeModal('authModal'); return openModal('landingScreen'); }
   if (isActive('messageComposeScreen')) return closeFullScreen('messageComposeScreen');
@@ -1193,8 +1202,8 @@ socket.on('chat:read_receipt', ({roomId})=>{
 });
 socket.on('notify:new', (n)=>{
   if (!getEffectiveSettings().notificationsEnabled) return;
-  showNotifyBanner({ body: n.text });
-  if (document.hidden) showOsNotification('말벗', n.text || '');
+  showNotifyBanner({ title: n.title, body: n.body || n.text });
+  if (document.hidden) showOsNotification(n.title || '말벗', n.body || n.text || '');
 });
 socket.on('chat:ended_notify', ({roomId})=>{
   if (activeRoomId === roomId) appendChatBubble({senderId:'system', text:'상대방이 대화를 종료하였습니다.', timestamp:Date.now()});
@@ -1656,7 +1665,13 @@ function buildMatchedCommentsHtml(p, q){
 function renderPosts(list){
   communityPostsCache = list || [];
   const c = document.getElementById('communityPostList'); c.innerHTML='';
-  if (!list || !list.length){ c.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">등록된 이야기가 아직 없습니다.</div>`; return; }
+  if (!list || !list.length){
+    const emptyMsg = activeSearchQuery
+      ? `'${escapeHtml(activeSearchQuery)}'에 해당하는 글이 없습니다.`
+      : '등록된 이야기가 아직 없습니다.';
+    c.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">${emptyMsg}</div>`;
+    return;
+  }
   list.forEach(p=>{
     const liked = currentUser && (p.likedBy||[]).includes(currentUser.id);
     const div = document.createElement('div'); div.className='post-row';
@@ -2143,7 +2158,7 @@ function handleBlockAction(){
   let targetId = blockReportContext.id;
   if (blockReportContext.type==='post' && currentPostCache) targetId = currentPostCache.authorId;
   socket.emit('user:block', targetId, ()=>{
-    if (blockReportContext.type==='chat'){ closeModal('chatModal'); loadChatRoomList(); }
+    if (blockReportContext.type==='chat'){ closeChatModal(); loadChatRoomList(); }
     showMiniAlert('해당 사용자를 차단했습니다.', [{label:'확인', primary:true}]);
   });
 }
@@ -2248,9 +2263,17 @@ function openChatModal(roomId, target, messages){
   openModal('chatModal');
   socket.emit('chat:mark_read', {roomId});
 }
+// 채팅방을 나갈 때는 반드시 이 함수를 사용해야 함.
+// activeRoomId를 초기화하지 않으면 홈 등 다른 화면에 있어도 해당 방의 새 메시지가
+// "채팅방을 보고 있는 중"으로 착각되어 알림 배너 없이 자동으로 읽음 처리되는 문제가 있었음.
+function closeChatModal(){
+  closeModal('chatModal');
+  activeRoomId = null;
+  activeChatTargetId = null;
+}
 function openProfileFromChatHeader(){
   if (!activeChatTargetId) return;
-  closeModal('chatModal');
+  closeChatModal();
   openProfileDetailScreen(activeChatTargetId);
 }
 function appendChatBubble(m, checkDate=true){
@@ -2273,11 +2296,19 @@ function appendChatBubble(m, checkDate=true){
   area.appendChild(row);
   area.scrollTop = area.scrollHeight;
 }
-document.getElementById('btnSendMsg').onclick = ()=>{
-  const text = document.getElementById('chatInputText').value.trim();
+// 버튼을 탭하면 입력창(input)이 포커스를 잃으면서(blur) 모바일 키보드가 내려가는 것이 기본 동작이라,
+// mousedown/touchstart 시점에 preventDefault로 포커스 이동 자체를 막아 카톡처럼 키보드가 유지되도록 함.
+const btnSendMsgEl = document.getElementById('btnSendMsg');
+const chatInputTextEl = document.getElementById('chatInputText');
+['mousedown','touchstart'].forEach(evt=>{
+  btnSendMsgEl.addEventListener(evt, (e)=>{ e.preventDefault(); }, {passive:false});
+});
+btnSendMsgEl.onclick = ()=>{
+  const text = chatInputTextEl.value.trim();
   if (!text || !activeRoomId) return;
   socket.emit('chat:send_message', {roomId:activeRoomId, text});
-  document.getElementById('chatInputText').value='';
+  chatInputTextEl.value='';
+  chatInputTextEl.focus();
 };
 document.getElementById('chatInputText').addEventListener('keydown', (e)=>{
   if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); document.getElementById('btnSendMsg').click(); }
@@ -2291,7 +2322,7 @@ async function handleChatImageUpload(e){
 function triggerExitChat(){
   showMiniAlert('정말로 대화를 종료하시겠어요?', [
     {label:'아니오', primary:false},
-    {label:'네', primary:true, onClick:()=>{ socket.emit('chat:end', activeRoomId, ()=>{ closeModal('chatModal'); loadChatRoomList(); }); }}
+    {label:'네', primary:true, onClick:()=>{ socket.emit('chat:end', activeRoomId, ()=>{ closeChatModal(); loadChatRoomList(); }); }}
   ]);
 }
 
@@ -2393,7 +2424,38 @@ function openSettingsScreen(){
   document.getElementById('fontSizeInput').value = settingsDraft.fontSize;
   document.getElementById('fontFamilySelect').value = settingsDraft.fontFamily;
   document.getElementById('blockedCountLabel').textContent = (currentUser && currentUser.blockedUserIds ? currentUser.blockedUserIds.length : 0) + '명';
+  renderKeywordTags();
   openFullScreen('settingsScreen');
+}
+/* ===================== 키워드 알림 ===================== */
+// notifyKeywords는 서버(내 프로필)에 저장되어, 다른 사람이 글을 등록/수정할 때 서버가 비교해서 알림을 보내줌
+function renderKeywordTags(){
+  const wrap = document.getElementById('keywordTagList');
+  const keywords = (currentUser && currentUser.notifyKeywords) || [];
+  if (!keywords.length){ wrap.innerHTML = `<span style="font-size:12px;color:var(--text-muted);">등록된 키워드가 없습니다.</span>`; return; }
+  wrap.innerHTML = keywords.map(k => `
+    <span style="display:flex;align-items:center;gap:6px;background:var(--primary-light);color:var(--primary);padding:5px 10px;border-radius:var(--radius-full);font-size:12px;font-weight:600;">
+      ${escapeHtml(k)}
+      <i class="fa-solid fa-xmark" style="cursor:pointer;" onclick="removeNotifyKeyword('${encodeURIComponent(k)}')"></i>
+    </span>`).join('');
+}
+function addNotifyKeyword(){
+  const input = document.getElementById('keywordInput');
+  const kw = input.value.trim();
+  if (!kw) return;
+  const current = (currentUser.notifyKeywords || []);
+  if (current.includes(kw)){ input.value=''; return; }
+  const updated = [...current, kw];
+  socket.emit('profile:update', { notifyKeywords: updated }, (res)=>{
+    if (res.success){ currentUser = res.user; saveSession(); input.value=''; renderKeywordTags(); }
+  });
+}
+function removeNotifyKeyword(encoded){
+  const kw = decodeURIComponent(encoded);
+  const updated = (currentUser.notifyKeywords || []).filter(k => k !== kw);
+  socket.emit('profile:update', { notifyKeywords: updated }, (res)=>{
+    if (res.success){ currentUser = res.user; saveSession(); renderKeywordTags(); }
+  });
 }
 function toggleSetting(key){
   settingsDraft[key] = !settingsDraft[key];

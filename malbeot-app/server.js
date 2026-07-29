@@ -126,6 +126,39 @@ function notifyUser(userId, payload) {
   if (sId) io.to(sId).emit('notify:new', payload);
 }
 
+// 내가 팔로우하는 사람이 새 글/스토리를 올리면 팔로워 전원에게 알림
+// action: '작성' (새 글) 또는 '수정' (기존 글 수정)
+async function notifyFollowersNewPost(author, post, action) {
+  try {
+    const followerIds = author.followerIds || [];
+    if (!followerIds.length) return;
+    const name = author.nickname || '누군가';
+    const body = action === '수정' ? '게시글을 수정하였습니다' : '새로운 글을 작성하였습니다';
+    followerIds.forEach(fid => {
+      notifyUser(fid, { type: 'follow_post', postId: post.id, title: name, body });
+    });
+  } catch (e) { console.error('[팔로우 알림 오류]', e); }
+}
+
+// 각 유저가 등록해둔 키워드(notifyKeywords)가 게시글 내용에 포함되면 해당 유저에게 알림
+// action: '등록' 또는 '수정'
+async function notifyKeywordMatches(post, authorId, action) {
+  try {
+    const author = await getUser(authorId);
+    const authorName = (author && author.nickname) || '누군가';
+    const users = await getAllUsers();
+    const content = post.content || '';
+    Object.values(users).forEach(u => {
+      if (!u || u.id === authorId) return;
+      const keywords = u.notifyKeywords || [];
+      const matched = keywords.find(k => k && content.includes(k));
+      if (matched) {
+        notifyUser(u.id, { type: 'keyword', postId: post.id, title: authorName, body: `'${matched}' 키워드가 포함된 글이 ${action}되었습니다` });
+      }
+    });
+  } catch (e) { console.error('[키워드 알림 오류]', e); }
+}
+
 // ===== 정렬 카테고리 (기본순 / 인기순 / 거리순 / 조회수순) =====
 // 게시글(커뮤니티) 정렬. list는 이미 최신순(기본순)으로 정렬된 상태로 들어온다고 가정.
 function sortPostsByType(list, sortType, myRegion) {
@@ -212,7 +245,7 @@ async function ensureAiBotUser() {
       photos: [], points: 999999, isOnline: true, lastSeen: Date.now(),
       blockedUserIds: [], lastPostDate: null, adWatchCountToday: 0,
       lastAdChargeDate: null, profileUpdatedAt: Date.now(),
-      followingIds: [], followerIds: [], profileLikedBy: []
+      followingIds: [], followerIds: [], profileLikedBy: [], notifyKeywords: []
     };
     await saveUser(bot);
   }
@@ -234,6 +267,8 @@ async function postAsAiBotIfNeeded() {
     bot.lastPostDate = todayStr;
     await saveUser(bot);
     broadcastPosts();
+    notifyFollowersNewPost(bot, post, '작성');
+    notifyKeywordMatches(post, bot.id, '등록');
     console.log('[AI 말벗도우미] 오늘의 이야기 게시 완료:', text);
   } catch (e) { console.error('[AI 말벗도우미 게시 오류]', e); }
 }
@@ -273,7 +308,7 @@ io.on('connection', (socket) => {
         isOnline: true, lastSeen: Date.now(), blockedUserIds: [],
         lastPostDate: null, adWatchCountToday: 0, lastAdChargeDate: null,
         profileUpdatedAt: Date.now(),
-        followingIds: [], followerIds: [], profileLikedBy: []
+        followingIds: [], followerIds: [], profileLikedBy: [], notifyKeywords: []
       };
       await saveUser(user);
       socketToUser[socket.id] = user.id;
@@ -402,6 +437,9 @@ io.on('connection', (socket) => {
       await savePost(post);
       cb({ success: true, earned, points: user.points });
       broadcastPosts();
+      // 팔로워에게 새 글/스토리 알림 + 키워드 알림 등록 유저에게 알림
+      notifyFollowersNewPost(user, post, '작성');
+      notifyKeywordMatches(post, user.id, '등록');
     } catch (e) { console.error(e); cb({ success: false }); }
   });
 
@@ -417,6 +455,10 @@ io.on('connection', (socket) => {
       await savePost(post);
       cb({ success: true });
       broadcastPosts();
+      // 수정된 글도 키워드 알림 대상 + 팔로워 알림 대상에 포함
+      const author = await getUser(userId);
+      if (author) notifyFollowersNewPost(author, post, '수정');
+      notifyKeywordMatches(post, userId, '수정');
     } catch (e) { console.error(e); cb({ success: false }); }
   });
 
@@ -447,7 +489,7 @@ io.on('connection', (socket) => {
       if (liked && post.authorId && post.authorId !== userId) {
         const liker = await getUser(userId);
         const name = (liker && liker.nickname) || '누군가';
-        notifyUser(post.authorId, { type: 'like', postId: post.id, text: `${name}님이 게시글에 공감하였습니다` });
+        notifyUser(post.authorId, { type: 'like', postId: post.id, title: name, body: '게시글에 공감하였습니다' });
       }
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -494,10 +536,10 @@ io.on('connection', (socket) => {
       const name = (commenter && commenter.nickname) || '누군가';
       if (parentComment) {
         if (parentComment.authorId && parentComment.authorId !== userId) {
-          notifyUser(parentComment.authorId, { type: 'reply', postId: post.id, text: `${name}님이 내 댓글에 답글을 달았습니다` });
+          notifyUser(parentComment.authorId, { type: 'reply', postId: post.id, title: name, body: '내 댓글에 답글을 달았습니다' });
         }
       } else if (post.authorId && post.authorId !== userId) {
-        notifyUser(post.authorId, { type: 'comment', postId: post.id, text: `${name}님이 게시글에 댓글을 달았습니다` });
+        notifyUser(post.authorId, { type: 'comment', postId: post.id, title: name, body: '게시글에 댓글을 달았습니다' });
       }
     } catch (e) { console.error(e); cb({ success: false }); }
   });
