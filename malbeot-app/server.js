@@ -15,7 +15,12 @@ const db = admin.database();
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 1.5e7 });
+app.use(express.json()); // /api/reports 같은 REST 라우트가 req.body를 읽으려면 필요함 (신고 시스템 추가하며 필요해짐)
 app.use(express.static(path.join(__dirname, 'public')));
+
+// 신고 시스템 (메시지 신고 접수 + 관리자 조회/처리)
+const reportsRouter = require('./reports');
+app.use('/api/reports', reportsRouter);
 
 // 상시 구동 확인용 헬스체크 엔드포인트 (UptimeRobot 등 외부 핑 서비스로 주기적으로 호출하면
 // 호스팅 서비스가 무접속 상태에서 슬립 모드로 전환되는 것을 막는 데 사용할 수 있음)

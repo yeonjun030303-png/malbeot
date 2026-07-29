@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>신고 관리</title>
+<style>
+  body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 0 16px; }
+  .report { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+  .report .meta { color: #666; font-size: 13px; margin-bottom: 8px; }
+  .report .content { background: #f7f7f7; padding: 8px; border-radius: 4px; margin-bottom: 8px; white-space: pre-wrap; }
+  button { margin-right: 8px; padding: 6px 12px; cursor: pointer; }
+  .delete-btn { background: #e74c3c; color: white; border: none; border-radius: 4px; }
+  .dismiss-btn { background: #ccc; border: none; border-radius: 4px; }
+  #keyInput { padding: 8px; width: 300px; }
+</style>
+</head>
+<body>
+  <h1>신고 목록</h1>
+
+  <div>
+    <input type="password" id="keyInput" placeholder="관리자 키(ADMIN_SECRET_KEY) 입력">
+    <button onclick="loadReports()">불러오기</button>
+  </div>
+  <div id="reportList" style="margin-top:20px;"></div>
+
+<script>
+function getAdminKey() {
+  return document.getElementById('keyInput').value;
+}
+
+async function loadReports() {
+  const key = getAdminKey();
+  const res = await fetch('/api/reports/admin/list', {
+    headers: { 'x-admin-key': key }
+  });
+  const data = await res.json();
+
+  const listEl = document.getElementById('reportList');
+  if (!data.reports) {
+    listEl.innerHTML = '<p>불러오기 실패 (관리자 키를 확인하세요)</p>';
+    return;
+  }
+  if (data.reports.length === 0) {
+    listEl.innerHTML = '<p>대기 중인 신고가 없습니다.</p>';
+    return;
+  }
+
+  listEl.innerHTML = data.reports.map(r => `
+    <div class="report">
+      <div class="meta">채팅방: ${r.chatRoomId} | 사유: ${r.reason} | 신고자: ${r.reporterUid}</div>
+      <div class="content">${r.messageContent || '(내용 없음)'}</div>
+      <button class="delete-btn" onclick="resolveReport('${r.id}', 'delete')">메시지 삭제</button>
+      <button class="dismiss-btn" onclick="resolveReport('${r.id}', 'dismiss')">신고 기각</button>
+    </div>
+  `).join('');
+}
+
+async function resolveReport(reportId, action) {
+  const key = getAdminKey();
+  const res = await fetch('/api/reports/admin/resolve/' + reportId, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-key': key },
+    body: JSON.stringify({ action })
+  });
+  const data = await res.json();
+  if (data.success) {
+    loadReports();
+  } else {
+    alert('처리 실패: ' + (data.error || ''));
+  }
+}
+</script>
+</body>
+</html>

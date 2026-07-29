@@ -272,6 +272,9 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
 .community-subtab-btn{flex:1;padding:9px 0;text-align:center;font-size:12px;font-weight:700;color:var(--text-muted);background:var(--bg-subtle);border-radius:8px;cursor:pointer;border:none;}
 .community-subtab-btn.active{background:var(--primary);color:#fff;}
 </style>
+<meta name="google-adsense-account" content="ca-pub-2924727183101850">
+<!-- 애드센스: 사이트 소유 확인 및 자동 광고용 스크립트. 실제 광고 노출은 실 도메인 배포 + 심사 승인 후 시작됨 -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2924727183101850" crossorigin="anonymous"></script>
 </head>
 <body>
 
@@ -2292,6 +2295,15 @@ function appendChatBubble(m, checkDate=true){
   const timeRow = document.createElement('div'); timeRow.className='msg-time-row';
   if (m.timestamp){ const t=document.createElement('span'); t.className='msg-time'; t.textContent=formatClockTime(m.timestamp); timeRow.appendChild(t); }
   if (isMine){ const st=document.createElement('span'); st.className='msg-status'; st.textContent = m.read?'읽음':'전송됨'; timeRow.appendChild(st); }
+  else if (m.id && activeRoomId && currentUser){
+    // 상대방 메시지에만 신고 버튼 노출 (report-button.js의 reportMessage 함수 사용)
+    const rpt = document.createElement('span');
+    rpt.textContent = '🚨';
+    rpt.title = '신고';
+    rpt.style.cssText = 'cursor:pointer;margin-left:6px;opacity:0.6;font-size:11px;';
+    rpt.onclick = ()=> reportMessage(activeRoomId, m.id, currentUser.id, m.type==='image' ? '(이미지)' : (m.text||''));
+    timeRow.appendChild(rpt);
+  }
   row.appendChild(timeRow);
   area.appendChild(row);
   area.scrollTop = area.scrollHeight;
@@ -2538,5 +2550,7 @@ function triggerLogout(){
   ]);
 }
 </script>
+<script src="/report-button.js"></script>
+<script src="/iap-client.js"></script>
 </body>
 </html>
