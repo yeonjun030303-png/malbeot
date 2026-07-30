@@ -4,22 +4,8 @@ const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
 const admin = require('firebase-admin');
-const nodemailer = require('nodemailer');
-
-// ===== 문의하기(이메일) 발송용 SMTP 설정 =====
-// 아래 4개 환경변수를 .env에 채워 넣어야 실제 발송이 됩니다.
-// (테스트용 발신/접수 계정: yeonjun030303@gmail.com)
-// SUPPORT_SMTP_HOST=smtp.gmail.com
-// SUPPORT_SMTP_PORT=465
-// SUPPORT_SMTP_USER=yeonjun030303@gmail.com
-// SUPPORT_SMTP_PASS=구글 앱 비밀번호 (일반 로그인 비번 아님, 아래 안내 참고)
-const supportMailConfigured = !!(process.env.SUPPORT_SMTP_HOST && process.env.SUPPORT_SMTP_USER && process.env.SUPPORT_SMTP_PASS);
-const supportMailTransporter = supportMailConfigured ? nodemailer.createTransport({
-  host: process.env.SUPPORT_SMTP_HOST,
-  port: parseInt(process.env.SUPPORT_SMTP_PORT || '465', 10),
-  secure: parseInt(process.env.SUPPORT_SMTP_PORT || '465', 10) === 465,
-  auth: { user: process.env.SUPPORT_SMTP_USER, pass: process.env.SUPPORT_SMTP_PASS }
-}) : null;
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({
@@ -30,7 +16,13 @@ const db = admin.database();
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' }, maxHttpBufferSize: 1.5e7 });
+// CORS: .env에 ALLOWED_ORIGIN(예: https://본인도메인)을 설정하면 그 주소에서만 접속을 허용함.
+// 설정 안 하면 개발 편의를 위해 전체 허용('*')으로 동작하되 경고를 남김 - 배포 전에 반드시 설정 권장.
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
+if (!process.env.ALLOWED_ORIGIN) {
+  console.warn('[경고] ALLOWED_ORIGIN이 .env에 설정되어 있지 않아 모든 출처(*)를 허용합니다. 배포 시 실제 도메인으로 제한하는 것을 권장합니다.');
+}
+const io = new Server(server, { cors: { origin: ALLOWED_ORIGIN }, maxHttpBufferSize: 1.5e7 });
 app.use(express.json()); // /api/reports 같은 REST 라우트가 req.body를 읽으려면 필요함 (신고 시스템 추가하며 필요해짐)
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -45,10 +37,123 @@ app.get('/health', (req, res) => res.status(200).send('ok'));
 let socketToUser = {};
 let userToSocket = {};
 
+/* =====================================================================
+   RevenueCat 웹훅 (구글 플레이/애플 앱스토어 인앱결제 완료 알림 수신)
+   - RevenueCat 대시보드 > Project Settings > Integrations > Webhooks 에서
+     이 서버의 주소(예: https://본인도메인/api/revenuecat-webhook)를 등록하고,
+     "Authorization header value"에 아래 REVENUECAT_WEBHOOK_SECRET과 같은 값을 넣어야 함.
+   - app_user_id는 클라이언트(iap-client.js)에서 Purchases.logIn(유저id)로 반드시
+     연결되어 있어야, 여기서 어느 유저에게 쌀을 지급할지 알 수 있음.
+   - 상품 ID(product_id)는 Play Console/App Store Connect에 등록한 ID와
+     정확히 같아야 하며, points.html 등에서 쓰던 것과 동일하게 맞춰둠.
+===================================================================== */
+const POINTS_BY_PRODUCT = {
+  points_1000: 1100, // 1000 + 10% 보너스
+  points_3000: 3600, // 3000 + 20% 보너스
+  points_5000: 6750  // 5000 + 35% 보너스
+};
+
+app.post('/api/revenuecat-webhook', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'] || '';
+    if (!process.env.REVENUECAT_WEBHOOK_SECRET || authHeader !== `Bearer ${process.env.REVENUECAT_WEBHOOK_SECRET}`) {
+      console.warn('[RevenueCat 웹훅] 인증 실패 - REVENUECAT_WEBHOOK_SECRET 설정을 확인하세요.');
+      return res.status(403).send('forbidden');
+    }
+    const event = req.body && req.body.event;
+    if (!event) return res.status(400).send('no event');
+
+    // 구매/갱신 이벤트만 포인트 지급 대상. 환불(CANCELLATION 등)은 별도 처리하지 않고 로그만 남김
+    // (환불정책상 이미 지급된 쌀 회수는 관리자가 수동 확인하도록 남겨둠)
+    if (event.type !== 'INITIAL_PURCHASE' && event.type !== 'NON_RENEWING_PURCHASE' && event.type !== 'RENEWAL') {
+      console.log('[RevenueCat 웹훅] 처리 대상 아닌 이벤트:', event.type);
+      return res.status(200).send('ignored');
+    }
+
+    // 이벤트 중복 처리 방지 (RevenueCat이 같은 이벤트를 재전송할 수 있음)
+    const eventId = event.id;
+    if (eventId) {
+      const already = await db.ref(`processedPurchaseEvents/${eventId}`).once('value');
+      if (already.exists()) {
+        console.log('[RevenueCat 웹훅] 이미 처리된 이벤트:', eventId);
+        return res.status(200).send('duplicate');
+      }
+    }
+
+    const userId = event.app_user_id;
+    const productId = event.product_id;
+    const grantPoints = POINTS_BY_PRODUCT[productId];
+
+    if (!userId || !grantPoints) {
+      console.warn('[RevenueCat 웹훅] 알 수 없는 유저 또는 상품:', userId, productId);
+      return res.status(200).send('unknown product or user');
+    }
+
+    const user = await getUser(userId);
+    if (!user) {
+      console.warn('[RevenueCat 웹훅] 유저를 찾을 수 없음:', userId);
+      return res.status(200).send('user not found');
+    }
+
+    user.points = (user.points || 0) + grantPoints;
+    await saveUser(user);
+    if (eventId) await db.ref(`processedPurchaseEvents/${eventId}`).set({ userId, productId, grantPoints, at: Date.now() });
+
+    console.log(`[RevenueCat 웹훅] ${userId} 유저에게 쌀 ${grantPoints}개 지급 완료 (상품: ${productId})`);
+
+    // 지금 접속 중인 유저라면 실시간으로 잔액을 갱신해줌 (접속 중이 아니면 다음 로그인 시 서버 데이터로 자동 반영됨)
+    const sId = userToSocket[userId];
+    if (sId) io.to(sId).emit('points:updated', { points: user.points });
+
+    res.status(200).send('ok');
+  } catch (e) {
+    console.error('[RevenueCat 웹훅 오류]', e);
+    res.status(500).send('error');
+  }
+});
+
+// 회원가입 / 카카오 추가정보 입력 공통 검증: 닉네임 미입력, 나이가 숫자가 아니거나 비정상 범위(14~120)면 거부.
+// (기존에는 나이를 검증 없이 parseInt만 해서, 이상한 값을 넣으면 NaN이 그대로 DB에 저장되는 문제가 있었음)
+function validateProfileInput(data) {
+  if (!data.nickname || !String(data.nickname).trim().length) return '닉네임을 입력해주세요.';
+  const age = parseInt(data.age, 10);
+  if (isNaN(age) || age < 14 || age > 120) return '나이를 올바르게 입력해주세요.';
+  return null;
+}
+
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 const ONE_DAY = 24 * 60 * 60 * 1000;
 const genId = (p) => `${p}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 const roomIdFor = (a, b) => [a, b].sort().join('_room_');
+
+/* =====================================================================
+   로그인 세션 (전화번호+비밀번호 / 카카오)
+   - SESSION_SECRET: .env에 반드시 설정해야 함 (예: 아무 랜덤 문자열 32자 이상)
+     설정 안 하면 서버가 매번 다른 임시 비밀키를 써서, 서버 재시작할 때마다
+     기존에 로그인해있던 사람들이 전부 세션이 끊겨 재로그인하게 되니 주의.
+   - SESSION_MAX_AGE: 세션(로그인 유지) 유효기간. "7일 이상 미접속 시 재로그인"
+     요구사항에 맞춰 7일로 설정. 접속할 때마다 새 토큰을 발급(연장)하므로,
+     7일 안에 한 번이라도 들어오면 계속 로그인 상태가 유지됨.
+===================================================================== */
+const SESSION_SECRET = process.env.SESSION_SECRET || 'dev_only_insecure_secret_please_set_env';
+if (!process.env.SESSION_SECRET) {
+  console.warn('[경고] SESSION_SECRET이 .env에 설정되어 있지 않습니다. 반드시 설정해주세요 (안 하면 서버 재시작마다 전체 로그아웃됨).');
+}
+const SESSION_MAX_AGE = '7d';
+
+function issueSessionToken(userId) {
+  return jwt.sign({ uid: userId }, SESSION_SECRET, { expiresIn: SESSION_MAX_AGE });
+}
+function verifySessionToken(token) {
+  try { return jwt.verify(token, SESSION_SECRET); } catch (e) { return null; }
+}
+async function hashPassword(plain) {
+  return bcrypt.hash(plain, 10);
+}
+async function comparePassword(plain, hash) {
+  if (!hash) return false;
+  return bcrypt.compare(plain, hash);
+}
 
 async function getAllUsers() {
   const snap = await db.ref('users').once('value');
@@ -57,6 +162,10 @@ async function getAllUsers() {
 async function findUserByPhone(phone) {
   const users = await getAllUsers();
   return Object.values(users).find(u => u.phone === phone);
+}
+async function findUserByKakaoId(kakaoId) {
+  const users = await getAllUsers();
+  return Object.values(users).find(u => u.kakaoId === kakaoId);
 }
 async function getUser(id) {
   const snap = await db.ref(`users/${id}`).once('value');
@@ -189,8 +298,8 @@ function sortPostsByType(list, sortType, myRegion) {
     case 'distance': // 거리순: 같은 지역 우선, 그 안에서는 최신순
       if (!myRegion) return list;
       return [...list].sort((a, b) => {
-        const aSame = (a.authorRegion||'').trim() === myRegion.trim() ? 1 : 0;
-        const bSame = (b.authorRegion||'').trim() === myRegion.trim() ? 1 : 0;
+        const aSame = a.authorRegion === myRegion ? 1 : 0;
+        const bSame = b.authorRegion === myRegion ? 1 : 0;
         if (aSame !== bSame) return bSame - aSame;
         return (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt);
       });
@@ -213,8 +322,8 @@ function sortUsersByType(list, sortType, myRegion) {
     case 'distance': // 거리순: 같은 지역 우선
       if (!myRegion) return list;
       return [...list].sort((a, b) => {
-        const aSame = (a.region||'').trim() === myRegion.trim() ? 1 : 0;
-        const bSame = (b.region||'').trim() === myRegion.trim() ? 1 : 0;
+        const aSame = a.region === myRegion ? 1 : 0;
+        const bSame = b.region === myRegion ? 1 : 0;
         if (aSame !== bSame) return bSame - aSame;
         return (b.profileUpdatedAt || b.lastSeen || 0) - (a.profileUpdatedAt || a.lastSeen || 0);
       });
@@ -305,31 +414,101 @@ setInterval(postAsAiBotIfNeeded, 60 * 60 * 1000);
 const ADMIN_PHONES = (process.env.ADMIN_PHONES || '').split(',').map(s => s.trim()).filter(Boolean);
 function isAdminPhone(phone) { return !!phone && ADMIN_PHONES.includes(phone); }
 
+/* =====================================================================
+   카카오 로그인
+   - Kakao Developers(https://developers.kakao.com)에서 앱을 만들고,
+     .env에 KAKAO_REST_API_KEY 를 등록해야 동작함.
+   - "플랫폼 > Web" 에 실제 배포 도메인을 등록하고,
+     "카카오 로그인 > Redirect URI" 에 "https://본인도메인/" (index.html이 뜨는 주소)를
+     정확히 등록해야 함. 로컬 테스트 시엔 http://localhost:8080/ 도 추가로 등록.
+   - KAKAO_CLIENT_SECRET: 카카오 디벨로퍼스 REST API 키의 "클라이언트 시크릿"이
+     활성화(ON) 상태인 경우 반드시 .env에 설정해야 함. 활성화된 상태에서 이 값을
+     안 보내면 토큰 발급이 실패함.
+===================================================================== */
+const KAKAO_REST_API_KEY = process.env.KAKAO_REST_API_KEY || '';
+const KAKAO_CLIENT_SECRET = process.env.KAKAO_CLIENT_SECRET || '';
+
+async function exchangeKakaoCode(code, redirectUri) {
+  const params = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: KAKAO_REST_API_KEY,
+    client_secret: KAKAO_CLIENT_SECRET,
+    redirect_uri: redirectUri,
+    code
+  });
+  const tokenRes = await fetch('https://kauth.kakao.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' },
+    body: params.toString()
+  });
+  const tokenData = await tokenRes.json();
+  if (!tokenData.access_token) throw new Error('카카오 토큰 발급 실패: ' + JSON.stringify(tokenData));
+
+  const profileRes = await fetch('https://kapi.kakao.com/v2/user/me', {
+    headers: { Authorization: `Bearer ${tokenData.access_token}` }
+  });
+  const profileData = await profileRes.json();
+  return { kakaoId: String(profileData.id) };
+}
+
 io.on('connection', (socket) => {
 
-  // 전화번호만으로 로그인 (세션 자동복구 + "로그인" 버튼 둘 다 이걸 씀)
+  // 전화번호+비밀번호 로그인
+  // - 기존(비밀번호 없이 가입한) 회원은 그대로 전화번호만으로 로그인 가능(마이그레이션 배려)
+  // - 비밀번호를 설정한 회원(신규 가입자)은 반드시 비밀번호까지 일치해야 로그인됨
   socket.on('auth:login', async (data, cb) => {
     try {
       const user = await findUserByPhone(data.phone);
-      if (!user) return cb({ success: false, notFound: true });
+      if (!user) return cb({ success: false, notFound: true, wrongField: 'phone' });
+      if (user.passwordHash) {
+        const ok = await comparePassword(data.password || '', user.passwordHash);
+        if (!ok) return cb({ success: false, wrongField: 'password' });
+      }
       user.isOnline = true;
       user.lastSeen = Date.now();
       await saveUser(user);
       socketToUser[socket.id] = user.id;
       userToSocket[user.id] = socket.id;
-      cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) } });
+      const token = issueSessionToken(user.id);
+      cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) }, token });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
 
-  // 회원가입 (이미 등록된 번호면 거부)
+  // 세션 토큰으로 자동 로그인 (브라우저 재접속/소켓 재연결 시 사용).
+  // 토큰이 유효하면(7일 이내 발급/갱신) 비밀번호 재입력 없이 자동 로그인되고,
+  // 이때 토큰을 다시 새로 발급(연장)해서 계속 접속하는 한 로그인이 유지되게 함.
+  // 토큰이 없거나 7일이 지나 만료됐으면 실패 응답을 보내 재로그인(비밀번호 재입력)을 요구함.
+  socket.on('auth:session_resume', async (data, cb) => {
+    try {
+      const payload = verifySessionToken(data && data.token);
+      if (!payload) return cb({ success: false, expired: true });
+      const user = await getUser(payload.uid);
+      if (!user) return cb({ success: false });
+      user.isOnline = true;
+      user.lastSeen = Date.now();
+      await saveUser(user);
+      socketToUser[socket.id] = user.id;
+      userToSocket[user.id] = socket.id;
+      const token = issueSessionToken(user.id); // 갱신(연장)
+      cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) }, token });
+      broadcastUsers();
+    } catch (e) { console.error(e); cb({ success: false }); }
+  });
+
+  // 회원가입 (이미 등록된 번호면 거부). 비밀번호는 형식 제한 없이 받되, 반드시 입력해야 함(대소문자 구분은
+  // bcrypt 해시 비교 특성상 자동으로 지켜짐 - 원문 그대로 비교하므로 대/소문자가 다르면 다른 비밀번호로 처리됨).
   socket.on('auth:signup', async (data, cb) => {
     try {
       if (!/^01[0-9]{9}$/.test(data.phone || '')) return cb({ success: false, message: '휴대폰 번호를 정확히 입력해주세요. (예: 010-0000-0000)' });
+      if (!data.password || !String(data.password).length) return cb({ success: false, message: '비밀번호를 입력해주세요.' });
+      const profileError = validateProfileInput(data);
+      if (profileError) return cb({ success: false, message: profileError });
       const existing = await findUserByPhone(data.phone);
       if (existing) return cb({ success: false, alreadyExists: true });
+      const passwordHash = await hashPassword(String(data.password));
       const user = {
-        id: genId('u'), phone: data.phone, nickname: data.nickname,
+        id: genId('u'), phone: data.phone, passwordHash, nickname: data.nickname,
         region: data.region, gender: data.gender, age: parseInt(data.age, 10),
         bio: data.bio || '반갑습니다!', photos: data.photos || [], points: 100,
         isOnline: true, lastSeen: Date.now(), blockedUserIds: [],
@@ -340,7 +519,8 @@ io.on('connection', (socket) => {
       await saveUser(user);
       socketToUser[socket.id] = user.id;
       userToSocket[user.id] = socket.id;
-      cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) } });
+      const token = issueSessionToken(user.id);
+      cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) }, token });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -353,6 +533,61 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb({ exists: false }); }
   });
 
+  // 카카오 로그인: 인가 코드를 받아 카카오 사용자 고유 ID를 확인.
+  // - 이미 이 kakaoId로 가입된 계정이 있으면 바로 로그인 처리
+  // - 처음 로그인하는 카카오 계정이면, 추가 프로필(닉네임/지역/성별/나이) 입력이 필요하다는 뜻으로
+  //   pendingToken(10분간 유효한 임시 토큰)을 발급해서 돌려줌 -> 클라이언트는 추가 정보 입력 화면을 띄우고
+  //   auth:kakao_complete_profile 이벤트로 pendingToken과 함께 나머지 정보를 제출함
+  socket.on('auth:kakao_login', async (data, cb) => {
+    try {
+      if (!KAKAO_REST_API_KEY) return cb({ success: false, message: '카카오 로그인이 아직 설정되지 않았습니다. (KAKAO_REST_API_KEY 미설정)' });
+      const { kakaoId } = await exchangeKakaoCode(data.code, data.redirectUri);
+      const existing = await findUserByKakaoId(kakaoId);
+      if (existing) {
+        existing.isOnline = true;
+        existing.lastSeen = Date.now();
+        await saveUser(existing);
+        socketToUser[socket.id] = existing.id;
+        userToSocket[existing.id] = socket.id;
+        const token = issueSessionToken(existing.id);
+        cb({ success: true, user: { ...existing, isAdmin: isAdminPhone(existing.phone) }, token });
+        broadcastUsers();
+        return;
+      }
+      const pendingToken = jwt.sign({ kakaoId, purpose: 'kakao_signup' }, SESSION_SECRET, { expiresIn: '10m' });
+      cb({ success: false, needProfile: true, pendingToken });
+    } catch (e) { console.error('[카카오 로그인 오류]', e); cb({ success: false, message: '카카오 로그인 중 오류가 발생했습니다.' }); }
+  });
+
+  // 카카오 신규 가입자의 추가 정보(닉네임/지역/성별/나이) 제출 -> 계정 생성
+  // 카카오로 가입한 계정은 phone이 없고 passwordHash도 없어서(전화번호 로그인 대상이 아니므로) 관리자 권한 대상은 아님.
+  socket.on('auth:kakao_complete_profile', async (data, cb) => {
+    try {
+      let payload;
+      try { payload = jwt.verify(data.pendingToken, SESSION_SECRET); } catch (e) { payload = null; }
+      if (!payload || payload.purpose !== 'kakao_signup') return cb({ success: false, message: '인증이 만료되었습니다. 카카오 로그인을 다시 시도해주세요.' });
+      const already = await findUserByKakaoId(payload.kakaoId);
+      if (already) return cb({ success: false, alreadyExists: true });
+      const profileError = validateProfileInput(data);
+      if (profileError) return cb({ success: false, message: profileError });
+      const user = {
+        id: genId('u'), phone: '', kakaoId: payload.kakaoId, nickname: data.nickname,
+        region: data.region, gender: data.gender, age: parseInt(data.age, 10),
+        bio: data.bio || '반갑습니다!', photos: data.photos || [], points: 100,
+        isOnline: true, lastSeen: Date.now(), blockedUserIds: [],
+        lastPostDate: null, adWatchCountToday: 0, lastAdChargeDate: null,
+        profileUpdatedAt: Date.now(),
+        followingIds: [], followerIds: [], profileLikedBy: [], notifyKeywords: []
+      };
+      await saveUser(user);
+      socketToUser[socket.id] = user.id;
+      userToSocket[user.id] = socket.id;
+      const token = issueSessionToken(user.id);
+      cb({ success: true, user: { ...user, isAdmin: false }, token });
+      broadcastUsers();
+    } catch (e) { console.error(e); cb({ success: false }); }
+  });
+
   socket.on('profile:update', async (data, cb) => {
     try {
       const userId = socketToUser[socket.id];
@@ -363,31 +598,6 @@ io.on('connection', (socket) => {
       cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) } });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
-  });
-
-  // 설정 > 문의하기(이메일로 문의하기): 사용자가 입력한 본인 계정으로 답변받도록 replyTo를 지정해 발송
-  socket.on('support:send_inquiry', async ({ toEmail, subject, content }, cb) => {
-    try {
-      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!toEmail || !emailRe.test(toEmail)) return cb({ success: false, message: '올바른 이메일 주소를 입력해주세요. (예: name@example.com)' });
-      if (!subject || !subject.trim()) return cb({ success: false, message: '제목을 입력해주세요.' });
-      if (!content || !content.trim()) return cb({ success: false, message: '내용을 입력해주세요.' });
-      if (content.length > 500) return cb({ success: false, message: '내용은 500자 이내로 작성해주세요.' });
-      if (!supportMailConfigured) return cb({ success: false, message: '문의 이메일 발송 설정이 아직 완료되지 않았습니다. 잠시 후 다시 시도해주세요.' });
-      const userId = socketToUser[socket.id];
-      const user = userId ? await getUser(userId) : null;
-      await supportMailTransporter.sendMail({
-        from: process.env.SUPPORT_SMTP_USER,
-        to: process.env.SUPPORT_SMTP_USER, // 말벗 운영 계정으로 접수 (계정 미정 - .env에서 설정)
-        replyTo: toEmail, // 운영자가 답장을 누르면 사용자가 입력한 계정으로 바로 회신됨
-        subject: `[말벗 문의] ${subject}`,
-        text: `보낸 사람(답변받을 계정): ${toEmail}\n작성자 닉네임: ${user ? user.nickname : '알 수 없음'}\n\n${content}`
-      });
-      cb({ success: true });
-    } catch (e) {
-      console.error('[문의하기 발송 오류]', e);
-      cb({ success: false, message: '전송에 실패했습니다. 이메일 주소가 정확한지 확인 후 다시 시도해주세요.' });
-    }
   });
 
   // 홈 리스트: 나 자신 포함, filters.sort로 기본순/popular/distance/views 정렬 선택 가능

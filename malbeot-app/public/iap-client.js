@@ -9,7 +9,7 @@
 // 방식을 사용합니다 (번들러 불필요).
 // ============================================================
 
-const REVENUECAT_API_KEY = "YOUR_REVENUECAT_PUBLIC_API_KEY"; // RevenueCat 대시보드에서 발급받은 키로 교체
+const REVENUECAT_API_KEY = "test_BiowcjPwUTqpLGIhUDBXXmuoZaL"; // RevenueCat 대시보드에서 발급받은 키 (테스트/샌드박스용)
 
 let iapReady = false;
 
@@ -82,5 +82,23 @@ async function buyItem(productId) {
   }
 }
 
-// 페이지 로드 시 자동 초기화
+// 로그인 성공 직후 index.html에서 이 함수를 호출해서, RevenueCat 계정을 우리 서버의 유저 id와 연결해야 함.
+// 이렇게 해야 서버(server.js의 /api/revenuecat-webhook)가 결제 완료 알림을 받았을 때
+// "어느 유저"에게 쌀을 지급할지 알 수 있음 (app_user_id로 매칭됨).
+async function linkIAPUser(userId) {
+  if (!iapReady || !userId) return;
+  const Purchases = window.Capacitor.Plugins.Purchases;
+  try {
+    // ⚠️ 버전에 따라 파라미터 형태가 다를 수 있어요 (문자열 하나만 받는 버전도 있음).
+    // 에러가 나면 @revenuecat/purchases-capacitor 문서에서 logIn 시그니처를 확인해주세요.
+    await Purchases.logIn({ appUserID: String(userId) });
+    console.log("[IAP] 유저 연결 완료:", userId);
+  } catch (err) {
+    console.error("[IAP] 유저 연결 실패:", err);
+  }
+}
+window.linkIAPUser = linkIAPUser;
+window.buyItem = buyItem;
+
+// 페이지 로드 시 자동 초기화 (익명으로 우선 초기화되고, 로그인 후 linkIAPUser로 계정이 연결됨)
 document.addEventListener("DOMContentLoaded", initIAP);

@@ -89,6 +89,7 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 .btn-danger{background:var(--danger);color:#fff;}
 .btn-block{width:100%;}
 .btn-sm{padding:6px 12px;font-size:12px;border-radius:6px;}
+.btn-kakao{background:#FEE500;color:#191600;}
 
 .bottom-nav{position:absolute;bottom:0;left:0;right:0;height:64px;background:#fff;border-top:1px solid var(--border-color);display:flex;justify-content:space-around;align-items:center;z-index:10;}
 .nav-item{background:none;border:none;flex:1;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;font-size:21px;}
@@ -96,7 +97,6 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 
 .modal-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:none;justify-content:center;align-items:center;z-index:200;padding:16px;}
 .modal-overlay.active{display:flex;}
-#blockReportModal{z-index:300;}
 .modal-card{background:#fff;border-radius:var(--radius-md);width:100%;max-width:420px;padding:22px;box-shadow:var(--shadow-lg);max-height:90vh;overflow-y:auto;position:relative;}
 .mini-alert-card{background:#fff;border-radius:14px;width:100%;max-width:300px;padding:24px 20px;text-align:center;}
 
@@ -156,7 +156,7 @@ body.dark-mode .search-matched-comment-line{color:var(--text-main);}
 .chat-row-last{font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .chat-row-time{font-size:11px;color:var(--text-muted);flex-shrink:0;}
 
-.chat-window-card{height:100%;width:100%;max-width:none;border-radius:0;box-shadow:none;display:flex;flex-direction:column;padding:0;}
+.chat-window-card{height:100%;display:flex;flex-direction:column;padding:0;}
 .chat-header-row{height:56px;flex-shrink:0;display:flex;align-items:center;padding:0 10px;border-bottom:1px solid #d8e6f2;gap:8px;}
 .chat-header-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--blue-light);}
 .chat-header-nick{font-size:14px;font-weight:700;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -247,17 +247,6 @@ body.dark-mode .tagxs{color:var(--text-muted);}
 /* ---- 프로필 상세: 내가 쓴 글 ---- */
 .profile-posts-title{font-size:13px;font-weight:700;margin:16px 0 4px 0;padding-top:16px;border-top:1px solid var(--border-color);}
 .profile-posts-scroll{max-height:calc(3 * 74px);overflow-y:auto;}
-.profile-tab-bar{display:flex;gap:6px;margin:0 0 10px 0;padding-top:16px;border-top:1px solid var(--border-color);}
-.profile-tab-btn{flex:1;padding:9px 0;border:none;border-radius:8px;background:var(--bg-subtle);color:var(--text-main);font-size:13px;font-weight:700;cursor:pointer;transition:background .15s,color .15s;}
-.profile-tab-btn.active{background:var(--primary);color:#fff;}
-.profile-tab-content{display:none;}
-.profile-tab-content.active{display:block;}
-.profile-story-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;}
-.profile-story-grid-item{position:relative;aspect-ratio:1/1;overflow:hidden;cursor:pointer;background:var(--bg-subtle);}
-.profile-story-grid-item img,.profile-story-grid-item video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;}
-.profile-story-grid-item .psg-video-badge{position:absolute;top:5px;right:5px;color:#fff;font-size:12px;text-shadow:0 1px 3px rgba(0,0,0,.6);}
-.scroll-to-top-btn{position:absolute;right:16px;bottom:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.75);border:1px solid var(--border-color);box-shadow:var(--shadow-lg);display:none;align-items:center;justify-content:center;cursor:pointer;z-index:20;color:var(--text-main);font-size:15px;}
-.scroll-to-top-btn.show{display:flex;}
 .profile-post-mini{display:flex;gap:10px;padding:10px 2px;border-bottom:1px solid var(--border-color);cursor:pointer;align-items:center;}
 .profile-post-mini img.ppm-thumb{width:50px;height:50px;border-radius:8px;object-fit:cover;flex-shrink:0;}
 .profile-post-mini .ppm-text{font-size:12px;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;}
@@ -340,16 +329,21 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:40px;">지금 이 순간, 실시간으로 이어지는 편안한 대화</p>
     <button class="btn btn-primary btn-block" style="margin-bottom:10px;height:46px;" onclick="showLoginForm()">로그인</button>
     <button class="btn btn-secondary btn-block" style="height:46px;" onclick="showSignupFlow()">회원가입</button>
+    <button class="btn btn-kakao btn-block" style="height:46px;margin-top:10px;" onclick="startKakaoLogin()"><i class="fa-solid fa-comment"></i> 카카오톡으로 로그인</button>
   </div>
 </div>
 
-<!-- 로그인 (전화번호만) -->
+<!-- 로그인 (전화번호 + 비밀번호) -->
 <div id="loginModal" class="modal-overlay">
   <div class="modal-card">
     <h3 style="margin-bottom:14px;text-align:center;">로그인</h3>
     <div class="form-group">
       <label>가입하신 휴대폰 번호</label>
       <input type="tel" id="loginPhone" placeholder="010-1234-5678">
+    </div>
+    <div class="form-group">
+      <label>비밀번호</label>
+      <input type="password" id="loginPassword" placeholder="비밀번호">
     </div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" style="flex:1;" onclick="closeModal('loginModal');openModal('landingScreen')">뒤로</button>
@@ -427,6 +421,10 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
             <label>나이 선택</label>
             <select id="regAge"></select>
           </div>
+        </div>
+        <div class="form-group" id="regPasswordGroup">
+          <label>로그인 비밀번호 설정 (대소문자 구분, 형식 제한 없음)</label>
+          <input type="password" id="regPassword" placeholder="비밀번호 입력">
         </div>
         <div style="background:var(--bg-subtle);border:1px solid var(--border-color);border-radius:8px;padding:12px;margin-bottom:14px;">
           <label style="font-size:11px;cursor:pointer;display:flex;gap:8px;align-items:flex-start;">
@@ -579,7 +577,10 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
           <h3><i class="fa-solid fa-bowl-rice" style="color:var(--warning);"></i> 내 대화 쌀</h3>
           <div style="background:var(--bg-subtle);padding:12px;border-radius:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border-color);margin-top:8px;">
             <div>현재 쌀: <strong id="mypagePointCount" style="color:var(--primary);font-size:18px;">100</strong></div>
-            <button id="btnWatchAdModal" class="btn btn-secondary btn-sm"><i class="fa-solid fa-video"></i> 무료 광고 충전</button>
+            <div style="display:flex;gap:6px;">
+              <button id="btnWatchAdModal" class="btn btn-secondary btn-sm"><i class="fa-solid fa-video"></i> 무료 충전</button>
+              <button class="btn btn-primary btn-sm" onclick="openRiceChargeScreen()"><i class="fa-solid fa-bowl-rice"></i> 구매하기</button>
+            </div>
           </div>
         </div>
 
@@ -751,7 +752,6 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div class="fs-right"><button class="icon-round-btn" style="background:rgba(255,255,255,.85);" onclick="openBlockReportModal('user')"><i class="fa-solid fa-ellipsis"></i></button></div>
     </div>
     <div class="fs-body" id="profileDetailBody"></div>
-    <button class="scroll-to-top-btn" id="profileScrollTopBtn" onclick="document.getElementById('profileDetailBody').scrollTo({top:0,behavior:'smooth'})"><i class="fa-solid fa-arrow-up"></i></button>
   </div>
 
   <div id="messageComposeScreen" class="full-screen-overlay msg-compose-screen">
@@ -767,7 +767,17 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
 
   <div id="riceChargeScreen" class="full-screen-overlay">
     <div class="fs-header"><button class="back-btn" onclick="closeRiceChargeScreen()"><i class="fa-solid fa-arrow-left"></i></button><div class="fs-title">쌀 충전소</div></div>
-    <div class="fs-body"></div>
+    <div class="fs-body" style="padding:20px 16px 40px;">
+      <div style="text-align:center;margin-bottom:18px;">
+        <div style="font-size:13px;color:var(--text-muted);">보유 쌀</div>
+        <div style="font-size:26px;font-weight:800;color:var(--primary);"><i class="fa-solid fa-bowl-rice" style="color:var(--warning);"></i> <span id="rechargeScreenBalance">0</span>개</div>
+      </div>
+      <div id="ricePackageGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"></div>
+      <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:18px;line-height:1.6;">
+        결제는 Google Play / App Store 인앱결제로 안전하게 처리됩니다.<br>
+        쌀은 충전 즉시 사용 가능하며, 일부라도 사용 시 환불이 제한됩니다.
+      </p>
+    </div>
   </div>
 
   <div id="settingsScreen" class="full-screen-overlay">
@@ -823,12 +833,6 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <div class="toggle-switch" id="toggleDark"><div class="knob"></div></div>
       </div>
 
-      <div class="settings-section-title">고객지원</div>
-      <div class="settings-list-item" onclick="openModal('contactMenuModal')">
-        <div class="sli-label">문의하기</div>
-        <div class="sli-right"><i class="fa-solid fa-chevron-right"></i></div>
-      </div>
-
       <div class="settings-section-title">정보</div>
       <div class="settings-list-item" style="cursor:default;">
         <div class="sli-label">버전 정보</div>
@@ -861,8 +865,8 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </div>
   </div>
 
-  <div id="chatModal" class="full-screen-overlay">
-    <div class="modal-card chat-window-card">
+  <div id="chatModal" class="modal-overlay">
+    <div class="modal-card chat-window-card" style="height:88vh;">
       <div class="chat-header-row">
         <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeChatModal()"><i class="fa-solid fa-arrow-left"></i></button>
         <img id="chatHeaderAvatar" class="chat-header-avatar" src="" alt="" style="cursor:pointer;" onclick="openProfileFromChatHeader()">
@@ -890,6 +894,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
 <script>
 const socket = io();
 let currentUser = JSON.parse(sessionStorage.getItem('malbeot_session')) || null;
+let sessionToken = sessionStorage.getItem('malbeot_token') || null;
 let currentChatRooms = [];
 let activeRoomId = null;
 let regPhotoBase64 = "";
@@ -915,6 +920,12 @@ let editPhotoPosition = {x:50, y:50};
 let settingsDraft = null;
 let settingsDirty = false;
 let selectedReportCategory = null;
+// authMode: 'phone'(전화번호 회원가입) 또는 'kakao'(카카오 신규가입 - 추가정보만 입력)
+let authMode = 'phone';
+let pendingKakaoToken = '';
+// 카카오 로그인 REST API 키. Kakao Developers 콘솔에서 발급받은 값으로 반드시 교체해야 동작함.
+// Redirect URI는 콘솔에 window.location.origin + '/' 값 그대로 등록되어 있어야 함.
+const KAKAO_REST_API_KEY = '292bc96eb62d8db7326b561b3756a96d';
 
 const REPORT_CATEGORIES = ['더러운 글 또는 사진','개인정보 유출','그루밍·성착취 변태','금전 요구','프로필 도용','환전 사기','피싱 사기','마약 판매','불건전 만남','욕설','이 외에 위반된 사항','기타'];
 
@@ -943,7 +954,17 @@ function applySettingsToDom(s){
   document.body.style.fontSize = (s.fontSize||14)+'px';
 }
 applySettingsToDom(getEffectiveSettings());
-function saveSession(){ sessionStorage.setItem('malbeot_session', JSON.stringify(currentUser)); }
+// 로그인 성공 시 항상 이 함수로 세션(유저정보+토큰)을 같이 저장해야 함.
+// 토큰은 7일간 유효하며, 소켓이 재연결될 때마다 이 토큰으로 자동 로그인(auth:session_resume)을 시도함.
+function saveSession(token){
+  if (token) { sessionToken = token; sessionStorage.setItem('malbeot_token', token); }
+  sessionStorage.setItem('malbeot_session', JSON.stringify(currentUser));
+}
+function clearSession(){
+  currentUser = null; sessionToken = null;
+  sessionStorage.removeItem('malbeot_session');
+  sessionStorage.removeItem('malbeot_token');
+}
 function closeModal(id){ document.getElementById(id).classList.remove('active'); }
 function openModal(id){ document.getElementById(id).classList.add('active'); }
 function openFullScreen(id){ document.getElementById(id).classList.add('active'); }
@@ -1154,45 +1175,63 @@ window.addEventListener('load', ()=>{
 
 /* ===================== 로그인/회원가입 화면 전환 ===================== */
 function showLoginForm(){ closeModal('landingScreen'); openModal('loginModal'); }
-function showSignupFlow(){ closeModal('landingScreen'); openModal('authModal'); setAuthStep(1); }
+function showSignupFlow(){ authMode='phone'; document.getElementById('regPasswordGroup').classList.remove('hidden'); closeModal('landingScreen'); openModal('authModal'); setAuthStep(1); }
 
-// 로그인: 가입된 번호면 즉시(알림 없이) 로그인, 아니면 커스텀 알림으로 "예" 클릭 시 회원가입으로 이동
+// 로그인: 전화번호+비밀번호가 둘 다 맞아야 로그인됨.
+// - 번호 자체가 없는 경우 -> "가입된 번호가 없습니다" 안내 후 회원가입 유도(기존 동작 유지)
+// - 번호는 있는데 비밀번호가 틀린 경우 -> "비밀번호가 틀렸습니다" 표시
 function submitPhoneLogin(){
   const phone = normalizePhone(document.getElementById('loginPhone').value);
+  const password = document.getElementById('loginPassword').value;
   if (!isValidPhone(phone)) return showMiniAlert(PHONE_FORMAT_MSG, [{label:'확인', primary:true}]);
-  socket.emit('auth:login', {phone}, (res)=>{
+  socket.emit('auth:login', {phone, password}, (res)=>{
     if (res.success){
-      currentUser = res.user; saveSession(); closeModal('loginModal'); initApp();
-    } else {
-      closeModal('loginModal');
-      showMiniAlert('가입된 번호가 없습니다. 회원가입 하시겠습니까?', [
-        {label:'아니오', primary:false, onClick:()=>{ openModal('landingScreen'); }},
-        {label:'예', primary:true, onClick:()=>{
-          pendingSignupPhone = phone;
-          document.getElementById('inputPhone').value = phone;
-          openModal('authModal'); setAuthStep(1);
-        }}
-      ]);
+      currentUser = res.user; saveSession(res.token); closeModal('loginModal'); initApp();
+      return;
     }
+    if (res.wrongField === 'password'){
+      showMiniAlert('비밀번호가 틀렸습니다.', [{label:'확인', primary:true}]);
+      return;
+    }
+    // 번호 자체가 없는 경우
+    closeModal('loginModal');
+    showMiniAlert('전화번호가 틀렸습니다. 가입된 번호가 없다면 회원가입 하시겠습니까?', [
+      {label:'아니오', primary:false, onClick:()=>{ openModal('landingScreen'); }},
+      {label:'예', primary:true, onClick:()=>{
+        pendingSignupPhone = phone;
+        authMode='phone'; document.getElementById('regPasswordGroup').classList.remove('hidden');
+        document.getElementById('inputPhone').value = phone;
+        openModal('authModal'); setAuthStep(1);
+      }}
+    ]);
   });
 }
 
-/* 세션 자동 복구 (같은 브라우저로 재접속했을 때) */
+/* 세션 자동 복구: 전화번호가 아니라 세션 토큰(7일 유효)으로 시도함.
+   - 소켓이 처음 연결되거나 네트워크 문제로 재연결될 때마다 호출됨.
+   - 토큰이 유효하면 비밀번호 재입력 없이 자동 로그인되고, 서버가 토큰을 새로 발급(연장)해줌.
+   - 토큰이 없거나(최초 방문) 7일이 지나 만료됐으면 로그인 화면으로 돌아가 비밀번호를 다시 입력해야 함. */
 socket.on('connect', ()=>{
-  if (currentUser && currentUser.phone){
-    socket.emit('auth:login', {phone: currentUser.phone}, (res)=>{
+  if (currentUser && sessionToken){
+    socket.emit('auth:session_resume', {token: sessionToken}, (res)=>{
       if (res.success){
-        currentUser = res.user; saveSession();
+        currentUser = res.user; saveSession(res.token);
         closeModal('landingScreen'); closeModal('loginModal'); closeModal('authModal');
         initApp();
       } else {
-        currentUser = null; sessionStorage.removeItem('malbeot_session');
+        clearSession();
         resetToLandingScreen();
       }
     });
   }
 });
 socket.on('users:updated', ()=>{ loadHomeUserList(); if (currentProfileUserId) refreshOpenProfileIfNeeded(); });
+// 서버(RevenueCat 웹훅)가 인앱결제 완료를 확인하고 쌀을 지급하면, 접속 중인 클라이언트에 실시간으로 알려줌
+socket.on('points:updated', ({points})=>{
+  if (!currentUser) return;
+  currentUser.points = points; updateUserUI(); saveSession();
+  showMiniAlert(`쌀 충전이 완료되었습니다! (현재 쌀: ${points}개)`, [{label:'확인', primary:true}]);
+});
 socket.on('posts:updated', ()=>{
   loadCommunityPosts();
   if (currentPostId && document.getElementById('postDetailScreen').classList.contains('active')) refreshPostDetail();
@@ -1235,12 +1274,52 @@ socket.on('chat:blocked_notify', ({roomId})=>{
   if (activeRoomId === roomId) appendChatBubble({senderId:'system', text:'상대방이 나를 차단하였습니다.', timestamp:Date.now()});
 });
 
+/* ===================== 카카오 로그인 ===================== */
+function startKakaoLogin(){
+  if (!KAKAO_REST_API_KEY || KAKAO_REST_API_KEY === 'YOUR_KAKAO_REST_API_KEY_HERE'){
+    showMiniAlert('카카오 로그인이 아직 설정되지 않았습니다. (KAKAO_REST_API_KEY 미설정)', [{label:'확인', primary:true}]);
+    return;
+  }
+  const redirectUri = window.location.origin + '/';
+  const url = `https://kauth.kakao.com/oauth/authorize?client_id=${encodeURIComponent(KAKAO_REST_API_KEY)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
+  window.location.href = url;
+}
+// 카카오 인가 화면에서 돌아오면 주소 끝에 ?code=... 가 붙어있음 -> 있으면 로그인 처리 시도
+(function handleKakaoCallback(){
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (!code) return;
+  window.history.replaceState({}, '', window.location.pathname); // 주소창에서 code 파라미터 제거
+  const redirectUri = window.location.origin + '/';
+  const tryExchange = ()=>{
+    socket.emit('auth:kakao_login', {code, redirectUri}, (res)=>{
+      if (res.success){
+        currentUser = res.user; saveSession(res.token);
+        closeModal('landingScreen'); initApp();
+      } else if (res.needProfile){
+        authMode = 'kakao';
+        pendingKakaoToken = res.pendingToken;
+        document.getElementById('regPasswordGroup').classList.add('hidden');
+        closeModal('landingScreen');
+        openModal('authModal');
+        setAuthStep(2);
+        document.getElementById('authStepIndicator').textContent = '카카오 계정 · 추가 정보 입력';
+      } else {
+        showMiniAlert(res.message || '카카오 로그인에 실패했습니다.', [{label:'확인', primary:true}]);
+      }
+    });
+  };
+  if (socket.connected) tryExchange(); else socket.once('connect', tryExchange);
+})();
+
 /* ===================== 회원가입 (3단계) ===================== */
 function setAuthStep(n){
   document.getElementById('authStep1').classList.toggle('hidden', n!==1);
   document.getElementById('authStep2').classList.toggle('hidden', n!==2);
   document.getElementById('authStep3').classList.toggle('hidden', n!==3);
-  document.getElementById('authStepIndicator').textContent = {1:'1 / 3 단계 · 본인인증',2:'2 / 3 단계 · 기본 정보',3:'3 / 3 단계 · 사진 등록'}[n];
+  if (authMode !== 'kakao'){
+    document.getElementById('authStepIndicator').textContent = {1:'1 / 3 단계 · 본인인증',2:'2 / 3 단계 · 기본 정보',3:'3 / 3 단계 · 사진 등록'}[n];
+  }
 }
 document.getElementById('btnRequestSms').onclick = ()=>{
   const phone = normalizePhone(document.getElementById('inputPhone').value);
@@ -1264,10 +1343,14 @@ document.getElementById('btnVerifySms').onclick = ()=>{
   if (code==='1234'){ isSmsVerified=true; document.getElementById('smsVerifyStatus').style.color='var(--success)'; document.getElementById('smsVerifyStatus').textContent='✔ 휴대폰 인증 완료'; setAuthStep(2); }
   else showMiniAlert('터미널에 표시된 1234를 정확히 입력해주세요.', [{label:'확인', primary:true}]);
 };
-document.getElementById('btnBackStep1').onclick = ()=>setAuthStep(1);
+document.getElementById('btnBackStep1').onclick = ()=>{
+  if (authMode === 'kakao'){ closeModal('authModal'); openModal('landingScreen'); return; }
+  setAuthStep(1);
+};
 document.getElementById('btnBackStep2').onclick = ()=>setAuthStep(2);
 document.getElementById('btnGoStep3').onclick = ()=>{
   if (!document.getElementById('regNickname').value.trim()) { showMiniAlert('별명을 입력하세요.', [{label:'확인', primary:true}]); return; }
+  if (authMode !== 'kakao' && !document.getElementById('regPassword').value) { showMiniAlert('비밀번호를 입력하세요.', [{label:'확인', primary:true}]); return; }
   if (!document.getElementById('agreeLegal').checked) { showMiniAlert('이용 약관에 동의해주세요.', [{label:'확인', primary:true}]); return; }
   setAuthStep(3);
 };
@@ -1278,9 +1361,27 @@ async function handleRegPhotoUpload(e){
   const p=document.getElementById('regPhotoPreview'); p.src=regPhotoBase64; p.classList.remove('hidden'); document.getElementById('regPhotoPlaceholder').classList.add('hidden');
 }
 document.getElementById('authForm').onsubmit = ()=>{
+  // 카카오 신규가입: 전화번호/SMS/비밀번호 없이 닉네임/지역/성별/나이/사진만으로 계정 생성
+  if (authMode === 'kakao'){
+    const kakaoData = {
+      pendingToken: pendingKakaoToken,
+      nickname: document.getElementById('regNickname').value.trim(),
+      region: document.getElementById('regRegion').value,
+      gender: document.getElementById('regGender').value,
+      age: document.getElementById('regAge').value,
+      bio: '반갑습니다!',
+      photos: regPhotoBase64 ? [regPhotoBase64] : []
+    };
+    socket.emit('auth:kakao_complete_profile', kakaoData, (res)=>{
+      if (res.success){ currentUser = res.user; saveSession(res.token); closeModal('authModal'); authMode='phone'; initApp(); }
+      else showMiniAlert(res.message || '가입 중 오류가 발생했습니다. 카카오 로그인을 다시 시도해주세요.', [{label:'확인', primary:true, onClick:()=>{ closeModal('authModal'); openModal('landingScreen'); }}]);
+    });
+    return;
+  }
   if (!isSmsVerified) { showMiniAlert('본인인증을 먼저 진행해 주세요.', [{label:'확인', primary:true}]); return; }
   const authData = {
     phone: normalizePhone(document.getElementById('inputPhone').value),
+    password: document.getElementById('regPassword').value,
     nickname: document.getElementById('regNickname').value.trim(),
     region: document.getElementById('regRegion').value,
     gender: document.getElementById('regGender').value,
@@ -1289,7 +1390,7 @@ document.getElementById('authForm').onsubmit = ()=>{
     photos: regPhotoBase64 ? [regPhotoBase64] : []
   };
   socket.emit('auth:signup', authData, (res)=>{
-    if (res.success){ currentUser = res.user; saveSession(); closeModal('authModal'); initApp(); }
+    if (res.success){ currentUser = res.user; saveSession(res.token); closeModal('authModal'); initApp(); }
     else if (res.alreadyExists){
       showMiniAlert('이미 등록된 번호입니다.', [{label:'확인', primary:true, onClick:()=>{
         closeModal('authModal');
@@ -1301,7 +1402,11 @@ document.getElementById('authForm').onsubmit = ()=>{
 };
 
 /* ===================== 앱 초기화 / 탭 ===================== */
-function initApp(){ updateUserUI(); loadHomeUserList(); loadCommunityPosts(); loadProfileToForm(); switchTab('tab-home'); requestNotifyPermissionIfNeeded(); }
+function initApp(){
+  updateUserUI(); loadHomeUserList(); loadCommunityPosts(); loadProfileToForm(); switchTab('tab-home'); requestNotifyPermissionIfNeeded();
+  // 구글/애플 인앱결제(RevenueCat)가 이 유저에게 쌀을 지급할 수 있도록 계정 연결
+  if (window.linkIAPUser && currentUser) window.linkIAPUser(currentUser.id);
+}
 function requestNotifyPermissionIfNeeded(){
   if ('Notification' in window && Notification.permission === 'default') { Notification.requestPermission(); }
 }
@@ -1433,24 +1538,6 @@ function loadCommunityPosts(){
   });
 }
 // 글 본문이나 댓글 중 한 글자라도 검색어를 포함하면 노출. 일치한 부분은 파란 박스로 강조 표시됨
-// 한글 완성형 글자에서 초성만 뽑아내는 함수 (예: "안녕" -> "ㅇㄴ")
-const CHOSUNG_LIST = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
-function getChosungString(str){
-  let result = '';
-  for (const ch of (str||'')){
-    const code = ch.charCodeAt(0) - 0xAC00;
-    result += (code >= 0 && code <= 11171) ? CHOSUNG_LIST[Math.floor(code / 588)] : ch;
-  }
-  return result;
-}
-const CHOSUNG_ONLY_RE = /^[ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ]+$/;
-// 일반 부분일치 검색 + 검색어가 초성만으로 이루어져 있으면 초성 검색도 함께 지원
-function textMatchesSearch(text, q){
-  if (!text || !q) return false;
-  if (text.includes(q)) return true;
-  if (CHOSUNG_ONLY_RE.test(q)) return getChosungString(text).includes(q);
-  return false;
-}
 function handleCommunitySearchInput(){
   const q = document.getElementById('communitySearchInput').value.trim();
   activeSearchQuery = q;
@@ -1459,9 +1546,9 @@ function handleCommunitySearchInput(){
     if (!res.success) return;
     const filtered = (res.posts||[]).filter(p => (p.logType||'story') === activeCommunityLogType);
     const searched = filtered.filter(p=>{
-      if (textMatchesSearch(p.content, q)) return true;
+      if ((p.content||'').includes(q)) return true;
       const comments = p.comments || [];
-      return comments.some(c=>textMatchesSearch(c.content, q));
+      return comments.some(c=>(c.content||'').includes(q));
     });
     renderPosts(searched);
   });
@@ -2023,30 +2110,14 @@ function renderProfileDetail(user){
       <div class="profile-bio-box">${escapeHtml(user.bio||'등록된 자기소개가 없습니다.')}</div>
       ${isMe?'':`<button class="btn ${isFollowing?'btn-secondary':'btn-primary'} btn-block" style="margin-bottom:8px;${isFollowing?'color:var(--primary);':''}" onclick="toggleFollowUser('${user.id}')"><i class="fa-solid fa-user${isFollowing?'-check':'-plus'}"></i> ${isFollowing?'팔로잉':'팔로우'}</button>`}
       ${isMe?'':'<button class="btn btn-primary btn-block" onclick="openMessageComposeScreen()"><i class="fa-solid fa-comments"></i> 메시지 보내기</button>'}
-      <div class="profile-tab-bar">
-        <button class="profile-tab-btn active" data-tab="posts" onclick="switchProfileDetailTab('posts')">작성한 글</button>
-        <button class="profile-tab-btn" data-tab="stories" onclick="switchProfileDetailTab('stories')">내 스토리</button>
-        <button class="profile-tab-btn" data-tab="comments" onclick="switchProfileDetailTab('comments')">작성한 댓글</button>
-      </div>
-      <div class="profile-tab-content active" id="profilePostsScroll" data-tabcontent="posts"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
-      <div class="profile-tab-content" id="profileStoriesScroll" data-tabcontent="stories"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
-      <div class="profile-tab-content" id="profileCommentsScroll" data-tabcontent="comments"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
+      <div class="profile-posts-title">작성한 글</div>
+      <div class="profile-posts-scroll" id="profilePostsScroll"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
+      <div class="profile-posts-title">내 스토리</div>
+      <div class="profile-posts-scroll" id="profileStoriesScroll"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
+      <div class="profile-posts-title">작성한 댓글</div>
+      <div class="profile-posts-scroll" id="profileCommentsScroll"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
     </div>`;
   loadProfilePostsSection(user.id);
-  setupProfileDetailScrollTopBtn();
-}
-// 프로필 상세화면 하단 탭(작성한글/내스토리/작성한댓글) 전환
-function switchProfileDetailTab(tab){
-  document.querySelectorAll('#profileDetailBody .profile-tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
-  document.querySelectorAll('#profileDetailBody .profile-tab-content').forEach(c=>c.classList.toggle('active', c.dataset.tabcontent===tab));
-}
-// 스크롤을 내리면 우측 하단에 반투명 '맨 위로' 버튼이 뜨고, 최상단에서는 자동으로 사라짐
-function setupProfileDetailScrollTopBtn(){
-  const body = document.getElementById('profileDetailBody');
-  const btn = document.getElementById('profileScrollTopBtn');
-  if (!body || !btn) return;
-  body.onscroll = ()=>{ btn.classList.toggle('show', body.scrollTop > 200); };
-  btn.classList.remove('show');
 }
 // 팔로우/언팔로우 실제 처리 (성공 시 내 followingIds를 갱신하고 afterFn 콜백 실행)
 function performFollowToggle(targetId, afterFn){
@@ -2144,10 +2215,14 @@ function loadProfilePostsSection(userId){
 
     if (storiesWrap){
       const stories = allPosts.filter(p=>p.authorId===userId && p.logType==='log').sort((a,b)=>(b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt));
-      storiesWrap.innerHTML = stories.length ? `<div class="profile-story-grid">${stories.map(p=>`
-        <div class="profile-story-grid-item" onclick="closeProfileDetailScreen();openStoryViewer('${p.id}')">
-          ${p.photo?(p.mediaType==='video'?`<video src="${p.photo}" muted playsinline></video><span class="psg-video-badge"><i class="fa-solid fa-video"></i></span>`:`<img src="${p.photo}">`):''}
-        </div>`).join('')}</div>` : `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">작성한 스토리가 없습니다.</div>`;
+      storiesWrap.innerHTML = stories.length ? stories.map(p=>`
+        <div class="profile-post-mini" onclick="closeProfileDetailScreen();openStoryViewer('${p.id}')">
+          ${p.photo?(p.mediaType==='video'?`<video class="ppm-thumb" src="${p.photo}" muted></video>`:`<img class="ppm-thumb" src="${p.photo}">`):''}
+          <div style="flex:1;min-width:0;">
+            <div class="ppm-text">${escapeHtml(p.content)}</div>
+            <div class="ppm-meta">${formatRelativeTime(p.updatedAt||p.createdAt)} · 공감 ${p.likes||0} · 댓글 ${(p.comments||[]).length}</div>
+          </div>
+        </div>`).join('') : `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">작성한 스토리가 없습니다.</div>`;
     }
 
     if (commentsWrap){
@@ -2190,7 +2265,7 @@ function sendFirstMessage(){
       if (res.needPoints){
         showMiniAlert('쌀이 부족해요. 충전하러 가시겠어요?', [
           {label:'취소', primary:false},
-          {label:'충전하기', primary:true, onClick:()=>openFullScreen('riceChargeScreen')}
+          {label:'충전하기', primary:true, onClick:()=>openRiceChargeScreen()}
         ]);
       } else {
         showMiniAlert(res.message || '메시지를 보낼 수 없습니다.', [{label:'확인', primary:true}]);
@@ -2203,6 +2278,44 @@ function sendFirstMessage(){
   });
 }
 function closeRiceChargeScreen(){ closeFullScreen('riceChargeScreen'); }
+
+/* ===================== 쌀 충전소 (구글 플레이/앱스토어 인앱결제) ===================== */
+// 상품ID/가격/보너스는 server.js의 POINTS_BY_PRODUCT와 반드시 동일해야 함.
+// 실제 결제 가능하려면 Play Console/App Store Connect에 같은 productId로 상품이 등록되어 있어야 함.
+const RICE_PACKAGES = [
+  { id: 'points_1000', base: 1000, bonusPct: 10, price: 11900 },
+  { id: 'points_3000', base: 3000, bonusPct: 20, price: 38900, popular: true },
+  { id: 'points_5000', base: 5000, bonusPct: 35, price: 73000 }
+];
+function openRiceChargeScreen(){
+  document.getElementById('rechargeScreenBalance').textContent = (currentUser ? currentUser.points : 0).toLocaleString();
+  renderRicePackages();
+  openFullScreen('riceChargeScreen');
+}
+function renderRicePackages(){
+  const grid = document.getElementById('ricePackageGrid');
+  grid.innerHTML = RICE_PACKAGES.map(p=>{
+    const bonus = Math.round(p.base * p.bonusPct / 100);
+    const total = p.base + bonus;
+    return `
+      <div style="position:relative;border:1px solid ${p.popular?'var(--primary)':'var(--border-color)'};border-radius:14px;padding:12px 8px;text-align:center;">
+        ${p.popular?`<span style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;font-size:9px;font-weight:700;padding:3px 8px;border-radius:99px;white-space:nowrap;">가장 인기</span>`:''}
+        <div style="font-size:16px;"><i class="fa-solid fa-bowl-rice" style="color:var(--warning);"></i></div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;white-space:nowrap;">${p.base.toLocaleString()}개 <span style="color:var(--primary);font-weight:700;">+${bonus.toLocaleString()}</span></div>
+        <div style="font-size:15px;font-weight:800;color:var(--primary);margin:2px 0;">${total.toLocaleString()}개</div>
+        <div style="font-size:12px;font-weight:700;margin-bottom:8px;">${p.price.toLocaleString()}원</div>
+        <button class="btn btn-primary btn-sm" style="width:100%;" onclick="handleBuyRicePackage('${p.id}')">구매</button>
+      </div>`;
+  }).join('');
+}
+function handleBuyRicePackage(productId){
+  if (!window.buyItem){
+    showMiniAlert('결제 기능을 사용할 수 없는 환경입니다. 말벗 앱(스토어 설치 버전)에서 이용해주세요.', [{label:'확인', primary:true}]);
+    return;
+  }
+  window.buyItem(productId);
+  // 실제 쌀 지급은 서버가 결제 완료를 확인한 뒤 'points:updated' 이벤트로 반영됨 (위 buyItem 안내 참고)
+}
 
 /* ===================== 차단 / 신고 ===================== */
 function openBlockReportModal(type, id){ blockReportContext = {type, id: id||currentProfileUserId}; openModal('blockReportModal'); }
@@ -2358,16 +2471,6 @@ function appendChatBubble(m, checkDate=true){
   row.appendChild(timeRow);
   area.appendChild(row);
   area.scrollTop = area.scrollHeight;
-  refreshMsgStatusVisibility();
-}
-// 읽음/전송됨 표시는 내가 보낸 메시지들 중 가장 마지막 것에만 보이도록 함
-function refreshMsgStatusVisibility(){
-  const area = document.getElementById('chatMessageArea');
-  if (!area) return;
-  const mineStatusEls = area.querySelectorAll('.msg-row.mine .msg-status');
-  mineStatusEls.forEach((el, idx)=>{
-    el.style.display = (idx === mineStatusEls.length - 1) ? '' : 'none';
-  });
 }
 // 버튼을 탭하면 입력창(input)이 포커스를 잃으면서(blur) 모바일 키보드가 내려가는 것이 기본 동작이라,
 // mousedown/touchstart 시점에 preventDefault로 포커스 이동 자체를 막아 카톡처럼 키보드가 유지되도록 함.
@@ -2435,7 +2538,7 @@ function loadProfileToForm(){
   document.getElementById('editAge').value = currentUser.age;
   document.getElementById('editGender').value = currentUser.gender||'female';
   document.getElementById('editBio').value = currentUser.bio||'';
-  document.getElementById('editPhoneReadonly').value = formatPhoneDisplay(currentUser.phone||'');
+  document.getElementById('editPhoneReadonly').value = currentUser.phone ? formatPhoneDisplay(currentUser.phone) : '카카오 계정으로 가입됨';
   const preview = document.getElementById('editPhotoPreview');
   editPhotoPosition = currentUser.photoPosition || {x:50, y:50};
   if (currentUser.photos && currentUser.photos.length){
@@ -2602,8 +2705,7 @@ function triggerLogout(){
     {label:'취소', primary:false},
     {label:'로그아웃', primary:true, onClick:()=>{
       socket.emit('auth:logout', ()=>{
-        currentUser = null;
-        sessionStorage.removeItem('malbeot_session');
+        clearSession();
         closeFullScreen('settingsScreen');
         resetToLandingScreen();
       });
