@@ -96,6 +96,7 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 
 .modal-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:none;justify-content:center;align-items:center;z-index:200;padding:16px;}
 .modal-overlay.active{display:flex;}
+#blockReportModal{z-index:300;}
 .modal-card{background:#fff;border-radius:var(--radius-md);width:100%;max-width:420px;padding:22px;box-shadow:var(--shadow-lg);max-height:90vh;overflow-y:auto;position:relative;}
 .mini-alert-card{background:#fff;border-radius:14px;width:100%;max-width:300px;padding:24px 20px;text-align:center;}
 
@@ -155,7 +156,7 @@ body.dark-mode .search-matched-comment-line{color:var(--text-main);}
 .chat-row-last{font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .chat-row-time{font-size:11px;color:var(--text-muted);flex-shrink:0;}
 
-.chat-window-card{height:100%;display:flex;flex-direction:column;padding:0;}
+.chat-window-card{height:100%;width:100%;max-width:none;border-radius:0;box-shadow:none;display:flex;flex-direction:column;padding:0;}
 .chat-header-row{height:56px;flex-shrink:0;display:flex;align-items:center;padding:0 10px;border-bottom:1px solid #d8e6f2;gap:8px;}
 .chat-header-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--blue-light);}
 .chat-header-nick{font-size:14px;font-weight:700;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -246,6 +247,17 @@ body.dark-mode .tagxs{color:var(--text-muted);}
 /* ---- 프로필 상세: 내가 쓴 글 ---- */
 .profile-posts-title{font-size:13px;font-weight:700;margin:16px 0 4px 0;padding-top:16px;border-top:1px solid var(--border-color);}
 .profile-posts-scroll{max-height:calc(3 * 74px);overflow-y:auto;}
+.profile-tab-bar{display:flex;gap:6px;margin:0 0 10px 0;padding-top:16px;border-top:1px solid var(--border-color);}
+.profile-tab-btn{flex:1;padding:9px 0;border:none;border-radius:8px;background:var(--bg-subtle);color:var(--text-main);font-size:13px;font-weight:700;cursor:pointer;transition:background .15s,color .15s;}
+.profile-tab-btn.active{background:var(--primary);color:#fff;}
+.profile-tab-content{display:none;}
+.profile-tab-content.active{display:block;}
+.profile-story-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;}
+.profile-story-grid-item{position:relative;aspect-ratio:1/1;overflow:hidden;cursor:pointer;background:var(--bg-subtle);}
+.profile-story-grid-item img,.profile-story-grid-item video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;}
+.profile-story-grid-item .psg-video-badge{position:absolute;top:5px;right:5px;color:#fff;font-size:12px;text-shadow:0 1px 3px rgba(0,0,0,.6);}
+.scroll-to-top-btn{position:absolute;right:16px;bottom:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.75);border:1px solid var(--border-color);box-shadow:var(--shadow-lg);display:none;align-items:center;justify-content:center;cursor:pointer;z-index:20;color:var(--text-main);font-size:15px;}
+.scroll-to-top-btn.show{display:flex;}
 .profile-post-mini{display:flex;gap:10px;padding:10px 2px;border-bottom:1px solid var(--border-color);cursor:pointer;align-items:center;}
 .profile-post-mini img.ppm-thumb{width:50px;height:50px;border-radius:8px;object-fit:cover;flex-shrink:0;}
 .profile-post-mini .ppm-text{font-size:12px;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;}
@@ -739,6 +751,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div class="fs-right"><button class="icon-round-btn" style="background:rgba(255,255,255,.85);" onclick="openBlockReportModal('user')"><i class="fa-solid fa-ellipsis"></i></button></div>
     </div>
     <div class="fs-body" id="profileDetailBody"></div>
+    <button class="scroll-to-top-btn" id="profileScrollTopBtn" onclick="document.getElementById('profileDetailBody').scrollTo({top:0,behavior:'smooth'})"><i class="fa-solid fa-arrow-up"></i></button>
   </div>
 
   <div id="messageComposeScreen" class="full-screen-overlay msg-compose-screen">
@@ -810,6 +823,12 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <div class="toggle-switch" id="toggleDark"><div class="knob"></div></div>
       </div>
 
+      <div class="settings-section-title">고객지원</div>
+      <div class="settings-list-item" onclick="openModal('contactMenuModal')">
+        <div class="sli-label">문의하기</div>
+        <div class="sli-right"><i class="fa-solid fa-chevron-right"></i></div>
+      </div>
+
       <div class="settings-section-title">정보</div>
       <div class="settings-list-item" style="cursor:default;">
         <div class="sli-label">버전 정보</div>
@@ -842,8 +861,8 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </div>
   </div>
 
-  <div id="chatModal" class="modal-overlay">
-    <div class="modal-card chat-window-card" style="height:88vh;">
+  <div id="chatModal" class="full-screen-overlay">
+    <div class="modal-card chat-window-card">
       <div class="chat-header-row">
         <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeChatModal()"><i class="fa-solid fa-arrow-left"></i></button>
         <img id="chatHeaderAvatar" class="chat-header-avatar" src="" alt="" style="cursor:pointer;" onclick="openProfileFromChatHeader()">
@@ -1414,6 +1433,24 @@ function loadCommunityPosts(){
   });
 }
 // 글 본문이나 댓글 중 한 글자라도 검색어를 포함하면 노출. 일치한 부분은 파란 박스로 강조 표시됨
+// 한글 완성형 글자에서 초성만 뽑아내는 함수 (예: "안녕" -> "ㅇㄴ")
+const CHOSUNG_LIST = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+function getChosungString(str){
+  let result = '';
+  for (const ch of (str||'')){
+    const code = ch.charCodeAt(0) - 0xAC00;
+    result += (code >= 0 && code <= 11171) ? CHOSUNG_LIST[Math.floor(code / 588)] : ch;
+  }
+  return result;
+}
+const CHOSUNG_ONLY_RE = /^[ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ]+$/;
+// 일반 부분일치 검색 + 검색어가 초성만으로 이루어져 있으면 초성 검색도 함께 지원
+function textMatchesSearch(text, q){
+  if (!text || !q) return false;
+  if (text.includes(q)) return true;
+  if (CHOSUNG_ONLY_RE.test(q)) return getChosungString(text).includes(q);
+  return false;
+}
 function handleCommunitySearchInput(){
   const q = document.getElementById('communitySearchInput').value.trim();
   activeSearchQuery = q;
@@ -1422,9 +1459,9 @@ function handleCommunitySearchInput(){
     if (!res.success) return;
     const filtered = (res.posts||[]).filter(p => (p.logType||'story') === activeCommunityLogType);
     const searched = filtered.filter(p=>{
-      if ((p.content||'').includes(q)) return true;
+      if (textMatchesSearch(p.content, q)) return true;
       const comments = p.comments || [];
-      return comments.some(c=>(c.content||'').includes(q));
+      return comments.some(c=>textMatchesSearch(c.content, q));
     });
     renderPosts(searched);
   });
@@ -1986,14 +2023,30 @@ function renderProfileDetail(user){
       <div class="profile-bio-box">${escapeHtml(user.bio||'등록된 자기소개가 없습니다.')}</div>
       ${isMe?'':`<button class="btn ${isFollowing?'btn-secondary':'btn-primary'} btn-block" style="margin-bottom:8px;${isFollowing?'color:var(--primary);':''}" onclick="toggleFollowUser('${user.id}')"><i class="fa-solid fa-user${isFollowing?'-check':'-plus'}"></i> ${isFollowing?'팔로잉':'팔로우'}</button>`}
       ${isMe?'':'<button class="btn btn-primary btn-block" onclick="openMessageComposeScreen()"><i class="fa-solid fa-comments"></i> 메시지 보내기</button>'}
-      <div class="profile-posts-title">작성한 글</div>
-      <div class="profile-posts-scroll" id="profilePostsScroll"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
-      <div class="profile-posts-title">내 스토리</div>
-      <div class="profile-posts-scroll" id="profileStoriesScroll"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
-      <div class="profile-posts-title">작성한 댓글</div>
-      <div class="profile-posts-scroll" id="profileCommentsScroll"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
+      <div class="profile-tab-bar">
+        <button class="profile-tab-btn active" data-tab="posts" onclick="switchProfileDetailTab('posts')">작성한 글</button>
+        <button class="profile-tab-btn" data-tab="stories" onclick="switchProfileDetailTab('stories')">내 스토리</button>
+        <button class="profile-tab-btn" data-tab="comments" onclick="switchProfileDetailTab('comments')">작성한 댓글</button>
+      </div>
+      <div class="profile-tab-content active" id="profilePostsScroll" data-tabcontent="posts"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
+      <div class="profile-tab-content" id="profileStoriesScroll" data-tabcontent="stories"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
+      <div class="profile-tab-content" id="profileCommentsScroll" data-tabcontent="comments"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
     </div>`;
   loadProfilePostsSection(user.id);
+  setupProfileDetailScrollTopBtn();
+}
+// 프로필 상세화면 하단 탭(작성한글/내스토리/작성한댓글) 전환
+function switchProfileDetailTab(tab){
+  document.querySelectorAll('#profileDetailBody .profile-tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('#profileDetailBody .profile-tab-content').forEach(c=>c.classList.toggle('active', c.dataset.tabcontent===tab));
+}
+// 스크롤을 내리면 우측 하단에 반투명 '맨 위로' 버튼이 뜨고, 최상단에서는 자동으로 사라짐
+function setupProfileDetailScrollTopBtn(){
+  const body = document.getElementById('profileDetailBody');
+  const btn = document.getElementById('profileScrollTopBtn');
+  if (!body || !btn) return;
+  body.onscroll = ()=>{ btn.classList.toggle('show', body.scrollTop > 200); };
+  btn.classList.remove('show');
 }
 // 팔로우/언팔로우 실제 처리 (성공 시 내 followingIds를 갱신하고 afterFn 콜백 실행)
 function performFollowToggle(targetId, afterFn){
@@ -2091,14 +2144,10 @@ function loadProfilePostsSection(userId){
 
     if (storiesWrap){
       const stories = allPosts.filter(p=>p.authorId===userId && p.logType==='log').sort((a,b)=>(b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt));
-      storiesWrap.innerHTML = stories.length ? stories.map(p=>`
-        <div class="profile-post-mini" onclick="closeProfileDetailScreen();openStoryViewer('${p.id}')">
-          ${p.photo?(p.mediaType==='video'?`<video class="ppm-thumb" src="${p.photo}" muted></video>`:`<img class="ppm-thumb" src="${p.photo}">`):''}
-          <div style="flex:1;min-width:0;">
-            <div class="ppm-text">${escapeHtml(p.content)}</div>
-            <div class="ppm-meta">${formatRelativeTime(p.updatedAt||p.createdAt)} · 공감 ${p.likes||0} · 댓글 ${(p.comments||[]).length}</div>
-          </div>
-        </div>`).join('') : `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">작성한 스토리가 없습니다.</div>`;
+      storiesWrap.innerHTML = stories.length ? `<div class="profile-story-grid">${stories.map(p=>`
+        <div class="profile-story-grid-item" onclick="closeProfileDetailScreen();openStoryViewer('${p.id}')">
+          ${p.photo?(p.mediaType==='video'?`<video src="${p.photo}" muted playsinline></video><span class="psg-video-badge"><i class="fa-solid fa-video"></i></span>`:`<img src="${p.photo}">`):''}
+        </div>`).join('')}</div>` : `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">작성한 스토리가 없습니다.</div>`;
     }
 
     if (commentsWrap){
@@ -2309,6 +2358,16 @@ function appendChatBubble(m, checkDate=true){
   row.appendChild(timeRow);
   area.appendChild(row);
   area.scrollTop = area.scrollHeight;
+  refreshMsgStatusVisibility();
+}
+// 읽음/전송됨 표시는 내가 보낸 메시지들 중 가장 마지막 것에만 보이도록 함
+function refreshMsgStatusVisibility(){
+  const area = document.getElementById('chatMessageArea');
+  if (!area) return;
+  const mineStatusEls = area.querySelectorAll('.msg-row.mine .msg-status');
+  mineStatusEls.forEach((el, idx)=>{
+    el.style.display = (idx === mineStatusEls.length - 1) ? '' : 'none';
+  });
 }
 // 버튼을 탭하면 입력창(input)이 포커스를 잃으면서(blur) 모바일 키보드가 내려가는 것이 기본 동작이라,
 // mousedown/touchstart 시점에 preventDefault로 포커스 이동 자체를 막아 카톡처럼 키보드가 유지되도록 함.
