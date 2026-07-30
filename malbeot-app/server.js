@@ -4,6 +4,22 @@ const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
 const admin = require('firebase-admin');
+const nodemailer = require('nodemailer');
+
+// ===== 문의하기(이메일) 발송용 SMTP 설정 =====
+// 아래 4개 환경변수를 .env에 채워 넣어야 실제 발송이 됩니다.
+// (테스트용 발신/접수 계정: yeonjun030303@gmail.com)
+// SUPPORT_SMTP_HOST=smtp.gmail.com
+// SUPPORT_SMTP_PORT=465
+// SUPPORT_SMTP_USER=yeonjun030303@gmail.com
+// SUPPORT_SMTP_PASS=구글 앱 비밀번호 (일반 로그인 비번 아님, 아래 안내 참고)
+const supportMailConfigured = !!(process.env.SUPPORT_SMTP_HOST && process.env.SUPPORT_SMTP_USER && process.env.SUPPORT_SMTP_PASS);
+const supportMailTransporter = supportMailConfigured ? nodemailer.createTransport({
+  host: process.env.SUPPORT_SMTP_HOST,
+  port: parseInt(process.env.SUPPORT_SMTP_PORT || '465', 10),
+  secure: parseInt(process.env.SUPPORT_SMTP_PORT || '465', 10) === 465,
+  auth: { user: process.env.SUPPORT_SMTP_USER, pass: process.env.SUPPORT_SMTP_PASS }
+}) : null;
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({
@@ -173,8 +189,8 @@ function sortPostsByType(list, sortType, myRegion) {
     case 'distance': // 거리순: 같은 지역 우선, 그 안에서는 최신순
       if (!myRegion) return list;
       return [...list].sort((a, b) => {
-        const aSame = a.authorRegion === myRegion ? 1 : 0;
-        const bSame = b.authorRegion === myRegion ? 1 : 0;
+        const aSame = (a.authorRegion||'').trim() === myRegion.trim() ? 1 : 0;
+        const bSame = (b.authorRegion||'').trim() === myRegion.trim() ? 1 : 0;
         if (aSame !== bSame) return bSame - aSame;
         return (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt);
       });
@@ -197,8 +213,8 @@ function sortUsersByType(list, sortType, myRegion) {
     case 'distance': // 거리순: 같은 지역 우선
       if (!myRegion) return list;
       return [...list].sort((a, b) => {
-        const aSame = a.region === myRegion ? 1 : 0;
-        const bSame = b.region === myRegion ? 1 : 0;
+        const aSame = (a.region||'').trim() === myRegion.trim() ? 1 : 0;
+        const bSame = (b.region||'').trim() === myRegion.trim() ? 1 : 0;
         if (aSame !== bSame) return bSame - aSame;
         return (b.profileUpdatedAt || b.lastSeen || 0) - (a.profileUpdatedAt || a.lastSeen || 0);
       });
@@ -347,6 +363,31 @@ io.on('connection', (socket) => {
       cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) } });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
+  });
+
+  // 설정 > 문의하기(이메일로 문의하기): 사용자가 입력한 본인 계정으로 답변받도록 replyTo를 지정해 발송
+  socket.on('support:send_inquiry', async ({ toEmail, subject, content }, cb) => {
+    try {
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!toEmail || !emailRe.test(toEmail)) return cb({ success: false, message: '올바른 이메일 주소를 입력해주세요. (예: name@example.com)' });
+      if (!subject || !subject.trim()) return cb({ success: false, message: '제목을 입력해주세요.' });
+      if (!content || !content.trim()) return cb({ success: false, message: '내용을 입력해주세요.' });
+      if (content.length > 500) return cb({ success: false, message: '내용은 500자 이내로 작성해주세요.' });
+      if (!supportMailConfigured) return cb({ success: false, message: '문의 이메일 발송 설정이 아직 완료되지 않았습니다. 잠시 후 다시 시도해주세요.' });
+      const userId = socketToUser[socket.id];
+      const user = userId ? await getUser(userId) : null;
+      await supportMailTransporter.sendMail({
+        from: process.env.SUPPORT_SMTP_USER,
+        to: process.env.SUPPORT_SMTP_USER, // 말벗 운영 계정으로 접수 (계정 미정 - .env에서 설정)
+        replyTo: toEmail, // 운영자가 답장을 누르면 사용자가 입력한 계정으로 바로 회신됨
+        subject: `[말벗 문의] ${subject}`,
+        text: `보낸 사람(답변받을 계정): ${toEmail}\n작성자 닉네임: ${user ? user.nickname : '알 수 없음'}\n\n${content}`
+      });
+      cb({ success: true });
+    } catch (e) {
+      console.error('[문의하기 발송 오류]', e);
+      cb({ success: false, message: '전송에 실패했습니다. 이메일 주소가 정확한지 확인 후 다시 시도해주세요.' });
+    }
   });
 
   // 홈 리스트: 나 자신 포함, filters.sort로 기본순/popular/distance/views 정렬 선택 가능
