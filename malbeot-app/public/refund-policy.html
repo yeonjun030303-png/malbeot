@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>환불정책 | 말벗</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&family=Noto+Serif+KR:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FFF9FB; --card:#FFFFFF; --ink:#241220; --ink-soft:#6B5563;
+    --accent:#FF3D77; --accent-soft:#FFE3ED; --line:#F2D9E4; --grain:#FFC24B;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.7;}
+  .grain-strip{height:6px;background:repeating-linear-gradient(90deg,var(--accent) 0 18px,var(--grain) 18px 26px,transparent 26px 34px);}
+  header{max-width:760px;margin:0 auto;padding:56px 24px 28px;}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--accent);background:var(--accent-soft);padding:6px 14px;border-radius:999px;}
+  h1{font-family:'Noto Serif KR',serif;font-size:clamp(28px,5vw,38px);font-weight:700;margin:18px 0 6px;}
+  .updated{color:var(--ink-soft);font-size:14px;}
+  main{max-width:760px;margin:0 auto;padding:0 24px 100px;}
+  section{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 28px 8px;margin-bottom:20px;}
+  section h2{display:flex;align-items:baseline;gap:10px;font-size:19px;margin:0 0 14px;}
+  section h2::before{content:attr(data-num);font-family:'Noto Serif KR',serif;font-size:15px;font-weight:700;color:#fff;background:var(--accent);width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none;}
+  ul{margin:0 0 20px;padding-left:20px;}
+  li{margin-bottom:8px;}
+  table{width:100%;border-collapse:collapse;margin:12px 0 20px;font-size:14.5px;}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{color:var(--ink-soft);font-weight:600;width:130px;}
+  .note{background:var(--accent-soft);border-radius:12px;padding:14px 16px;font-size:13.5px;color:#7A2D4A;margin:0 0 20px;}
+  .warn{background:#FFF4E5;border-radius:12px;padding:14px 16px;font-size:13.5px;color:#8A5A00;margin:0 0 20px;}
+  a{color:var(--accent);}
+  footer{max-width:760px;margin:0 auto;padding:0 24px 60px;color:var(--ink-soft);font-size:13px;text-align:center;}
+</style>
+</head>
+<body>
+  <div class="grain-strip"></div>
+  <header>
+    <span class="eyebrow">🌾 말벗 환불정책</span>
+    <h1>쌀 충전 환불,<br>이렇게 처리돼요</h1>
+    <p class="updated">시행일자: 2026년 7월 29일</p>
+  </header>
+
+  <main>
+    <section>
+      <h2 data-num="1">환불 처리 주체</h2>
+      <p>말벗의 쌀(포인트) 결제는 <b>Google Play 인앱결제</b> 또는 <b>Apple 앱스토어 인앱결제</b>를 통해서만 이루어집니다. 결제·환불 트랜잭션은 각 스토어가 직접 처리하며, 환불 신청 역시 아래 각 스토어의 절차를 통해 접수해 주셔야 해요.</p>
+      <table>
+        <tr><th>Google Play</th><td>Play 스토어 앱 &gt; 주문 내역에서 직접 환불 요청, 또는 <a href="https://support.google.com/googleplay/answer/2479637" target="_blank" rel="noopener">Google Play 고객센터</a></td></tr>
+        <tr><th>Apple App Store</th><td><a href="https://reportaproblem.apple.com" target="_blank" rel="noopener">reportaproblem.apple.com</a> 또는 iOS 설정 &gt; 구입 내역에서 환불 요청</td></tr>
+      </table>
+      <p class="note">말벗 앱/서버는 결제수단(카드 등) 정보를 직접 보관하지 않으므로, 앱 내에서 직접 결제를 취소·환불해 드릴 수는 없어요. 다만 스토어에서 환불이 승인되면, 아래 기준에 따라 지급된 쌀을 회수 처리합니다.</p>
+    </section>
+
+    <section>
+      <h2 data-num="2">청약철회(환불) 가능 조건</h2>
+      <p>전자상거래 등에서의 소비자보호에 관한 법률에 따라, 아래 조건을 모두 충족하면 결제일로부터 <b>7일 이내</b> 청약철회(환불)를 신청할 수 있어요.</p>
+      <ul>
+        <li>결제 완료일로부터 7일이 지나지 않았을 것</li>
+        <li>지급된 쌀을 <b>전혀 사용하지 않았을 것</b> (커뮤니티 글쓰기, 채팅 등 쌀이 차감되는 기능을 한 번도 이용하지 않은 상태)</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 data-num="3">환불이 제한되는 경우</h2>
+      <ul>
+        <li>지급된 쌀을 <b>일부라도 사용한 경우</b> — 디지털 콘텐츠는 제공(사용)이 개시되면 청약철회권이 제한된다는 관련 법령에 따라, 해당 결제 건은 환불 대상에서 제외돼요.</li>
+        <li>결제일로부터 7일이 경과한 경우</li>
+        <li>구매 전 안내된 "구매 즉시 사용에 동의"에 체크하고 실제로 쌀을 사용한 경우</li>
+        <li>동일 이용자가 결제·환불을 반복해 서비스를 부당하게 이용하는 것으로 판단되는 경우, 이후 결제 및 서비스 이용이 제한될 수 있어요.</li>
+      </ul>
+      <p class="warn">⚠️ 결제 전 화면에 "쌀은 충전 즉시 사용 가능하며, 일부라도 사용 시 환불이 제한됩니다"라는 안내가 표시돼요. 이 안내는 청약철회 제한 사유를 사전에 명확히 고지하기 위한 절차이며, 관련 법령에 따라 반드시 필요해요.</p>
+    </section>
+
+    <section>
+      <h2 data-num="4">환불 승인 후 처리</h2>
+      <ul>
+        <li>스토어에서 환불이 승인되면, 말벗 서버는 해당 결제 건으로 지급됐던 쌀(미사용분)을 계정에서 자동으로 회수해요.</li>
+        <li>이미 일부를 사용해 잔여 쌀이 환불 대상 지급량보다 적은 경우, 잔여 쌀 전액을 회수하고 부족분은 별도로 청구하지 않아요. 다만 이런 사례가 반복되면 서비스 이용이 제한될 수 있어요.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 data-num="5">문의처</h2>
+      <table>
+        <tr><th>말벗 운영팀</th><td>[여기에 실제 문의 이메일 주소를 입력하세요]</td></tr>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    본 방침은 관련 법령 및 스토어 정책 변경에 따라 개정될 수 있으며, 개정 시 앱 내 공지를 통해 안내합니다.<br>
+    © 말벗
+  </footer>
+</body>
+</html>
