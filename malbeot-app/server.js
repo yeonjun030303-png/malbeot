@@ -117,6 +117,7 @@ app.post('/api/revenuecat-webhook', async (req, res) => {
 // (기존에는 나이를 검증 없이 parseInt만 해서, 이상한 값을 넣으면 NaN이 그대로 DB에 저장되는 문제가 있었음)
 function validateProfileInput(data) {
   if (!data.nickname || !String(data.nickname).trim().length) return '닉네임을 입력해주세요.';
+  if (containsBannedWord(data.nickname)) return '닉네임에 부적절한 단어가 포함되어 있습니다.';
   const age = parseInt(data.age, 10);
   if (isNaN(age) || age < 14 || age > 120) return '나이를 올바르게 입력해주세요.';
   return null;
@@ -594,6 +595,16 @@ io.on('connection', (socket) => {
       const userId = socketToUser[socket.id];
       const user = await getUser(userId);
       if (!user) return cb({ success: false });
+
+      if (data.nickname && containsBannedWord(data.nickname)) {
+        return cb({ success: false, message: '닉네임에 부적절한 단어가 포함되어 변경할 수 없습니다.' });
+      }
+
+      if (data.photos && data.photos[0]) {
+        const nsfwResult = await checkImageNsfw(data.photos[0]);
+        if (nsfwResult.isNsfw) return cb({ success: false, message: '부적절한 프로필 사진으로 감지되어 변경할 수 없습니다.' });
+      }
+
       Object.assign(user, data, { profileUpdatedAt: Date.now() });
       await saveUser(user);
       cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) } });
@@ -693,7 +704,7 @@ io.on('connection', (socket) => {
 
       if (data.photo) {
         const nsfwResult = await checkImageNsfw(data.photo);
-        if (nsfwResult.blocked) return cb({ success: false, message: '부적절한 이미지로 감지되어 등록이 제한되었습니다.' });
+        if (nsfwResult.isNsfw) return cb({ success: false, message: '부적절한 이미지로 감지되어 등록이 제한되었습니다.' });
       }
 
       const todayStr = new Date().toISOString().slice(0, 10);
@@ -726,7 +737,7 @@ io.on('connection', (socket) => {
 
       if (data.photo) {
         const nsfwResult = await checkImageNsfw(data.photo);
-        if (nsfwResult.blocked) return cb({ success: false, message: '부적절한 이미지로 감지되어 수정이 제한되었습니다.' });
+        if (nsfwResult.isNsfw) return cb({ success: false, message: '부적절한 이미지로 감지되어 수정이 제한되었습니다.' });
       }
 
       post.content = (data.content || '').slice(0, 100);
