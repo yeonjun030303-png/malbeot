@@ -719,6 +719,7 @@ io.on('connection', (socket) => {
       if (!user) return cb({ success: false });
 
       const bannedWord = containsBannedWord(data.content);
+      if (bannedWord && data.confirmed !== true) return cb({ success: false, needsConfirm: true });
       let imageBlocked = false;
       if (data.photo) {
         const nsfwResult = await checkImageNsfw(data.photo);
@@ -755,6 +756,7 @@ io.on('connection', (socket) => {
       if (!post || post.authorId !== userId) return cb({ success: false });
 
       const bannedWord = containsBannedWord(data.content);
+      if (bannedWord && data.confirmed !== true) return cb({ success: false, needsConfirm: true });
       let imageBlocked = false;
       if (data.photo) {
         const nsfwResult = await checkImageNsfw(data.photo);
