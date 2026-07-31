@@ -225,7 +225,7 @@ async function enrichPosts(rawPosts) {
       const cu = users[c.authorId] || {};
       return {
         ...c,
-        authorNickname: cu.nickname || '(탈퇴한 사용자)',
+        authorNickname: cu.nicknameFiltered ? '삭제된 닉네임입니다' : (cu.nickname || '(탈퇴한 사용자)'),
         authorPhoto: (cu.photos && cu.photos[0]) || '',
         authorGender: cu.gender || 'female',
         authorPhotoPosition: cu.photoPosition || null
@@ -235,7 +235,7 @@ async function enrichPosts(rawPosts) {
     const { viewedBy, ...postRest } = p;
     return {
       ...postRest,
-      authorNickname: author.nickname || '(탈퇴한 사용자)',
+      authorNickname: author.nicknameFiltered ? '삭제된 닉네임입니다' : (author.nickname || '(탈퇴한 사용자)'),
       authorRegion: author.region || '',
       authorGender: author.gender || 'female',
       authorAge: author.age || 0,

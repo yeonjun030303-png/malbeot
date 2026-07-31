@@ -34,10 +34,15 @@ async function loadNsfwModel() {
   return nsfwModel;
 }
 
-// imageBuffer: 이미지 파일의 Buffer
-async function checkImageNsfw(imageBuffer) {
+// imageInput: 이미지 파일의 Buffer 또는 data URI 문자열(data:image/...;base64,...)
+async function checkImageNsfw(imageInput) {
   try {
     const model = await loadNsfwModel();
+    let imageBuffer = imageInput;
+    if (typeof imageInput === 'string') {
+      const base64 = imageInput.includes(',') ? imageInput.split(',')[1] : imageInput;
+      imageBuffer = Buffer.from(base64, 'base64');
+    }
     const image = await tf.node.decodeImage(imageBuffer, 3);
     const predictions = await model.classify(image);
     image.dispose();
