@@ -1802,10 +1802,12 @@ function renderPosts(list){
   list.forEach(p=>{
     const liked = currentUser && (p.likedBy||[]).includes(currentUser.id);
     const div = document.createElement('div'); div.className='post-row';
-    const mediaHtml = p.photo ? (p.mediaType==='video'
+    const mediaHtml = (p.photo && !p.filtered) ? (p.mediaType==='video'
       ? `<video src="${p.photo}" muted controls playsinline style="width:100%;max-height:260px;border-radius:10px;display:block;margin:8px auto;object-fit:cover;"></video>`
       : `<img src="${p.photo}" style="width:100%;max-height:260px;border-radius:10px;display:block;margin:8px auto;object-fit:cover;" onclick="event.stopPropagation();openPostDetailScreen('${p.id}')">`) : '';
-    const previewHtml = activeSearchQuery ? highlightMatch(p.content, activeSearchQuery) : escapeHtml(p.content);
+    const previewHtml = p.filtered
+      ? `<span style="color:var(--text-muted);">부적절한 단어로 삭제된 게시글입니다.</span>`
+      : (activeSearchQuery ? highlightMatch(p.content, activeSearchQuery) : escapeHtml(p.content));
     const matchedCommentsHtml = activeSearchQuery ? buildMatchedCommentsHtml(p, activeSearchQuery) : '';
     div.innerHTML = `
       <div class="post-row-top">
@@ -1920,22 +1922,33 @@ function refreshPostDetail(focusComment){
 function renderPostDetail(p){
   const liked = currentUser && (p.likedBy||[]).includes(currentUser.id);
   const commentsHtml = renderCommentsTree(p);
+  const isFiltered = !!p.filtered;
+  const mediaHtml = (p.photo && !isFiltered) ? (p.mediaType==='video'?`<video src="${p.photo}" controls muted style="width:100%;border-radius:10px;margin-bottom:12px;"></video>`:`<img src="${p.photo}" style="width:100%;border-radius:10px;margin-bottom:12px;">`) : '';
+  const contentHtml = isFiltered
+    ? `<div style="font-size:14px;line-height:1.6;color:var(--text-muted);margin-bottom:14px;">부적절한 단어로 삭제된 게시글입니다.</div>`
+    : `<div style="font-size:14px;line-height:1.6;white-space:pre-line;margin-bottom:14px;">${escapeHtml(p.content)}</div>`;
+  const commentInputHtml = isFiltered
+    ? `<div style="display:flex;gap:8px;margin-bottom:14px;opacity:0.4;pointer-events:none;">
+      <input type="text" placeholder="댓글을 남길 수 없습니다" disabled style="flex:1;padding:9px 12px;font-size:13px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-subtle);">
+      <button class="btn btn-primary btn-sm" disabled>작성</button>
+    </div>`
+    : `<div style="display:flex;gap:8px;margin-bottom:14px;">
+      <input type="text" id="newCommentInput" placeholder="댓글을 남겨보세요..." style="flex:1;padding:9px 12px;font-size:13px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-subtle);">
+      <button class="btn btn-primary btn-sm" onclick="addCommentToPost('${p.id}', null)">작성</button>
+    </div>`;
   document.getElementById('postDetailBody').innerHTML = `
     <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:12px;">
       <span onclick="openProfileDetailScreen('${p.authorId}')" style="cursor:pointer;display:inline-block;">${avatarHtmlFor(postAuthorObj(p),'avatar-md')}</span>
       <div><div style="font-weight:700;font-size:14px;cursor:pointer;" onclick="openProfileDetailScreen('${p.authorId}')">${escapeHtml(p.authorNickname)}</div>
       <div style="font-size:11px;color:var(--text-muted);">${new Date(p.updatedAt||p.createdAt).getMonth()+1}월 ${new Date(p.updatedAt||p.createdAt).getDate()}일 ${formatClockTime(p.updatedAt||p.createdAt)}</div></div>
     </div>
-    ${p.photo?(p.mediaType==='video'?`<video src="${p.photo}" controls muted style="width:100%;border-radius:10px;margin-bottom:12px;"></video>`:`<img src="${p.photo}" style="width:100%;border-radius:10px;margin-bottom:12px;">`):''}
-    <div style="font-size:14px;line-height:1.6;white-space:pre-line;margin-bottom:14px;">${escapeHtml(p.content)}</div>
+    ${mediaHtml}
+    ${contentHtml}
     <div style="display:flex;gap:16px;margin-bottom:16px;border-top:1px solid var(--border-color);border-bottom:1px solid var(--border-color);padding:10px 0;">
       <button class="post-action-btn ${liked?'liked':''}" onclick="toggleLikePost('${p.id}')"><i class="fa-${liked?'solid':'regular'} fa-heart"></i> ${p.likes||0}</button>
       <span class="post-action-btn"><i class="fa-regular fa-comment"></i> ${(p.comments||[]).length}</span>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:14px;">
-      <input type="text" id="newCommentInput" placeholder="댓글을 남겨보세요..." style="flex:1;padding:9px 12px;font-size:13px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-subtle);">
-      <button class="btn btn-primary btn-sm" onclick="addCommentToPost('${p.id}', null)">작성</button>
-    </div>
+    ${commentInputHtml}
     <div id="commentsWrap">${commentsHtml}</div>`;
 }
 function renderCommentsTree(p){
@@ -1944,7 +1957,8 @@ function renderCommentsTree(p){
   return top.map(c=>renderCommentItem(p,c,comments)).join('') || `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:12px;">첫 댓글을 남겨보세요.</div>`;
 }
 // 댓글 내용 맨 앞의 "@닉네임 " 부분을 파란색으로 표시
-function renderCommentContent(content){
+function renderCommentContent(content, filtered){
+  if (filtered) return `<span style="color:var(--text-muted);">부적절한 댓글입니다.</span>`;
   const m = /^@(\S{1,10})\s([\s\S]*)$/.exec(content || '');
   if (!m) return escapeHtml(content);
   return `<span style="color:var(--primary);font-weight:700;">@${escapeHtml(m[1])}</span> ${escapeHtml(m[2])}`;
@@ -1967,7 +1981,7 @@ function renderCommentItem(p,c,allComments){
               <span style="font-weight:700;font-size:12px;color:${rIsAuthor?'var(--primary)':'inherit'};">${escapeHtml(r.authorNickname)}${rIsAuthor?'(작성자)':''}</span>
               <span style="font-size:11px;color:var(--text-muted);font-weight:700;">${formatRelativeTime(r.updatedAt||r.createdAt)}</span>
             </div>
-            <div style="font-size:13px;margin-top:2px;">${renderCommentContent(r.content)}</div>
+            <div style="font-size:13px;margin-top:2px;">${renderCommentContent(r.content, r.filtered)}</div>
             <div style="margin-top:4px;display:flex;gap:10px;align-items:center;">
               <button class="post-action-btn" onclick="toggleLikeComment('${p.id}','${r.id}')"><i class="fa-regular fa-heart"></i> ${(r.likes||0)}</button>
               ${rMine?`<button class="post-action-btn" onclick="editComment('${p.id}','${r.id}')">수정</button><button class="post-action-btn" onclick="deleteComment('${p.id}','${r.id}')">삭제</button>`:(currentUser&&currentUser.isAdmin?`<button class="post-action-btn" style="color:var(--danger);" onclick="deleteComment('${p.id}','${r.id}')">삭제(관리자)</button>`:'')}
@@ -1985,7 +1999,7 @@ function renderCommentItem(p,c,allComments){
             <span style="font-weight:700;font-size:13px;color:${isAuthor?'var(--primary)':'inherit'};">${escapeHtml(c.authorNickname)}${isAuthor?'(작성자)':''}</span>
             <span style="font-size:11px;color:var(--text-muted);font-weight:700;">${formatRelativeTime(c.updatedAt||c.createdAt)}</span>
           </div>
-          <div style="font-size:13px;margin-top:2px;">${renderCommentContent(c.content)}</div>
+          <div style="font-size:13px;margin-top:2px;">${renderCommentContent(c.content, c.filtered)}</div>
           <div style="margin-top:4px;display:flex;gap:10px;align-items:center;">
             <button class="post-action-btn" onclick="toggleLikeComment('${p.id}','${c.id}')"><i class="fa-regular fa-heart"></i> ${(c.likes||0)}</button>
             <button class="post-action-btn" onclick="showReplyInput('${p.id}','${c.id}','${(c.authorNickname||'').replace(/'/g,"\\'")}')">답글달기</button>

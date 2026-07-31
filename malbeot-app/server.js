@@ -410,6 +410,24 @@ async function postAsAiBotIfNeeded() {
 ensureAiBotUser().then(() => postAsAiBotIfNeeded());
 setInterval(postAsAiBotIfNeeded, 60 * 60 * 1000);
 
+// 필터링된 게시글 자동 정리: filteredAt으로부터 3일이 지나도록 본인이 수정(해제)하거나 삭제하지 않으면 자동으로 완전 삭제
+async function purgeExpiredFilteredPosts() {
+  try {
+    const posts = await getRawPosts();
+    const now = Date.now();
+    const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
+    let purgedAny = false;
+    for (const p of posts) {
+      if (p.filtered && p.filteredAt && (now - p.filteredAt) > THREE_DAYS) {
+        await deletePostDb(p.id);
+        purgedAny = true;
+      }
+    }
+    if (purgedAny) broadcastPosts();
+  } catch (e) { console.error('[필터링 게시글 자동정리 오류]', e); }
+}
+setInterval(purgeExpiredFilteredPosts, 60 * 60 * 1000);
+
 // 관리자 전화번호 목록. Render/​.env의 ADMIN_PHONES에 "01012345678,01099998888"처럼
 // 콤마로 구분해서 등록해두면, 그 번호로 로그인한 사람은 커뮤니티 글/댓글을 누구 것이든
 // 삭제할 수 있게 됨 (신고 시스템과 별개로 즉시 삭제 가능한 권한).
@@ -700,12 +718,12 @@ io.on('connection', (socket) => {
       if (!user) return cb({ success: false });
 
       const bannedWord = containsBannedWord(data.content);
-      if (bannedWord) return cb({ success: false, message: '부적절한 단어가 포함되어 등록할 수 없습니다.' });
-
+      let imageBlocked = false;
       if (data.photo) {
         const nsfwResult = await checkImageNsfw(data.photo);
-        if (nsfwResult.isNsfw) return cb({ success: false, message: '부적절한 이미지로 감지되어 등록이 제한되었습니다.' });
+        imageBlocked = nsfwResult.isNsfw;
       }
+      const isFiltered = bannedWord || imageBlocked;
 
       const todayStr = new Date().toISOString().slice(0, 10);
       let earned = false;
@@ -713,16 +731,19 @@ io.on('connection', (socket) => {
       await saveUser(user);
       const post = {
         id: genId('p'), authorId: user.id,
-        content: (data.content || '').slice(0, 100), photo: data.photo || '', logType: data.logType || 'story',
+        content: (data.content || '').slice(0, 100), photo: imageBlocked ? '' : (data.photo || ''), logType: data.logType || 'story',
         createdAt: Date.now(), updatedAt: Date.now(), likes: 0, likedBy: [], comments: {},
-        viewCount: 0, viewedBy: {}
+        viewCount: 0, viewedBy: {},
+        filtered: isFiltered, filteredAt: isFiltered ? Date.now() : null
       };
       await savePost(post);
-      cb({ success: true, earned, points: user.points });
+      cb({ success: true, earned, points: user.points, filtered: isFiltered });
       broadcastPosts();
-      // 팔로워에게 새 글/스토리 알림 + 키워드 알림 등록 유저에게 알림
-      notifyFollowersNewPost(user, post, '작성');
-      notifyKeywordMatches(post, user.id, '등록');
+      if (!isFiltered) {
+        // 팔로워에게 새 글/스토리 알림 + 키워드 알림 등록 유저에게 알림 (필터링된 글은 알림 생략)
+        notifyFollowersNewPost(user, post, '작성');
+        notifyKeywordMatches(post, user.id, '등록');
+      }
     } catch (e) { console.error(e); cb({ success: false }); }
   });
 
@@ -733,24 +754,33 @@ io.on('connection', (socket) => {
       if (!post || post.authorId !== userId) return cb({ success: false });
 
       const bannedWord = containsBannedWord(data.content);
-      if (bannedWord) return cb({ success: false, message: '부적절한 단어가 포함되어 수정할 수 없습니다.' });
-
+      let imageBlocked = false;
       if (data.photo) {
         const nsfwResult = await checkImageNsfw(data.photo);
-        if (nsfwResult.isNsfw) return cb({ success: false, message: '부적절한 이미지로 감지되어 수정이 제한되었습니다.' });
+        imageBlocked = nsfwResult.isNsfw;
       }
+      const isFiltered = bannedWord || imageBlocked;
+      const wasFiltered = !!post.filtered;
 
       post.content = (data.content || '').slice(0, 100);
-      post.photo = data.photo || '';
+      post.photo = imageBlocked ? '' : (data.photo || '');
       post.logType = data.logType || post.logType || 'story';
       post.updatedAt = Date.now();
+      post.filtered = isFiltered;
+      // 원래 정상이었다가 이번에 새로 걸린 경우에만 3일 타이머 시작.
+      // 이미 필터링돼있던 글이면 기존 filteredAt(마감시한)을 그대로 유지함.
+      if (isFiltered && !wasFiltered) post.filteredAt = Date.now();
+      if (!isFiltered) post.filteredAt = null;
+
       await savePost(post);
-      cb({ success: true });
+      cb({ success: true, filtered: isFiltered });
       broadcastPosts();
-      // 수정된 글도 키워드 알림 대상 + 팔로워 알림 대상에 포함
-      const author = await getUser(userId);
-      if (author) notifyFollowersNewPost(author, post, '수정');
-      notifyKeywordMatches(post, userId, '수정');
+      if (!isFiltered) {
+        // 수정된 글도 키워드 알림 대상 + 팔로워 알림 대상에 포함 (필터링된 글은 알림 생략)
+        const author = await getUser(userId);
+        if (author) notifyFollowersNewPost(author, post, '수정');
+        notifyKeywordMatches(post, userId, '수정');
+      }
     } catch (e) { console.error(e); cb({ success: false }); }
   });
 
@@ -815,30 +845,32 @@ io.on('connection', (socket) => {
       const post = await getPost(data.postId);
       if (!post) return cb({ success: false });
 
-      const bannedWord = containsBannedWord(data.content);
-      if (bannedWord) return cb({ success: false, message: '부적절한 단어가 포함되어 댓글을 등록할 수 없습니다.' });
+      const isFiltered = containsBannedWord(data.content);
 
       const commentId = genId('c');
       const comment = {
         id: commentId, authorId: userId,
         content: data.content, parentId: data.parentId || null,
-        createdAt: Date.now(), updatedAt: Date.now()
+        createdAt: Date.now(), updatedAt: Date.now(),
+        filtered: isFiltered
       };
       if (!post.comments) post.comments = {};
       const parentComment = data.parentId ? post.comments[data.parentId] : null;
       post.comments[commentId] = comment;
       await savePost(post);
-      cb({ success: true });
+      cb({ success: true, filtered: isFiltered });
       broadcastPosts();
 
-      const commenter = await getUser(userId);
-      const name = (commenter && commenter.nickname) || '누군가';
-      if (parentComment) {
-        if (parentComment.authorId && parentComment.authorId !== userId) {
-          notifyUser(parentComment.authorId, { type: 'reply', postId: post.id, title: name, body: '내 댓글에 답글을 달았습니다' });
+      if (!isFiltered) {
+        const commenter = await getUser(userId);
+        const name = (commenter && commenter.nickname) || '누군가';
+        if (parentComment) {
+          if (parentComment.authorId && parentComment.authorId !== userId) {
+            notifyUser(parentComment.authorId, { type: 'reply', postId: post.id, title: name, body: '내 댓글에 답글을 달았습니다' });
+          }
+        } else if (post.authorId && post.authorId !== userId) {
+          notifyUser(post.authorId, { type: 'comment', postId: post.id, title: name, body: '게시글에 댓글을 달았습니다' });
         }
-      } else if (post.authorId && post.authorId !== userId) {
-        notifyUser(post.authorId, { type: 'comment', postId: post.id, title: name, body: '게시글에 댓글을 달았습니다' });
       }
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -866,9 +898,10 @@ io.on('connection', (socket) => {
       const c = post && post.comments && post.comments[data.commentId];
       if (!c || c.authorId !== userId) return cb({ success: false });
       c.content = data.content;
+      c.filtered = containsBannedWord(data.content);
       c.updatedAt = Date.now();
       await savePost(post);
-      cb({ success: true });
+      cb({ success: true, filtered: c.filtered });
       broadcastPosts();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
