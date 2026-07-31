@@ -642,6 +642,7 @@ io.on('connection', (socket) => {
       const myUserId = socketToUser[socket.id];
       const myUser = myUserId ? await getUser(myUserId) : null;
       list = sortUsersByType(list, filters.sort, myUser && myUser.region);
+      list = list.map(u => u.nicknameFiltered ? { ...u, nickname: "삭제된 닉네임입니다" } : u);
       cb({ success: true, users: list });
     } catch (e) { console.error(e); cb({ success: false, users: [] }); }
   });
