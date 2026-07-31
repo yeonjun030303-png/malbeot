@@ -6,6 +6,7 @@ const { Server } = require('socket.io');
 const admin = require('firebase-admin');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { checkImageNsfw, containsBannedWord } = require('./moderation');
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({
@@ -686,6 +687,15 @@ io.on('connection', (socket) => {
       const userId = socketToUser[socket.id];
       const user = await getUser(userId);
       if (!user) return cb({ success: false });
+
+      const bannedWord = containsBannedWord(data.content);
+      if (bannedWord) return cb({ success: false, message: '부적절한 단어가 포함되어 등록할 수 없습니다.' });
+
+      if (data.photo) {
+        const nsfwResult = await checkImageNsfw(data.photo);
+        if (nsfwResult.blocked) return cb({ success: false, message: '부적절한 이미지로 감지되어 등록이 제한되었습니다.' });
+      }
+
       const todayStr = new Date().toISOString().slice(0, 10);
       let earned = false;
       if (user.lastPostDate !== todayStr) { user.points += 50; user.lastPostDate = todayStr; earned = true; }
@@ -710,6 +720,15 @@ io.on('connection', (socket) => {
       const userId = socketToUser[socket.id];
       const post = await getPost(data.id);
       if (!post || post.authorId !== userId) return cb({ success: false });
+
+      const bannedWord = containsBannedWord(data.content);
+      if (bannedWord) return cb({ success: false, message: '부적절한 단어가 포함되어 수정할 수 없습니다.' });
+
+      if (data.photo) {
+        const nsfwResult = await checkImageNsfw(data.photo);
+        if (nsfwResult.blocked) return cb({ success: false, message: '부적절한 이미지로 감지되어 수정이 제한되었습니다.' });
+      }
+
       post.content = (data.content || '').slice(0, 100);
       post.photo = data.photo || '';
       post.logType = data.logType || post.logType || 'story';
@@ -784,6 +803,10 @@ io.on('connection', (socket) => {
       const userId = socketToUser[socket.id];
       const post = await getPost(data.postId);
       if (!post) return cb({ success: false });
+
+      const bannedWord = containsBannedWord(data.content);
+      if (bannedWord) return cb({ success: false, message: '부적절한 단어가 포함되어 댓글을 등록할 수 없습니다.' });
+
       const commentId = genId('c');
       const comment = {
         id: commentId, authorId: userId,

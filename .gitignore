@@ -1,1 +1,6 @@
 .env
+node_modules/
+malbeot-app/node_modules/
+node_modules/
+malbeot-app/node_modules/
+malbeot-app/public/index.html.bak

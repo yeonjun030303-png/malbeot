@@ -7,12 +7,14 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@tensorflow/tfjs-node": "^4.22.0",
     "bcryptjs": "^2.4.3",
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "firebase-admin": "^12.6.0",
     "jsonwebtoken": "^9.0.2",
-    "socket.io": "^4.7.5",
-    "sharp": "^0.35.3"
+    "nsfwjs": "^4.3.0",
+    "sharp": "^0.35.3",
+    "socket.io": "^4.7.5"
   }
 }
