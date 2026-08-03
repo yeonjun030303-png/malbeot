@@ -640,7 +640,39 @@ io.on('connection', (socket) => {
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
+// 회원탈퇴: 게시글/스토리/릴스 전부 삭제, 채팅방은 남기되 시스템 메시지로 탈퇴 안내, 계정 삭제
+  socket.on('account:withdraw', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const user = await getUser(userId);
+      if (!user) return cb({ success: false });
 
+      const postsSnap = await db.ref('posts').once('value');
+      const allPosts = postsSnap.val() || {};
+      for (const pid of Object.keys(allPosts)) {
+        if (allPosts[pid].authorId === userId) await deletePostDb(pid);
+      }
+
+      const chatsSnap = await db.ref('chats').once('value');
+      const allChats = chatsSnap.val() || {};
+      for (const roomId of Object.keys(allChats)) {
+        const room = allChats[roomId];
+        if (room.userIds && room.userIds.includes(userId)) {
+          await addMessage(roomId, { senderId: 'system', text: '탈퇴한 사용자입니다.', timestamp: Date.now() });
+          const otherId = room.userIds.find(id => id !== userId);
+          const sId = userToSocket[otherId];
+          if (sId) io.to(sId).emit('chat:new_message', { roomId, message: { senderId: 'system', text: '탈퇴한 사용자입니다.', timestamp: Date.now() } });
+        }
+      }
+
+      await db.ref(`users/${userId}`).remove();
+      delete socketToUser[socket.id];
+      delete userToSocket[userId];
+      cb({ success: true });
+      broadcastUsers();
+      broadcastPosts();
+    } catch (e) { console.error(e); cb({ success: false }); }
+  });
   // 홈 리스트: 나 자신 포함, filters.sort로 기본순/popular/distance/views 정렬 선택 가능
   socket.on('users:get_list', async (filters, cb) => {
     try {
