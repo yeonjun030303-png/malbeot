@@ -801,7 +801,8 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       </div>
 
       <div class="settings-section-title">계정</div>
-      <div class="settings-list-item" onclick="triggerLogout()">
+      <div class="settings-list-item" <button type="button" class="btn btn-secondary btn-block" style="color:var(--danger);" onclick="triggerLogout()"><i class="fa-solid fa-right-from-bracket"></i> 로그아웃</button>
+        <button type="button" class="btn btn-secondary btn-block" style="color:var(--danger); margin-top:8px;" onclick="triggerWithdraw()"><i class="fa-solid fa-user-slash"></i> 회원탈퇴</button>
         <div class="sli-label">로그아웃</div>
         <div class="sli-right"><i class="fa-solid fa-chevron-right"></i></div>
       </div>
@@ -2762,7 +2763,23 @@ function confirmUnblock(targetId, nickname){
     }}
   ]);
 }
-
+/* ===================== 회원탈퇴 ===================== */
+function triggerWithdraw(){
+  showMiniAlert('정말 탈퇴하시겠습니까? 작성한 게시글/스토리/릴스가 모두 삭제되며 되돌릴 수 없습니다.', [
+    {label:'취소', primary:false},
+    {label:'탈퇴하기', primary:true, onClick:()=>{
+      socket.emit('account:withdraw', {}, (res)=>{
+        if (res && res.success) {
+          clearSession();
+          closeFullScreen('settingsScreen');
+          resetToLandingScreen();
+        } else {
+          showMiniAlert('탈퇴 처리 중 오류가 발생했습니다.', [{label:'확인', primary:true}]);
+        }
+      });
+    }}
+  ]);
+}
 /* ===================== 로그아웃 ===================== */
 function triggerLogout(){
   showMiniAlert('로그아웃 하시겠습니까?', [
