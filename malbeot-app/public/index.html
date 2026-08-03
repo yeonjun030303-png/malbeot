@@ -327,30 +327,11 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </svg>
     <h1 style="font-size:36px;color:var(--primary);font-weight:900;margin-bottom:6px;">말벗</h1>
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:40px;">지금 이 순간, 실시간으로 이어지는 편안한 대화</p>
-    <button class="btn btn-primary btn-block" style="margin-bottom:10px;height:46px;" onclick="showLoginForm()">로그인</button>
-    <button class="btn btn-secondary btn-block" style="height:46px;" onclick="showSignupFlow()">회원가입</button>
     <button class="btn btn-kakao btn-block" style="height:46px;margin-top:10px;" onclick="startKakaoLogin()"><i class="fa-solid fa-comment"></i> 카카오톡으로 로그인</button>
   </div>
 </div>
 
 <!-- 로그인 (전화번호 + 비밀번호) -->
-<div id="loginModal" class="modal-overlay">
-  <div class="modal-card">
-    <h3 style="margin-bottom:14px;text-align:center;">로그인</h3>
-    <div class="form-group">
-      <label>가입하신 휴대폰 번호</label>
-      <input type="tel" id="loginPhone" placeholder="010-1234-5678">
-    </div>
-    <div class="form-group">
-      <label>비밀번호</label>
-      <input type="password" id="loginPassword" placeholder="비밀번호">
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-secondary" style="flex:1;" onclick="closeModal('loginModal');openModal('landingScreen')">뒤로</button>
-      <button class="btn btn-primary" style="flex:2;" onclick="submitPhoneLogin()">로그인</button>
-    </div>
-  </div>
-</div>
 
 <!-- 회원가입 -->
 <div id="authModal" class="modal-overlay">
@@ -372,27 +353,6 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <p id="authStepIndicator" style="font-size:11px;color:var(--primary);font-weight:700;margin-top:6px;">1 / 3 단계 · 본인인증</p>
     </div>
     <form id="authForm" onsubmit="return false;">
-      <div id="authStep1">
-        <div class="form-group">
-          <label><i class="fa-solid fa-mobile-screen"></i> 본인인증 휴대폰 번호</label>
-          <div style="display:flex;gap:6px;">
-            <input type="tel" id="inputPhone" placeholder="010-1234-5678" style="flex:1;">
-            <button type="button" id="btnRequestSms" class="btn btn-secondary btn-sm">인증번호 받기</button>
-          </div>
-        </div>
-        <div id="terminalNotice" class="terminal-box">&gt; [SMS 터미널 발송] 인증번호: <strong id="generatedCode">1234</strong></div>
-        <div class="form-group" id="smsInputGroup" style="display:none;">
-          <label>인증번호 4자리 입력</label>
-          <div style="display:flex;gap:6px;">
-            <input type="text" id="inputSmsCode" placeholder="1234" maxlength="4" style="flex:1;">
-            <button type="button" id="btnVerifySms" class="btn btn-primary btn-sm">인증 확인</button>
-          </div>
-          <span id="smsVerifyStatus" style="font-size:11px;margin-top:2px;"></span>
-        </div>
-        <div style="margin-top:10px;text-align:center;">
-          <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('authModal');openModal('landingScreen')">뒤로</button>
-        </div>
-      </div>
       <div id="authStep2" class="hidden">
         <h4 style="font-size:14px;margin-bottom:10px;"><i class="fa-solid fa-user-plus"></i> 회원 정보 입력</h4>
         <div style="display:flex;gap:8px;">
@@ -999,7 +959,6 @@ function closeTopmostScreen(){
   if (isActive('blockReportModal')) return closeModal('blockReportModal');
   if (isActive('adModal')) return closeModal('adModal');
   if (isActive('chatModal')) return closeChatModal();
-  if (isActive('loginModal')) { closeModal('loginModal'); return openModal('landingScreen'); }
   if (isActive('authModal')) { closeModal('authModal'); return openModal('landingScreen'); }
   if (isActive('messageComposeScreen')) return closeFullScreen('messageComposeScreen');
   if (isActive('composeScreen')) return closeComposeScreen();
@@ -1172,39 +1131,6 @@ window.addEventListener('load', ()=>{
   }, 900);
 });
 
-/* ===================== 로그인/회원가입 화면 전환 ===================== */
-function showLoginForm(){ closeModal('landingScreen'); openModal('loginModal'); }
-function showSignupFlow(){ authMode='phone'; document.getElementById('regPasswordGroup').classList.remove('hidden'); closeModal('landingScreen'); openModal('authModal'); setAuthStep(1); }
-
-// 로그인: 전화번호+비밀번호가 둘 다 맞아야 로그인됨.
-// - 번호 자체가 없는 경우 -> "가입된 번호가 없습니다" 안내 후 회원가입 유도(기존 동작 유지)
-// - 번호는 있는데 비밀번호가 틀린 경우 -> "비밀번호가 틀렸습니다" 표시
-function submitPhoneLogin(){
-  const phone = normalizePhone(document.getElementById('loginPhone').value);
-  const password = document.getElementById('loginPassword').value;
-  if (!isValidPhone(phone)) return showMiniAlert(PHONE_FORMAT_MSG, [{label:'확인', primary:true}]);
-  socket.emit('auth:login', {phone, password}, (res)=>{
-    if (res.success){
-      currentUser = res.user; saveSession(res.token); closeModal('loginModal'); initApp();
-      return;
-    }
-    if (res.wrongField === 'password'){
-      showMiniAlert('비밀번호가 틀렸습니다.', [{label:'확인', primary:true}]);
-      return;
-    }
-    // 번호 자체가 없는 경우
-    closeModal('loginModal');
-    showMiniAlert('전화번호가 틀렸습니다. 가입된 번호가 없다면 회원가입 하시겠습니까?', [
-      {label:'아니오', primary:false, onClick:()=>{ openModal('landingScreen'); }},
-      {label:'예', primary:true, onClick:()=>{
-        pendingSignupPhone = phone;
-        authMode='phone'; document.getElementById('regPasswordGroup').classList.remove('hidden');
-        document.getElementById('inputPhone').value = phone;
-        openModal('authModal'); setAuthStep(1);
-      }}
-    ]);
-  });
-}
 
 /* 세션 자동 복구: 전화번호가 아니라 세션 토큰(7일 유효)으로 시도함.
    - 소켓이 처음 연결되거나 네트워크 문제로 재연결될 때마다 호출됨.
@@ -1313,32 +1239,10 @@ function startKakaoLogin(){
 
 /* ===================== 회원가입 (3단계) ===================== */
 function setAuthStep(n){
-  document.getElementById('authStep1').classList.toggle('hidden', n!==1);
   document.getElementById('authStep2').classList.toggle('hidden', n!==2);
   document.getElementById('authStep3').classList.toggle('hidden', n!==3);
-  if (authMode !== 'kakao'){
-    document.getElementById('authStepIndicator').textContent = {1:'1 / 3 단계 · 본인인증',2:'2 / 3 단계 · 기본 정보',3:'3 / 3 단계 · 사진 등록'}[n];
-  }
+  document.getElementById('authStepIndicator').textContent = {2:'1 / 2 단계 · 기본 정보',3:'2 / 2 단계 · 사진 등록'}[n];
 }
-document.getElementById('btnRequestSms').onclick = ()=>{
-  const phone = normalizePhone(document.getElementById('inputPhone').value);
-  if (!isValidPhone(phone)) return showMiniAlert(PHONE_FORMAT_MSG, [{label:'확인', primary:true}]);
-  document.getElementById('inputPhone').value = phone;
-  socket.emit('auth:check_phone', {phone}, (res)=>{
-    if (res.exists){
-      showMiniAlert('이미 등록된 번호입니다. 로그인해주세요.', [{label:'확인', primary:true, onClick:()=>{
-        closeModal('authModal');
-        document.getElementById('loginPhone').value = phone;
-        openModal('loginModal');
-      }}]);
-      return;
-    }
-    document.getElementById('terminalNotice').style.display='block';
-    document.getElementById('smsInputGroup').style.display='block';
-  });
-};
-document.getElementById('btnVerifySms').onclick = ()=>{
-  const code = document.getElementById('inputSmsCode').value.trim();
   if (code==='1234'){ isSmsVerified=true; document.getElementById('smsVerifyStatus').style.color='var(--success)'; document.getElementById('smsVerifyStatus').textContent='✔ 휴대폰 인증 완료'; setAuthStep(2); }
   else showMiniAlert('터미널에 표시된 1234를 정확히 입력해주세요.', [{label:'확인', primary:true}]);
 };
