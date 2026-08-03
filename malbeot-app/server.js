@@ -432,6 +432,7 @@ setInterval(purgeExpiredFilteredPosts, 60 * 60 * 1000);
 // 삭제할 수 있게 됨 (신고 시스템과 별개로 즉시 삭제 가능한 권한).
 const ADMIN_PHONES = (process.env.ADMIN_PHONES || '').split(',').map(s => s.trim()).filter(Boolean);
 function isAdminPhone(phone) { return !!phone && ADMIN_PHONES.includes(phone); }
+const ADMIN_KAKAO_IDS = (process.env.ADMIN_KAKAO_IDS || "").split(",").map(s => s.trim()).filter(Boolean); function isAdminKakao(kakaoId) { return !!kakaoId && ADMIN_KAKAO_IDS.includes(String(kakaoId)); } function isAdmin(user) { return !!user && (isAdminPhone(user.phone) || isAdminKakao(user.kakaoId)); }
 
 /* =====================================================================
    카카오 로그인
@@ -489,7 +490,7 @@ io.on('connection', (socket) => {
       socketToUser[socket.id] = user.id;
       userToSocket[user.id] = socket.id;
       const token = issueSessionToken(user.id);
-      cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) }, token });
+      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -510,7 +511,7 @@ io.on('connection', (socket) => {
       socketToUser[socket.id] = user.id;
       userToSocket[user.id] = socket.id;
       const token = issueSessionToken(user.id); // 갱신(연장)
-      cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) }, token });
+      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -543,7 +544,7 @@ io.on('connection', (socket) => {
       socketToUser[socket.id] = user.id;
       userToSocket[user.id] = socket.id;
       const token = issueSessionToken(user.id);
-      cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) }, token });
+      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -564,7 +565,7 @@ io.on('connection', (socket) => {
   socket.on('auth:kakao_login', async (data, cb) => {
     try {
       if (!KAKAO_REST_API_KEY) return cb({ success: false, message: '카카오 로그인이 아직 설정되지 않았습니다. (KAKAO_REST_API_KEY 미설정)' });
-      const { kakaoId } = await exchangeKakaoCode(data.code, data.redirectUri);
+      const { kakaoId } = await exchangeKakaoCode(data.code, data.redirectUri); console.log('[KAKAO_ID]', kakaoId);
       const existing = await findUserByKakaoId(kakaoId);
       if (existing) {
         existing.isOnline = true;
@@ -573,7 +574,7 @@ io.on('connection', (socket) => {
         socketToUser[socket.id] = existing.id;
         userToSocket[existing.id] = socket.id;
         const token = issueSessionToken(existing.id);
-        cb({ success: true, user: { ...existing, isAdmin: isAdminPhone(existing.phone) }, token });
+        cb({ success: true, user: { ...existing, isAdmin: isAdmin(existing) }, token });
         broadcastUsers();
         return;
       }
@@ -635,7 +636,7 @@ io.on('connection', (socket) => {
 
       Object.assign(user, data, { profileUpdatedAt: Date.now() });
       await saveUser(user);
-      cb({ success: true, user: { ...user, isAdmin: isAdminPhone(user.phone) } });
+      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) } });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -803,7 +804,7 @@ io.on('connection', (socket) => {
       const post = await getPost(data.id);
       if (!post) return cb({ success: false });
       const requester = await getUser(userId);
-      const admin = requester && isAdminPhone(requester.phone);
+      const admin = requester && isAdmin(requester);
       if (post.authorId !== userId && !admin) return cb({ success: false });
       await deletePostDb(data.id);
       cb({ success: true });
@@ -927,7 +928,7 @@ io.on('connection', (socket) => {
       const c = post.comments[data.commentId];
       if (!c) return cb({ success: false });
       const requester = await getUser(userId);
-      const admin = requester && isAdminPhone(requester.phone);
+      const admin = requester && isAdmin(requester);
       if (c.authorId !== userId && !admin) return cb({ success: false });
       delete post.comments[data.commentId];
       Object.keys(post.comments).forEach(cid => {
