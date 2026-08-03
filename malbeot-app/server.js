@@ -117,7 +117,6 @@ app.post('/api/revenuecat-webhook', async (req, res) => {
 // (기존에는 나이를 검증 없이 parseInt만 해서, 이상한 값을 넣으면 NaN이 그대로 DB에 저장되는 문제가 있었음)
 function validateProfileInput(data) {
   if (!data.nickname || !String(data.nickname).trim().length) return '닉네임을 입력해주세요.';
-  if (containsBannedWord(data.nickname)) return '닉네임에 부적절한 단어가 포함되어 있습니다.';
   const age = parseInt(data.age, 10);
   if (isNaN(age) || age < 14 || age > 120) return '나이를 올바르게 입력해주세요.';
   return null;
@@ -524,11 +523,15 @@ io.on('connection', (socket) => {
       if (!data.password || !String(data.password).length) return cb({ success: false, message: '비밀번호를 입력해주세요.' });
       const profileError = validateProfileInput(data);
       if (profileError) return cb({ success: false, message: profileError });
+      if (containsBannedWord(data.nickname) && data.confirmed !== true) {
+        return cb({ success: false, needsConfirm: true });
+      }
       const existing = await findUserByPhone(data.phone);
       if (existing) return cb({ success: false, alreadyExists: true });
       const passwordHash = await hashPassword(String(data.password));
       const user = {
         id: genId('u'), phone: data.phone, passwordHash, nickname: data.nickname,
+        nicknameFiltered: containsBannedWord(data.nickname),
         region: data.region, gender: data.gender, age: parseInt(data.age, 10),
         bio: data.bio || '반갑습니다!', photos: data.photos || [], points: 100,
         isOnline: true, lastSeen: Date.now(), blockedUserIds: [],
@@ -590,8 +593,12 @@ io.on('connection', (socket) => {
       if (already) return cb({ success: false, alreadyExists: true });
       const profileError = validateProfileInput(data);
       if (profileError) return cb({ success: false, message: profileError });
+      if (containsBannedWord(data.nickname) && data.confirmed !== true) {
+        return cb({ success: false, needsConfirm: true });
+      }
       const user = {
         id: genId('u'), phone: '', kakaoId: payload.kakaoId, nickname: data.nickname,
+        nicknameFiltered: containsBannedWord(data.nickname),
         region: data.region, gender: data.gender, age: parseInt(data.age, 10),
         bio: data.bio || '반갑습니다!', photos: data.photos || [], points: 100,
         isOnline: true, lastSeen: Date.now(), blockedUserIds: [],
@@ -614,8 +621,11 @@ io.on('connection', (socket) => {
       const user = await getUser(userId);
       if (!user) return cb({ success: false });
 
-      if (data.nickname && containsBannedWord(data.nickname)) {
-        return cb({ success: false, message: '닉네임에 부적절한 단어가 포함되어 변경할 수 없습니다.' });
+      if (data.nickname && containsBannedWord(data.nickname) && data.confirmed !== true) {
+        return cb({ success: false, needsConfirm: true });
+      }
+      if (data.nickname) {
+        data.nicknameFiltered = containsBannedWord(data.nickname);
       }
 
       if (data.photos && data.photos[0]) {
