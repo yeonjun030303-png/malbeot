@@ -1101,7 +1101,8 @@ io.on('connection', (socket) => {
       const target = await getUser(targetId);
       const ids = (target && target.followerIds) || [];
       const users = await getAllUsers();
-      const list = ids.map(id => users[id]).filter(Boolean);
+      let list = ids.map(id => users[id]).filter(Boolean);
+      list = list.map(u => u.nicknameFiltered ? { ...u, nickname: "삭제된 닉네임입니다" } : u);
       cb && cb({ success: true, users: list });
     } catch (e) { console.error(e); cb && cb({ success: false, users: [] }); }
   });
@@ -1112,7 +1113,8 @@ io.on('connection', (socket) => {
       const target = await getUser(targetId);
       const ids = (target && target.followingIds) || [];
       const users = await getAllUsers();
-      const list = ids.map(id => users[id]).filter(Boolean);
+      let list = ids.map(id => users[id]).filter(Boolean);
+      list = list.map(u => u.nicknameFiltered ? { ...u, nickname: "삭제된 닉네임입니다" } : u);
       cb && cb({ success: true, users: list });
     } catch (e) { console.error(e); cb && cb({ success: false, users: [] }); }
   });
