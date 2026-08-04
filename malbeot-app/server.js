@@ -860,6 +860,7 @@ io.on('connection', (socket) => {
       const admin = requester && isAdmin(requester);
       if (post.authorId !== userId && !admin) return cb({ success: false });
       post.deleted = true;
+      post.deletedAt = Date.now();
       post.deletedByAdmin = !!(admin && post.authorId !== userId);
       await savePost(post);
       cb({ success: true });
