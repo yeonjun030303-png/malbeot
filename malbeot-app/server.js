@@ -953,11 +953,17 @@ io.on('connection', (socket) => {
       if (!c) return cb && cb({ success: false });
       if (!c.likedBy) c.likedBy = [];
       const i = c.likedBy.indexOf(userId);
+      let liked = false;
       if (i !== -1) { c.likedBy.splice(i, 1); c.likes = Math.max(0, (c.likes || 1) - 1); }
-      else { c.likedBy.push(userId); c.likes = (c.likes || 0) + 1; }
+      else { c.likedBy.push(userId); c.likes = (c.likes || 0) + 1; liked = true; }
       await savePost(post);
       cb && cb({ success: true });
       broadcastPosts();
+      if (liked && c.authorId && c.authorId !== userId) {
+        const liker = await getUser(userId);
+        const name = (liker && liker.nickname) || '누군가';
+        notifyUser(c.authorId, { type: 'like', postId: post.id, title: name, body: '댓글에 공감하였습니다' });
+      }
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 

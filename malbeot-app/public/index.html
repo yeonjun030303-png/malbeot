@@ -34,8 +34,11 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 #splashScreen .splash-logo{font-size:34px;font-weight:900;color:var(--primary);letter-spacing:2px;text-align:center;}
 #splashScreen .splash-sub{font-size:12px;color:var(--text-muted);margin-top:8px;text-align:center;}
 
-#notifyBanner{position:absolute;top:0;left:0;right:0;background:#212529;color:#fff;padding:14px 18px;z-index:500;transform:translateY(-100%);transition:transform .25s ease;line-height:1.4;cursor:pointer;}
+#notifyBanner{position:absolute;top:0;left:0;right:0;background:#212529;color:#fff;padding:14px 18px;z-index:500;transform:translateY(-100%);transition:transform .25s ease;line-height:1.4;cursor:pointer;display:flex;align-items:center;gap:10px;}
 #notifyBanner.show{transform:translateY(0);}
+#notifyBanner .nb-avatar{flex-shrink:0;width:36px;height:36px;border-radius:50%;overflow:hidden;}
+#notifyBanner .nb-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
+#notifyBanner .nb-text{flex:1;min-width:0;}
 #notifyBanner .nb-title{font-weight:800;font-size:15px;margin-bottom:2px;}
 #notifyBanner .nb-body{font-size:13px;color:#f1f3f5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
@@ -748,8 +751,20 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     <div class="fs-body" style="padding:6px 18px 100px 18px;">
       <div class="settings-section-title">알림</div>
       <div class="settings-list-item">
-        <div><div class="sli-label">알림 허용</div><div class="sli-sub">새 메시지·댓글·공감 알림을 받습니다</div></div>
-        <div class="toggle-switch" id="toggleNotify" onclick="toggleSetting('notificationsEnabled')"><div class="knob"></div></div>
+        <div><div class="sli-label">채팅 메시지</div><div class="sli-sub">새 채팅 메시지가 오면 알림을 받습니다</div></div>
+        <div class="toggle-switch" id="toggleNotifyChat" onclick="toggleSetting('notifyChat','toggleNotifyChat')"><div class="knob"></div></div>
+      </div>
+      <div class="settings-list-item">
+        <div><div class="sli-label">좋아요</div><div class="sli-sub">내 글/댓글에 좋아요가 달리면 알림을 받습니다</div></div>
+        <div class="toggle-switch" id="toggleNotifyLike" onclick="toggleSetting('notifyLike','toggleNotifyLike')"><div class="knob"></div></div>
+      </div>
+      <div class="settings-list-item">
+        <div><div class="sli-label">댓글/답글</div><div class="sli-sub">내 글/댓글에 댓글이나 답글이 달리면 알림을 받습니다</div></div>
+        <div class="toggle-switch" id="toggleNotifyComment" onclick="toggleSetting('notifyComment','toggleNotifyComment')"><div class="knob"></div></div>
+      </div>
+      <div class="settings-list-item">
+        <div><div class="sli-label">팔로우</div><div class="sli-sub">누군가 나를 팔로우하면 알림을 받습니다</div></div>
+        <div class="toggle-switch" id="toggleNotifyFollow" onclick="toggleSetting('notifyFollow','toggleNotifyFollow')"><div class="knob"></div></div>
       </div>
       <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
         <div style="margin-bottom:8px;"><div class="sli-label">키워드 알림</div><div class="sli-sub">등록한 단어가 포함된 글이 새로 등록되거나 수정되면 알림을 받습니다</div></div>
@@ -902,7 +917,10 @@ function loadSettings(){ try{ return JSON.parse(localStorage.getItem('malbeot_se
 function getEffectiveSettings(){
   const s = loadSettings();
   return {
-    notificationsEnabled: s.notificationsEnabled !== false,
+    notifyChat: s.notifyChat !== false,
+    notifyLike: s.notifyLike !== false,
+    notifyComment: s.notifyComment !== false,
+    notifyFollow: s.notifyFollow !== false,
     darkMode: !!s.darkMode,
     fontSize: s.fontSize || 14,
     fontFamily: s.fontFamily || 'default'
@@ -932,12 +950,20 @@ function closeFullScreen(id){ document.getElementById(id).classList.remove('acti
 
 /* ===================== 상단 알림 배너 ===================== */
 let notifyBannerTimer = null;
-function showNotifyBanner({title, body}){
+let notifyBannerOnClick = null;
+function showNotifyBanner({title, body, avatarHtml, onClick}){
   const el = document.getElementById('notifyBanner');
-  el.innerHTML = (title ? `<div class="nb-title">${escapeHtml(title)}</div>` : '') + (body ? `<div class="nb-body">${escapeHtml(body)}</div>` : '');
+  const textHtml = (title ? `<div class="nb-title">${escapeHtml(title)}</div>` : '') + (body ? `<div class="nb-body">${escapeHtml(body)}</div>` : '');
+  el.innerHTML = (avatarHtml ? `<div class="nb-avatar">${avatarHtml}</div>` : '') + `<div class="nb-text">${textHtml}</div>`;
   el.classList.add('show');
+  notifyBannerOnClick = onClick || null;
   clearTimeout(notifyBannerTimer);
-  notifyBannerTimer = setTimeout(()=>el.classList.remove('show'), 3500);
+  notifyBannerTimer = setTimeout(()=>{ el.classList.remove('show'); notifyBannerOnClick = null; }, 3500);
+}
+function hideNotifyBanner(){
+  document.getElementById('notifyBanner').classList.remove('show');
+  clearTimeout(notifyBannerTimer);
+  if (notifyBannerOnClick){ const cb = notifyBannerOnClick; notifyBannerOnClick = null; cb(); }
 }
 function hideNotifyBanner(){ document.getElementById('notifyBanner').classList.remove('show'); clearTimeout(notifyBannerTimer); }
 
@@ -1173,9 +1199,11 @@ socket.on('chat:new_message', ({roomId, message, senderNickname})=>{
   if (activeRoomId === roomId) {
     appendChatBubble(message);
     if (!isMine && message.senderId !== 'system') socket.emit('chat:mark_read', {roomId});
-  } else if (message.senderId !== 'system' && !isMine && getEffectiveSettings().notificationsEnabled) {
+  } else if (message.senderId !== 'system' && !isMine && getEffectiveSettings().notifyChat) {
     const preview = message.type === 'image' ? '(사진)' : (message.text || '');
-    showNotifyBanner({ title: senderNickname || '메시지', body: preview });
+    const room = currentChatRooms.find(r=>r.roomId===roomId);
+    const avatarHtml = room && room.targetUser ? avatarHtmlFor(room.targetUser, 'avatar-sm') : '';
+    showNotifyBanner({ title: senderNickname || '메시지', body: preview, avatarHtml, onClick: ()=>{ switchTab('tab-chat'); openChatRoomById(roomId); } });
   }
   if (document.hidden && message.senderId !== 'system' && !isMine) {
     const preview = message.type === 'image' ? '사진을 보냈습니다' : (message.text || '');
@@ -1188,8 +1216,14 @@ socket.on('chat:read_receipt', ({roomId})=>{
   document.querySelectorAll('#chatMessageArea .msg-row.mine .msg-status').forEach(el=>{ el.textContent = '읽음'; });
 });
 socket.on('notify:new', (n)=>{
-  if (!getEffectiveSettings().notificationsEnabled) return;
-  showNotifyBanner({ title: n.title, body: n.body || n.text });
+  const s = getEffectiveSettings();
+  const gateMap = { like:'notifyLike', comment:'notifyComment', reply:'notifyComment', follow:'notifyFollow' };
+  const gateKey = gateMap[n.type];
+  if (gateKey && s[gateKey] === false) return;
+  let onClick = null;
+  if (n.type === 'follow' && n.userId) onClick = ()=>{ openProfileDetailScreen(n.userId); };
+  else if (n.postId) onClick = ()=>{ switchTab('tab-community'); openPostDetailScreen(n.postId, n.type==='reply'); };
+  showNotifyBanner({ title: n.title, body: n.body || n.text, onClick });
   if (document.hidden) showOsNotification(n.title || '말벗', n.body || n.text || '');
 });
 socket.on('chat:ended_notify', ({roomId})=>{
@@ -2370,6 +2404,17 @@ function deleteRoomFromList(roomId){
 }
 
 /* ===================== 채팅방 ===================== */
+function openChatRoomById(roomId){
+  const room = currentChatRooms.find(r=>r.roomId===roomId);
+  if (room){ openChatModal(roomId, room.targetUser, room.messages); return; }
+  socket.emit('chat:get_list', (res)=>{
+    if (res.success){
+      currentChatRooms = res.rooms;
+      const r2 = currentChatRooms.find(x=>x.roomId===roomId);
+      if (r2) openChatModal(roomId, r2.targetUser, r2.messages);
+    }
+  });
+}
 function openChatModal(roomId, target, messages){
   activeRoomId = roomId;
   activeChatTargetId = target.id;
@@ -2580,7 +2625,10 @@ document.getElementById('btnCloseAd').onclick = ()=>closeModal('adModal');
 function openSettingsScreen(){
   settingsDraft = getEffectiveSettings();
   settingsDirty = false;
-  document.getElementById('toggleNotify').classList.toggle('on', settingsDraft.notificationsEnabled);
+  document.getElementById('toggleNotifyChat').classList.toggle('on', settingsDraft.notifyChat);
+  document.getElementById('toggleNotifyLike').classList.toggle('on', settingsDraft.notifyLike);
+  document.getElementById('toggleNotifyComment').classList.toggle('on', settingsDraft.notifyComment);
+  document.getElementById('toggleNotifyFollow').classList.toggle('on', settingsDraft.notifyFollow);
   document.getElementById('toggleDark').classList.toggle('on', settingsDraft.darkMode);
   document.getElementById('fontSizeInput').value = settingsDraft.fontSize;
   document.getElementById('fontFamilySelect').value = settingsDraft.fontFamily;
@@ -2618,11 +2666,10 @@ function removeNotifyKeyword(encoded){
     if (res.success){ currentUser = res.user; saveSession(); renderKeywordTags(); }
   });
 }
-function toggleSetting(key){
+function toggleSetting(key, elId){
   settingsDraft[key] = !settingsDraft[key];
   settingsDirty = true;
-  const elId = key==='notificationsEnabled' ? 'toggleNotify' : 'toggleDark';
-  document.getElementById(elId).classList.toggle('on', settingsDraft[key]);
+  document.getElementById(elId || 'toggleDark').classList.toggle('on', settingsDraft[key]);
   if (key==='darkMode') applySettingsToDom(settingsDraft);
 }
 function onFontSizeInput(v){
