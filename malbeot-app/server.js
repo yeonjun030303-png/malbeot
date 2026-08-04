@@ -383,14 +383,41 @@ async function ensureAiBotUser() {
   return bot;
 }
 
+const AI_BOT_HOTTOPIC_TEMPLATES = [
+  { content: '요즘 제일 핫한 챌린지, 뭐가 제일 재밌어요? 🔥', options: ['댄스 챌린지', '먹방 챌린지', '운동 챌린지', '기타'] },
+  { content: '스트레스 풀리는 방법 뭐가 제일 좋아요? 😌', options: ['운동하기', '맛있는거 먹기', '잠자기', '친구랑 수다떨기'] },
+  { content: '주말에 제일 하고싶은 거 골라주세요! ✨', options: ['집에서 넷플릭스', '밖에서 나들이', '친구 만나기', '푹 자기'] },
+];
+const AI_BOT_BALANCE_TEMPLATES = [
+  { content: '치킨 vs 피자, 오늘 저녁 뭐 먹을까요? 🍗🍕', options: ['치킨', '피자'] },
+  { content: '여름 vs 겨울, 더 좋아하는 계절은? ☀️❄️', options: ['여름', '겨울'] },
+  { content: '아침형 인간 vs 밤형 인간, 나는 어느 쪽? 🌅🌙', options: ['아침형', '밤형'] },
+  { content: '국내여행 vs 해외여행, 다음 휴가는? ✈️', options: ['국내여행', '해외여행'] },
+];
+
 async function postAsAiBotIfNeeded() {
   try {
     const bot = await ensureAiBotUser();
     const todayStr = new Date().toISOString().slice(0, 10);
     if (bot.lastPostDate === todayStr) return; // 오늘 이미 게시함
-    const text = AI_BOT_POST_TEMPLATES[Math.floor(Math.random() * AI_BOT_POST_TEMPLATES.length)];
+
+    const roll = Math.random();
+    let content, category = 'normal', pollOptions = null, pollVotes = null;
+    if (roll < 0.3) {
+      const t = AI_BOT_HOTTOPIC_TEMPLATES[Math.floor(Math.random() * AI_BOT_HOTTOPIC_TEMPLATES.length)];
+      content = t.content; category = 'hottopic';
+      pollOptions = t.options.map((text, i) => ({ id: 'o' + i, text })); pollVotes = {};
+    } else if (roll < 0.5) {
+      const t = AI_BOT_BALANCE_TEMPLATES[Math.floor(Math.random() * AI_BOT_BALANCE_TEMPLATES.length)];
+      content = t.content; category = 'balance';
+      pollOptions = t.options.map((text, i) => ({ id: 'o' + i, text })); pollVotes = {};
+    } else {
+      content = AI_BOT_POST_TEMPLATES[Math.floor(Math.random() * AI_BOT_POST_TEMPLATES.length)];
+    }
+
     const post = {
-      id: genId('p'), authorId: bot.id, content: text, photo: '', logType: 'story',
+      id: genId('p'), authorId: bot.id, content, photo: '', logType: 'story',
+      category, pollOptions, pollVotes,
       createdAt: Date.now(), updatedAt: Date.now(), likes: 0, likedBy: [], comments: {},
       viewCount: 0, viewedBy: {}
     };
@@ -400,7 +427,7 @@ async function postAsAiBotIfNeeded() {
     broadcastPosts();
     notifyFollowersNewPost(bot, post, '작성');
     notifyKeywordMatches(post, bot.id, '등록');
-    console.log('[AI 말벗도우미] 오늘의 이야기 게시 완료:', text);
+    console.log('[AI 말벗도우미] 오늘의 이야기 게시 완료:', content);
   } catch (e) { console.error('[AI 말벗도우미 게시 오류]', e); }
 }
 
