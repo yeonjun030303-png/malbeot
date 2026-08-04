@@ -237,6 +237,11 @@ body.dark-mode .tagxs{color:var(--text-muted);}
 .toggle-switch.on{background:var(--primary);}
 .toggle-switch .knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.3);}
 .toggle-switch.on .knob{left:20px;}
+.settings-accordion-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.settings-accordion-header .accordion-arrow{font-size:12px;color:var(--text-muted);transition:transform .2s;}
+.settings-accordion-header.open .accordion-arrow{transform:rotate(180deg);}
+.settings-accordion-body{display:none;}
+.settings-accordion-body.open{display:block;}
 .font-size-input{width:52px;padding:6px 8px;border:1px solid var(--border-color);border-radius:6px;font-size:12px;background:var(--bg-subtle);color:var(--text-main);text-align:center;}
 
 /* ---- 안읽은 메시지 배지 ---- */
@@ -758,7 +763,10 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div class="fs-title">설정</div>
     </div>
     <div class="fs-body" style="padding:6px 18px 100px 18px;">
-      <div class="settings-section-title">알림</div>
+      <div class="settings-section-title settings-accordion-header open" id="accHeader-acc-notify" onclick="toggleSettingsAccordion('acc-notify')">
+        <span>알림</span><i class="fa-solid fa-chevron-down accordion-arrow"></i>
+      </div>
+      <div class="settings-accordion-body open" id="acc-notify">
       <div class="settings-list-item">
         <div><div class="sli-label">채팅 메시지</div><div class="sli-sub">새 채팅 메시지가 오면 알림을 받습니다</div></div>
         <div class="toggle-switch" id="toggleNotifyChat" onclick="toggleSetting('notifyChat','toggleNotifyChat')"><div class="knob"></div></div>
@@ -783,8 +791,12 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         </div>
         <div id="keywordTagList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;"></div>
       </div>
+      </div>
 
-      <div class="settings-section-title">계정</div>
+      <div class="settings-section-title settings-accordion-header" id="accHeader-acc-account" onclick="toggleSettingsAccordion('acc-account')">
+        <span>계정</span><i class="fa-solid fa-chevron-down accordion-arrow"></i>
+      </div>
+      <div class="settings-accordion-body" id="acc-account">
       <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;gap:8px;">
         <button type="button" class="btn btn-secondary btn-block" style="color:var(--danger);" onclick="triggerLogout()"><i class="fa-solid fa-right-from-bracket"></i> 로그아웃</button>
         <button type="button" class="btn btn-secondary btn-block" style="color:var(--danger);" onclick="triggerWithdraw()"><i class="fa-solid fa-user-slash"></i> 회원탈퇴</button>
@@ -797,8 +809,12 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <div class="sli-label">차단한 회원</div>
         <div class="sli-right"><span id="blockedCountLabel"></span><i class="fa-solid fa-chevron-right"></i></div>
       </div>
+      </div>
 
-      <div class="settings-section-title">화면</div>
+      <div class="settings-section-title settings-accordion-header" id="accHeader-acc-display" onclick="toggleSettingsAccordion('acc-display')">
+        <span>화면</span><i class="fa-solid fa-chevron-down accordion-arrow"></i>
+      </div>
+      <div class="settings-accordion-body" id="acc-display">
       <div class="settings-list-item" style="cursor:default;">
         <div class="sli-label">폰트 크기</div>
         <div class="sli-right"><input type="number" min="11" max="20" id="fontSizeInput" class="font-size-input" oninput="onFontSizeInput(this.value)"> px</div>
@@ -816,11 +832,16 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <div class="sli-label">다크 모드</div>
         <div class="toggle-switch" id="toggleDark"><div class="knob"></div></div>
       </div>
+      </div>
 
-      <div class="settings-section-title">정보</div>
+      <div class="settings-section-title settings-accordion-header" id="accHeader-acc-info" onclick="toggleSettingsAccordion('acc-info')">
+        <span>정보</span><i class="fa-solid fa-chevron-down accordion-arrow"></i>
+      </div>
+      <div class="settings-accordion-body" id="acc-info">
       <div class="settings-list-item" style="cursor:default;">
         <div class="sli-label">버전 정보</div>
         <div class="sli-right" id="appVersionLabel">v1.0.0</div>
+      </div>
       </div>
     </div>
     <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 18px;background:var(--bg-app);border-top:1px solid var(--border-color);">
@@ -1454,7 +1475,7 @@ function getFilterValues(sortType){ return { region:document.getElementById('fil
 let homeSortType = 'default';
 let communitySortType = 'default';
 let sortModalTarget = 'home';
-const SORT_TYPE_LABELS = { default:'기본순', popular:'인기순', distance:'거리순', views:'조회수 많은 순' };
+const SORT_TYPE_LABELS = { default:'최신순', popular:'인기순', distance:'거리순', views:'조회수 많은 순' };
 function openSortModal(target){
   sortModalTarget = target;
   const current = target === 'home' ? homeSortType : communitySortType;
@@ -2790,6 +2811,19 @@ function removeNotifyKeyword(encoded){
   const updated = (currentUser.notifyKeywords || []).filter(k => k !== kw);
   socket.emit('profile:update', { notifyKeywords: updated }, (res)=>{
     if (res.success){ currentUser = res.user; saveSession(); renderKeywordTags(); }
+  });
+}
+// 설정화면 섹션(알림/계정/화면/정보)을 아코디언으로 펼치고 접음. 누른 섹션만 펼쳐지고 나머지는 자동으로 접힘
+function toggleSettingsAccordion(id){
+  const allIds = ['acc-notify','acc-account','acc-display','acc-info'];
+  const body = document.getElementById(id);
+  const willOpen = body && !body.classList.contains('open');
+  allIds.forEach(aid=>{
+    const b = document.getElementById(aid);
+    const h = document.getElementById('accHeader-'+aid);
+    const openThis = aid === id ? willOpen : false;
+    if (b) b.classList.toggle('open', openThis);
+    if (h) h.classList.toggle('open', openThis);
   });
 }
 function toggleSetting(key, elId){
