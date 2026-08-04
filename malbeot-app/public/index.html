@@ -830,6 +830,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     <div class="chat-header-row">
       <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeChatModal()"><i class="fa-solid fa-arrow-left"></i></button>
       <img id="chatHeaderAvatar" class="chat-header-avatar" src="" alt="" style="cursor:pointer;" onclick="openProfileFromChatHeader()">
+      <span id="chatHeaderAvatarDefault" class="chat-header-avatar" style="cursor:pointer;display:none;align-items:center;justify-content:center;" onclick="openProfileFromChatHeader()"></span>
       <div class="chat-header-nick" id="chatTargetName" style="cursor:pointer;" onclick="openProfileFromChatHeader()">말벗</div>
       <div style="margin-left:auto;display:flex;gap:4px;">
         <button class="icon-round-btn" onclick="openBlockReportModal('chat')"><i class="fa-solid fa-ellipsis"></i></button>
@@ -2367,8 +2368,18 @@ function openChatModal(roomId, target, messages){
   activeRoomId = roomId;
   activeChatTargetId = target.id;
   const avatarEl = document.getElementById('chatHeaderAvatar');
-  if (target.photos && target.photos[0]) { avatarEl.src = target.photos[0]; avatarEl.style.display='block'; avatarEl.style.objectPosition = target.photoPosition ? `${target.photoPosition.x}% ${target.photoPosition.y}%` : '50% 50%'; }
-  else { avatarEl.style.display='none'; }
+  const avatarDefaultEl = document.getElementById('chatHeaderAvatarDefault');
+  if (target.photos && target.photos[0]) {
+    avatarEl.src = target.photos[0]; avatarEl.style.display='block'; avatarEl.style.objectPosition = target.photoPosition ? `${target.photoPosition.x}% ${target.photoPosition.y}%` : '50% 50%';
+    avatarDefaultEl.style.display='none';
+  } else {
+    avatarEl.style.display='none';
+    const isFemale = target.gender !== 'male';
+    avatarDefaultEl.style.display='flex';
+    avatarDefaultEl.style.background = isFemale ? 'var(--pink-light)' : 'var(--blue-light)';
+    avatarDefaultEl.style.color = isFemale ? 'var(--pink-avatar)' : 'var(--blue-avatar)';
+    avatarDefaultEl.innerHTML = `<i class="fa-solid ${isFemale ? 'fa-person-dress' : 'fa-person'}" style="font-size:14px;"></i>`;
+  }
   document.getElementById('chatTargetName').textContent = target.nickname || '';
   const area = document.getElementById('chatMessageArea'); area.innerHTML=''; area.dataset.lastDate='';
   let lastDate = null;
