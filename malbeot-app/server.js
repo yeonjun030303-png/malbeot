@@ -897,6 +897,13 @@ io.on('connection', (socket) => {
       const user = await getUser(userId);
       if (!user) return cb({ success: false });
 
+      // 게시글 도배 방지: 마지막 작성 후 5분 이내면 새 글 작성 차단 (수정은 이 제한과 무관하게 항상 가능)
+      const POST_COOLDOWN_MS = 5 * 60 * 1000;
+      if (user.lastPostCreatedAt && (Date.now() - user.lastPostCreatedAt) < POST_COOLDOWN_MS) {
+        const waitSec = Math.ceil((POST_COOLDOWN_MS - (Date.now() - user.lastPostCreatedAt)) / 1000);
+        return cb({ success: false, cooldown: true, waitSec, message: `글은 5분에 한 번만 작성할 수 있어요. ${Math.ceil(waitSec/60)}분 후 다시 시도해주세요.` });
+      }
+
       const bannedWord = containsBannedWord(data.content);
       if (bannedWord && data.confirmed !== true) return cb({ success: false, needsConfirm: true });
       let imageBlocked = false;
@@ -928,6 +935,8 @@ io.on('connection', (socket) => {
         filtered: isFiltered, filteredAt: isFiltered ? Date.now() : null
       };
       await savePost(post);
+      user.lastPostCreatedAt = Date.now();
+      await saveUser(user);
       cb({ success: true, earned, points: user.points, filtered: isFiltered });
       broadcastPosts();
       if (!isFiltered) {
@@ -1064,6 +1073,19 @@ io.on('connection', (socket) => {
       cb({ success: true, pollVotes: post.pollVotes });
       broadcastPosts();
     } catch (e) { console.error(e); cb({ success: false }); }
+  });
+
+  // 투표 항목별 투표자 목록 조회 (결과 화면에서 인원수 클릭 시 펼치는 목록용)
+  socket.on('posts:get_voters', async (data, cb) => {
+    try {
+      const post = await getPost(data.postId);
+      if (!post || !post.pollVotes) return cb && cb({ success: true, users: [] });
+      const ids = Object.keys(post.pollVotes).filter(uid => post.pollVotes[uid] === data.optionId);
+      const users = await getAllUsers();
+      let list = ids.map(id => users[id]).filter(Boolean);
+      list = list.map(u => u.nicknameFiltered ? { ...u, nickname: "삭제된 닉네임입니다" } : u);
+      cb && cb({ success: true, users: list });
+    } catch (e) { console.error(e); cb && cb({ success: false, users: [] }); }
   });
 
   socket.on('comments:add', async (data, cb) => {
