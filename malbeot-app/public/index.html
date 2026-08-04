@@ -2457,7 +2457,9 @@ function triggerChatImageInput(){ document.getElementById('chatImageInput').clic
 async function handleChatImageUpload(e){
   const file = e.target.files[0]; if(!file || !activeRoomId) return;
   const image = await compressImageFile(file);
-  socket.emit('chat:send_image', {roomId:activeRoomId, image});
+  socket.emit('chat:send_image', {roomId:activeRoomId, image}, (res)=>{
+    if (res && res.blocked) showMiniAlert(res.message || '부적절한 사진으로 감지되어 전송할 수 없습니다.', [{label:'확인', primary:true}]);
+  });
 }
 function triggerExitChat(){
   showMiniAlert('정말로 대화를 종료하시겠어요?', [
