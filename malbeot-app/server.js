@@ -597,6 +597,10 @@ io.on('connection', (socket) => {
       if (containsBannedWord(data.nickname) && data.confirmed !== true) {
         return cb({ success: false, needsConfirm: true });
       }
+      if (data.photos && data.photos[0]) {
+        const nsfwResult = await checkImageNsfw(data.photos[0]);
+        if (nsfwResult.isNsfw) return cb({ success: false, message: '부적절한 프로필 사진으로 감지되어 가입할 수 없습니다. 다른 사진을 등록해주세요.' });
+      }
       const user = {
         id: genId('u'), phone: '', kakaoId: payload.kakaoId, nickname: data.nickname,
         nicknameFiltered: containsBannedWord(data.nickname),
