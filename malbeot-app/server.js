@@ -1051,6 +1051,21 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb({ success: false }); }
   });
 
+  // 투표 취소: 내 투표 기록만 지워서 다시 "투표 안 한 사람" 상태로 되돌림 (다시 투표 가능해짐)
+  socket.on('posts:vote_cancel', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      if (!userId) return cb({ success: false });
+      const post = await getPost(data.postId);
+      if (!post || post.deleted || post.filtered) return cb({ success: false });
+      if (!post.pollVotes) post.pollVotes = {};
+      delete post.pollVotes[userId];
+      await savePost(post);
+      cb({ success: true, pollVotes: post.pollVotes });
+      broadcastPosts();
+    } catch (e) { console.error(e); cb({ success: false }); }
+  });
+
   socket.on('comments:add', async (data, cb) => {
     try {
       const userId = socketToUser[socket.id];

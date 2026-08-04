@@ -1801,6 +1801,7 @@ function renderPollWidget(p){
   const label = pollCategoryLabel(p.category);
   let body;
   if (myVote){
+    // 투표한 사람 -> 퍼센트/막대 그래프로 결과 표시 + 취소/다시하기 버튼
     body = p.pollOptions.map(o=>{
       const c = counts[o.id]||0;
       const pct = total ? Math.round(c/total*100) : 0;
@@ -1814,13 +1815,27 @@ function renderPollWidget(p){
         </div>
       </div>`;
     }).join('');
+    body += `<div style="display:flex;gap:8px;margin-top:8px;">
+      <button type="button" class="btn btn-secondary btn-sm" style="flex:1;" onclick="event.stopPropagation();cancelVote('${p.id}')">투표 취소하기</button>
+      <button type="button" class="btn btn-secondary btn-sm" style="flex:1;" onclick="event.stopPropagation();cancelVote('${p.id}')">투표 다시하기</button>
+    </div>`;
   } else {
-    body = p.pollOptions.map(o=>`<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-bottom:6px;" onclick="event.stopPropagation();submitVote('${p.id}','${o.id}')">${escapeHtml(o.text)}</button>`).join('');
+    // 투표 안 한 사람 -> 퍼센트는 안 보여주고, 항목 텍스트 + 빈 원형 버튼만 표시. 클릭 즉시 투표 처리.
+    body = p.pollOptions.map(o=>`
+      <div class="poll-option-row" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;margin-bottom:6px;border:1px solid var(--border-color);border-radius:10px;cursor:pointer;background:transparent;" onclick="event.stopPropagation();this.querySelector('.poll-radio-circle').style.background='var(--primary)';this.querySelector('.poll-radio-circle').style.borderColor='var(--primary)';submitVote('${p.id}','${o.id}')">
+        <span style="font-size:13px;">${escapeHtml(o.text)}</span>
+        <span class="poll-radio-circle" style="width:20px;height:20px;border-radius:50%;border:2px solid var(--border-color);background:transparent;flex-shrink:0;"></span>
+      </div>`).join('');
   }
   return `<div class="poll-widget" style="margin-top:8px;padding:10px;background:var(--bg-subtle);border-radius:10px;">
     <div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:6px;">${label} \u00b7 \uCC38\uC5EC ${total}\uBA85</div>
     ${body}
   </div>`;
+}
+function cancelVote(postId){
+  socket.emit('posts:vote_cancel', {postId}, (res)=>{
+    if (res && res.success){ loadCommunityPosts(); if (currentPostId===postId) refreshPostDetail(); }
+  });
 }
 function submitVote(postId, optionId){
   socket.emit('posts:vote', {postId, optionId}, (res)=>{
