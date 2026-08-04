@@ -735,7 +735,7 @@ io.on('connection', (socket) => {
       const userId = socketToUser[socket.id];
       const now = Date.now();
       let raw = await getRawPosts();
-      raw = raw.filter(p => p.logType === 'log' && (now - (p.updatedAt || p.createdAt)) < THIRTY_DAYS);
+      raw = raw.filter(p => p.logType === 'log' && !p.deleted && !p.filtered && (now - (p.updatedAt || p.createdAt)) < THIRTY_DAYS);
       const shuffled = weightedShuffleStories(raw, userId);
       const enriched = await enrichPosts(shuffled);
       cb({ success: true, stories: enriched });
