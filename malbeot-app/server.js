@@ -795,9 +795,19 @@ io.on('connection', (socket) => {
       let earned = false;
       if (user.lastPostDate !== todayStr) { user.points += 50; user.lastPostDate = todayStr; earned = true; }
       await saveUser(user);
+      const category = ['hottopic', 'balance'].includes(data.category) ? data.category : 'normal';
+      let pollOptions = null, pollVotes = null;
+      if (category !== 'normal') {
+        const rawOptions = Array.isArray(data.pollOptions) ? data.pollOptions.map(t => (t || '').trim()).filter(Boolean) : [];
+        const min = 2, max = category === 'balance' ? 2 : 4;
+        if (rawOptions.length < min || rawOptions.length > max) return cb({ success: false, message: '투표 항목 개수를 확인해주세요.' });
+        pollOptions = rawOptions.slice(0, max).map((text, i) => ({ id: 'o' + i, text: text.slice(0, 30) }));
+        pollVotes = {};
+      }
       const post = {
         id: genId('p'), authorId: user.id,
         content: (data.content || '').slice(0, 100), photo: imageBlocked ? '' : (data.photo || ''), logType: data.logType || 'story',
+        category, pollOptions, pollVotes,
         createdAt: Date.now(), updatedAt: Date.now(), likes: 0, likedBy: [], comments: {},
         viewCount: 0, viewedBy: {},
         filtered: isFiltered, filteredAt: isFiltered ? Date.now() : null
@@ -907,6 +917,23 @@ io.on('connection', (socket) => {
       }
       cb && cb({ success: true, viewCount: post.viewCount || 0 });
     } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  socket.on('posts:vote', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      if (!userId) return cb({ success: false });
+      const post = await getPost(data.postId);
+      if (!post || post.deleted || post.filtered) return cb({ success: false });
+      if (!post.pollOptions || !post.pollOptions.length) return cb({ success: false });
+      const optionId = data.optionId;
+      if (!post.pollOptions.find(o => o.id === optionId)) return cb({ success: false });
+      if (!post.pollVotes) post.pollVotes = {};
+      post.pollVotes[userId] = optionId;
+      await savePost(post);
+      cb({ success: true, pollVotes: post.pollVotes });
+      broadcastPosts();
+    } catch (e) { console.error(e); cb({ success: false }); }
   });
 
   socket.on('comments:add', async (data, cb) => {
