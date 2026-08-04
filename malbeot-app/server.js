@@ -1116,6 +1116,10 @@ io.on('connection', (socket) => {
       }
       await saveUser(user);
       await saveUser(target);
+      if (!isFollowing) {
+        const followerName = user.nickname || '누군가';
+        notifyUser(targetId, { type: 'follow', userId: user.id, title: followerName, body: '나를 팔로우하였습니다' });
+      }
       cb && cb({ success: true, following: !isFollowing });
       broadcastUsers();
     } catch (e) { console.error(e); cb && cb({ success: false }); }
