@@ -124,6 +124,7 @@ function validateProfileInput(data) {
 
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 const ONE_DAY = 24 * 60 * 60 * 1000;
+const VOTE_MAX_OPTIONS = 6; // 투표(구 핫토픽/밸런스게임 통합) 항목 최대 개수
 const genId = (p) => `${p}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 const roomIdFor = (a, b) => [a, b].sort().join('_room_');
 
@@ -383,12 +384,11 @@ async function ensureAiBotUser() {
   return bot;
 }
 
-const AI_BOT_HOTTOPIC_TEMPLATES = [
+// 핫토픽/밸런스게임을 "투표"로 통합하면서 두 템플릿 풀을 하나로 합침
+const AI_BOT_VOTE_TEMPLATES = [
   { content: '요즘 제일 핫한 챌린지, 뭐가 제일 재밌어요? 🔥', options: ['댄스 챌린지', '먹방 챌린지', '운동 챌린지', '기타'] },
   { content: '스트레스 풀리는 방법 뭐가 제일 좋아요? 😌', options: ['운동하기', '맛있는거 먹기', '잠자기', '친구랑 수다떨기'] },
   { content: '주말에 제일 하고싶은 거 골라주세요! ✨', options: ['집에서 넷플릭스', '밖에서 나들이', '친구 만나기', '푹 자기'] },
-];
-const AI_BOT_BALANCE_TEMPLATES = [
   { content: '치킨 vs 피자, 오늘 저녁 뭐 먹을까요? 🍗🍕', options: ['치킨', '피자'] },
   { content: '여름 vs 겨울, 더 좋아하는 계절은? ☀️❄️', options: ['여름', '겨울'] },
   { content: '아침형 인간 vs 밤형 인간, 나는 어느 쪽? 🌅🌙', options: ['아침형', '밤형'] },
@@ -403,13 +403,9 @@ async function postAsAiBotIfNeeded() {
 
     const roll = Math.random();
     let content, category = 'normal', pollOptions = null, pollVotes = null;
-    if (roll < 0.3) {
-      const t = AI_BOT_HOTTOPIC_TEMPLATES[Math.floor(Math.random() * AI_BOT_HOTTOPIC_TEMPLATES.length)];
-      content = t.content; category = 'hottopic';
-      pollOptions = t.options.map((text, i) => ({ id: 'o' + i, text })); pollVotes = {};
-    } else if (roll < 0.5) {
-      const t = AI_BOT_BALANCE_TEMPLATES[Math.floor(Math.random() * AI_BOT_BALANCE_TEMPLATES.length)];
-      content = t.content; category = 'balance';
+    if (roll < 0.4) {
+      const t = AI_BOT_VOTE_TEMPLATES[Math.floor(Math.random() * AI_BOT_VOTE_TEMPLATES.length)];
+      content = t.content; category = 'vote';
       pollOptions = t.options.map((text, i) => ({ id: 'o' + i, text })); pollVotes = {};
     } else {
       content = AI_BOT_POST_TEMPLATES[Math.floor(Math.random() * AI_BOT_POST_TEMPLATES.length)];
@@ -480,6 +476,85 @@ async function purgeExpiredFilteredPosts() {
 }
 setInterval(purgeExpiredFilteredPosts, 60 * 60 * 1000);
 
+/* =====================================================================
+   오늘의 인기 투표 자동 선정 + 포인트 100 지급
+   - 매일 00시(KST) 기준으로, "어제" 하루 동안 올라온 투표(category:'vote', 구 hottopic/balance 포함)
+     게시글 중 공감(likes)이 가장 많은 글의 작성자 1명에게 포인트 100개를 지급함
+   - 동률이면 댓글 많은 순, 그마저 동률이면 이전에 인기투표로 당첨된 횟수가 적은 사람 순으로 결정
+   - 무료 호스팅 환경 특성상 정확한 cron 대신, meta/voteReward/lastAwardDate(마지막으로 처리한 "어제" 날짜)를
+     Firebase에 저장해두고 10분마다 날짜가 바뀌었는지 체크하는 방식으로 처리함(서버 재시작에도 안전)
+===================================================================== */
+function kstDateStr(d) {
+  return new Date(d.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+// 지급된 포인트를 다음 로그인 시 딱 1회만 안내창으로 보여주기 위해 대기시켜둔 알림을 꺼내는 함수.
+// (접속 중이었다면 즉시 reward:vote_winner 소켓 이벤트로 보여주고 notified:true로 표시해둠)
+async function popPendingRewardNotify(user) {
+  if (user.pendingRewardNotify && !user.pendingRewardNotify.notified) {
+    const info = { amount: user.pendingRewardNotify.amount };
+    user.pendingRewardNotify.notified = true;
+    await saveUser(user);
+    return info;
+  }
+  return null;
+}
+async function awardDailyVoteWinnerIfNeeded() {
+  try {
+    const metaSnap = await db.ref('meta/voteReward').once('value');
+    const meta = metaSnap.val() || {};
+    const yesterdayKst = kstDateStr(new Date(Date.now() - ONE_DAY));
+    if (meta.lastAwardDate === yesterdayKst) return; // 이미 처리된 날짜
+
+    // yesterdayKst(예: '2026-08-03') 하루치(KST 00:00~24:00)의 UTC 타임스탬프 범위
+    const startUtc = new Date(yesterdayKst + 'T00:00:00+09:00').getTime();
+    const endUtc = startUtc + ONE_DAY;
+
+    const posts = await getRawPosts();
+    const candidates = posts.filter(p =>
+      ['vote', 'hottopic', 'balance'].includes(p.category) &&
+      !p.deleted && !p.filtered &&
+      p.pollOptions && p.pollOptions.length &&
+      p.createdAt >= startUtc && p.createdAt < endUtc
+    );
+
+    if (candidates.length) {
+      const users = await getAllUsers();
+      const scored = candidates.map(p => ({
+        post: p,
+        likes: p.likes || 0,
+        commentCount: p.comments ? Object.keys(p.comments).length : 0,
+        winCount: (users[p.authorId] && users[p.authorId].voteWinCount) || 0
+      }));
+      // 공감 많은 순 -> 댓글 많은 순 -> 인기투표 당첨 적게 된 순
+      scored.sort((a, b) => (b.likes - a.likes) || (b.commentCount - a.commentCount) || (a.winCount - b.winCount));
+      const winner = scored[0];
+      const author = users[winner.post.authorId];
+      if (author) {
+        author.points = (author.points || 0) + 100;
+        author.voteWinCount = (author.voteWinCount || 0) + 1;
+        const sId = userToSocket[author.id];
+        if (sId) {
+          io.to(sId).emit('reward:vote_winner', { amount: 100, points: author.points });
+          author.pendingRewardNotify = { amount: 100, awardedAt: Date.now(), notified: true };
+        } else {
+          author.pendingRewardNotify = { amount: 100, awardedAt: Date.now(), notified: false };
+        }
+        await saveUser(author);
+        winner.post.dailyWinner = true;
+        winner.post.dailyWinnerDate = yesterdayKst;
+        await savePost(winner.post);
+        broadcastUsers();
+        broadcastPosts();
+        console.log('[인기 투표 포인트 지급]', author.nickname, yesterdayKst);
+      }
+    }
+
+    await db.ref('meta/voteReward').update({ lastAwardDate: yesterdayKst });
+  } catch (e) { console.error('[인기 투표 포인트 지급 오류]', e); }
+}
+awardDailyVoteWinnerIfNeeded();
+setInterval(awardDailyVoteWinnerIfNeeded, 10 * 60 * 1000);
+
 // 관리자 전화번호 목록. Render/​.env의 ADMIN_PHONES에 "01012345678,01099998888"처럼
 // 콤마로 구분해서 등록해두면, 그 번호로 로그인한 사람은 커뮤니티 글/댓글을 누구 것이든
 // 삭제할 수 있게 됨 (신고 시스템과 별개로 즉시 삭제 가능한 권한).
@@ -543,7 +618,8 @@ io.on('connection', (socket) => {
       socketToUser[socket.id] = user.id;
       userToSocket[user.id] = socket.id;
       const token = issueSessionToken(user.id);
-      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token });
+      const rewardNotify = await popPendingRewardNotify(user);
+      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -564,7 +640,8 @@ io.on('connection', (socket) => {
       socketToUser[socket.id] = user.id;
       userToSocket[user.id] = socket.id;
       const token = issueSessionToken(user.id); // 갱신(연장)
-      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token });
+      const rewardNotify = await popPendingRewardNotify(user);
+      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -627,7 +704,8 @@ io.on('connection', (socket) => {
         socketToUser[socket.id] = existing.id;
         userToSocket[existing.id] = socket.id;
         const token = issueSessionToken(existing.id);
-        cb({ success: true, user: { ...existing, isAdmin: isAdmin(existing) }, token });
+        const rewardNotify = await popPendingRewardNotify(existing);
+        cb({ success: true, user: { ...existing, isAdmin: isAdmin(existing) }, token, rewardNotify });
         broadcastUsers();
         return;
       }
@@ -832,11 +910,11 @@ io.on('connection', (socket) => {
       let earned = false;
       if (user.lastPostDate !== todayStr) { user.points += 50; user.lastPostDate = todayStr; earned = true; }
       await saveUser(user);
-      const category = ['hottopic', 'balance'].includes(data.category) ? data.category : 'normal';
+      const category = data.category === 'vote' ? 'vote' : 'normal';
       let pollOptions = null, pollVotes = null;
       if (category !== 'normal') {
         const rawOptions = Array.isArray(data.pollOptions) ? data.pollOptions.map(t => (t || '').trim()).filter(Boolean) : [];
-        const min = 2, max = category === 'balance' ? 2 : 4;
+        const min = 2, max = VOTE_MAX_OPTIONS;
         if (rawOptions.length < min || rawOptions.length > max) return cb({ success: false, message: '투표 항목 개수를 확인해주세요.' });
         pollOptions = rawOptions.slice(0, max).map((text, i) => ({ id: 'o' + i, text: text.slice(0, 30) }));
         pollVotes = {};
