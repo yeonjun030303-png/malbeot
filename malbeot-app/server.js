@@ -409,7 +409,7 @@ async function postAsAiBotIfNeeded() {
 ensureAiBotUser().then(() => postAsAiBotIfNeeded());
 setInterval(postAsAiBotIfNeeded, 60 * 60 * 1000);
 
-// 필터링된 게시글 자동 정리: filteredAt으로부터 3일이 지나도록 본인이 수정(해제)하거나 삭제하지 않으면 자동으로 완전 삭제
+// 필터링/삭제된 게시글·댓글 자동 정리: 각각의 시점으로부터 3일이 지나면 완전 삭제
 async function purgeExpiredFilteredPosts() {
   try {
     const posts = await getRawPosts();
@@ -420,10 +420,27 @@ async function purgeExpiredFilteredPosts() {
       if (p.filtered && p.filteredAt && (now - p.filteredAt) > THREE_DAYS) {
         await deletePostDb(p.id);
         purgedAny = true;
+        continue;
+      }
+      if (p.deleted && p.deletedAt && (now - p.deletedAt) > THREE_DAYS) {
+        await deletePostDb(p.id);
+        purgedAny = true;
+        continue;
+      }
+      if (p.comments) {
+        let commentsChanged = false;
+        Object.keys(p.comments).forEach(cid => {
+          const c = p.comments[cid];
+          if (c.deleted && c.deletedAt && (now - c.deletedAt) > THREE_DAYS) {
+            delete p.comments[cid];
+            commentsChanged = true;
+          }
+        });
+        if (commentsChanged) { savePost(p); purgedAny = true; }
       }
     }
     if (purgedAny) broadcastPosts();
-  } catch (e) { console.error('[필터링 게시글 자동정리 오류]', e); }
+  } catch (e) { console.error('[필터링/삭제 게시글 자동정리 오류]', e); }
 }
 setInterval(purgeExpiredFilteredPosts, 60 * 60 * 1000);
 
@@ -842,7 +859,9 @@ io.on('connection', (socket) => {
       const requester = await getUser(userId);
       const admin = requester && isAdmin(requester);
       if (post.authorId !== userId && !admin) return cb({ success: false });
-      await deletePostDb(data.id);
+      post.deleted = true;
+      post.deletedByAdmin = !!(admin && post.authorId !== userId);
+      await savePost(post);
       cb({ success: true });
       broadcastPosts();
     } catch (e) { console.error(e); cb({ success: false }); }
@@ -894,6 +913,7 @@ io.on('connection', (socket) => {
       const userId = socketToUser[socket.id];
       const post = await getPost(data.postId);
       if (!post) return cb({ success: false });
+      if (post.deleted || post.filtered) return cb({ success: false, message: '삭제된 게시글에는 댓글을 작성할 수 없습니다.' });
 
       const isFiltered = containsBannedWord(data.content);
 
@@ -966,10 +986,9 @@ io.on('connection', (socket) => {
       const requester = await getUser(userId);
       const admin = requester && isAdmin(requester);
       if (c.authorId !== userId && !admin) return cb({ success: false });
-      delete post.comments[data.commentId];
-      Object.keys(post.comments).forEach(cid => {
-        if (post.comments[cid].parentId === data.commentId) delete post.comments[cid];
-      });
+      c.deleted = true;
+      c.deletedAt = Date.now();
+      c.deletedByAdmin = !!(admin && c.authorId !== userId);
       await savePost(post);
       cb({ success: true });
       broadcastPosts();
