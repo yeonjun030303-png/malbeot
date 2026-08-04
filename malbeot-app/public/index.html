@@ -259,6 +259,7 @@ body.dark-mode .tagxs{color:var(--text-muted);}
 .profile-post-mini img.ppm-thumb{width:50px;height:50px;border-radius:8px;object-fit:cover;flex-shrink:0;}
 .profile-post-mini .ppm-text{font-size:12px;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;}
 .profile-post-mini .ppm-meta{font-size:10px;color:var(--text-muted);margin-top:4px;}
+.profile-list-expand-btn{text-align:center;padding:10px 2px;font-size:12px;font-weight:700;color:var(--primary);cursor:pointer;}
 
 /* ---- 프로필 사진 노출 위치(초점) 드래그 조절 ---- */
 .photo-position-box{width:150px;height:150px;border-radius:50%;overflow:hidden;position:relative;margin:10px auto 4px auto;cursor:grab;background:var(--bg-subtle);touch-action:none;border:2px solid var(--border-color);}
@@ -2336,7 +2337,38 @@ function handleFollowListToggle(targetId, isFollowing){
     performFollowToggle(targetId, afterFn);
   }
 }
+// 프로필의 작성한 글/스토리/댓글 목록: 처음엔 5개만 보여주고, "전체보기"를 누르면 전부 펼쳐짐(다시 누르면 접힘)
+let profileMiniListsData = {};
+let profileMiniListsExpanded = {};
+function renderProfileMiniList(wrapId, itemHtmls, emptyMsg){
+  profileMiniListsData[wrapId] = itemHtmls;
+  if (!(wrapId in profileMiniListsExpanded)) profileMiniListsExpanded[wrapId] = false;
+  renderProfileMiniListDom(wrapId, emptyMsg);
+}
+function renderProfileMiniListDom(wrapId, emptyMsg){
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  const itemHtmls = profileMiniListsData[wrapId] || [];
+  if (!itemHtmls.length){ wrap.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">${emptyMsg}</div>`; return; }
+  const expanded = profileMiniListsExpanded[wrapId];
+  const shown = expanded ? itemHtmls : itemHtmls.slice(0,5);
+  let html = shown.join('');
+  if (itemHtmls.length > 5){
+    html += `<div class="profile-list-expand-btn" onclick="event.stopPropagation();toggleProfileMiniList('${wrapId}')">${expanded ? '접기' : `전체보기 (${itemHtmls.length})`}</div>`;
+  }
+  wrap.innerHTML = html;
+}
+function toggleProfileMiniList(wrapId){
+  profileMiniListsExpanded[wrapId] = !profileMiniListsExpanded[wrapId];
+  renderProfileMiniListDom(wrapId, profileMiniListEmptyMsgs[wrapId] || '');
+}
+const profileMiniListEmptyMsgs = {
+  profilePostsScroll: '작성한 글이 없습니다.',
+  profileStoriesScroll: '작성한 스토리가 없습니다.',
+  profileCommentsScroll: '작성한 댓글이 없습니다.'
+};
 function loadProfilePostsSection(userId){
+  profileMiniListsExpanded = {};
   socket.emit('posts:get_list', {region:'전체', gender:'전체', ageMin:19, ageMax:99}, (res)=>{
     const allPosts = res.posts || [];
     const postsWrap = document.getElementById('profilePostsScroll');
@@ -2345,38 +2377,41 @@ function loadProfilePostsSection(userId){
     if (!postsWrap) return; // 화면이 이미 닫힌 경우
 
     const posts = allPosts.filter(p=>p.authorId===userId && (p.logType||'story')==='story').sort((a,b)=>(b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt));
-    postsWrap.innerHTML = posts.length ? posts.map(p=>`
+    const postsHtmls = posts.map(p=>`
       <div class="profile-post-mini" onclick="closeProfileDetailScreen();openPostDetailScreen('${p.id}')">
         ${p.photo?`<img class="ppm-thumb" src="${p.photo}">`:''}
         <div style="flex:1;min-width:0;">
           <div class="ppm-text">${escapeHtml(p.content)}</div>
           <div class="ppm-meta">${formatRelativeTime(p.updatedAt||p.createdAt)} · 공감 ${p.likes||0} · 댓글 ${(p.comments||[]).length}</div>
         </div>
-      </div>`).join('') : `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">작성한 글이 없습니다.</div>`;
+      </div>`);
+    renderProfileMiniList('profilePostsScroll', postsHtmls, profileMiniListEmptyMsgs.profilePostsScroll);
 
     if (storiesWrap){
       const stories = allPosts.filter(p=>p.authorId===userId && p.logType==='log').sort((a,b)=>(b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt));
-      storiesWrap.innerHTML = stories.length ? stories.map(p=>`
+      const storiesHtmls = stories.map(p=>`
         <div class="profile-post-mini" onclick="closeProfileDetailScreen();openStoryViewer('${p.id}')">
           ${p.photo?(p.mediaType==='video'?`<video class="ppm-thumb" src="${p.photo}" muted></video>`:`<img class="ppm-thumb" src="${p.photo}">`):''}
           <div style="flex:1;min-width:0;">
             <div class="ppm-text">${escapeHtml(p.content)}</div>
             <div class="ppm-meta">${formatRelativeTime(p.updatedAt||p.createdAt)} · 공감 ${p.likes||0} · 댓글 ${(p.comments||[]).length}</div>
           </div>
-        </div>`).join('') : `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">작성한 스토리가 없습니다.</div>`;
+        </div>`);
+      renderProfileMiniList('profileStoriesScroll', storiesHtmls, profileMiniListEmptyMsgs.profileStoriesScroll);
     }
 
     if (commentsWrap){
       const myComments = [];
       allPosts.forEach(p=>(p.comments||[]).forEach(c=>{ if (c.authorId===userId) myComments.push({...c, postId:p.id, postContent:p.content}); }));
       myComments.sort((a,b)=>(b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt));
-      commentsWrap.innerHTML = myComments.length ? myComments.map(c=>`
+      const commentsHtmls = myComments.map(c=>`
         <div class="profile-post-mini" onclick="closeProfileDetailScreen();openPostDetailScreen('${c.postId}')">
           <div style="flex:1;min-width:0;">
             <div class="ppm-text">${escapeHtml(c.content)}</div>
             <div class="ppm-meta">${formatRelativeTime(c.updatedAt||c.createdAt)} · 원글: ${escapeHtml((c.postContent||'').slice(0,20))}</div>
           </div>
-        </div>`).join('') : `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">작성한 댓글이 없습니다.</div>`;
+        </div>`);
+      renderProfileMiniList('profileCommentsScroll', commentsHtmls, profileMiniListEmptyMsgs.profileCommentsScroll);
     }
   });
 }
