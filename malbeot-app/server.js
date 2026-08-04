@@ -1038,18 +1038,21 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); }
   });
 
-  socket.on('chat:send_image', async (data) => {
+  socket.on('chat:send_image', async (data, cb) => {
     try {
       const userId = socketToUser[socket.id];
       const room = await getRoom(data.roomId);
-      if (!room || !room.userIds.includes(userId)) return;
+      if (!room || !room.userIds.includes(userId)) return cb && cb({ success: false });
+      const nsfwResult = await checkImageNsfw(data.image);
+      if (nsfwResult.isNsfw) return cb && cb({ success: false, blocked: true, message: '부적절한 사진으로 감지되어 전송할 수 없습니다.' });
       const msg = await addMessage(data.roomId, { senderId: userId, type: 'image', data: data.image, timestamp: Date.now(), read: false });
       const sender = await getUser(userId);
       room.userIds.forEach(uid => {
         const sId = userToSocket[uid];
         if (sId) io.to(sId).emit('chat:new_message', { roomId: data.roomId, message: msg, senderNickname: sender && sender.nickname });
       });
-    } catch (e) { console.error(e); }
+      cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
   // 채팅방을 열람하면(=내 채팅창에 들어오면) 상대가 보낸 안읽은 메시지를 모두 읽음 처리
