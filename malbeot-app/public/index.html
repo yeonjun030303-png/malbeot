@@ -1735,6 +1735,47 @@ function buildMatchedCommentsHtml(p, q){
     <div class="search-matched-comment-line">@${escapeHtml(c.authorNickname||'')} ${highlightMatch(c.content, q)}</div>
   `).join('')}</div>`;
 }
+function pollCategoryLabel(cat){ return cat === 'balance' ? '⚖️ 밸런스게임' : (cat === 'hottopic' ? '🔥 핫토픽' : ''); }
+function getPollCounts(p){
+  const counts = {};
+  (p.pollOptions||[]).forEach(o=>counts[o.id]=0);
+  Object.values(p.pollVotes||{}).forEach(oid=>{ if (counts[oid]!==undefined) counts[oid]++; });
+  return counts;
+}
+function renderPollWidget(p){
+  if (!p.pollOptions || !p.pollOptions.length || p.deleted || p.filtered) return '';
+  const counts = getPollCounts(p);
+  const total = Object.values(counts).reduce((a,b)=>a+b,0);
+  const myVote = currentUser && p.pollVotes ? p.pollVotes[currentUser.id] : null;
+  const label = pollCategoryLabel(p.category);
+  let body;
+  if (myVote){
+    body = p.pollOptions.map(o=>{
+      const c = counts[o.id]||0;
+      const pct = total ? Math.round(c/total*100) : 0;
+      const mine = o.id===myVote;
+      return `<div style="margin-bottom:6px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;${mine?'font-weight:700;color:var(--primary);':''}">
+          <span>${escapeHtml(o.text)}${mine?' \u2713':''}</span><span>${pct}% (${c})</span>
+        </div>
+        <div style="background:var(--border-color);border-radius:6px;height:8px;overflow:hidden;">
+          <div style="background:${mine?'var(--primary)':'var(--text-muted)'};height:100%;width:${pct}%;"></div>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    body = p.pollOptions.map(o=>`<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-bottom:6px;" onclick="event.stopPropagation();submitVote('${p.id}','${o.id}')">${escapeHtml(o.text)}</button>`).join('');
+  }
+  return `<div class="poll-widget" style="margin-top:8px;padding:10px;background:var(--bg-subtle);border-radius:10px;">
+    <div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:6px;">${label} \u00b7 \uCC38\uC5EC ${total}\uBA85</div>
+    ${body}
+  </div>`;
+}
+function submitVote(postId, optionId){
+  socket.emit('posts:vote', {postId, optionId}, (res)=>{
+    if (res && res.success){ loadCommunityPosts(); if (currentPostId===postId) refreshPostDetail(); }
+  });
+}
 function renderPosts(list){
   communityPostsCache = list || [];
   const c = document.getElementById('communityPostList'); c.innerHTML='';
@@ -1771,6 +1812,7 @@ function renderPosts(list){
       </div>
       ${mediaHtml}
       <div class="post-preview" onclick="openPostDetailScreen('${p.id}')">${previewHtml}</div>
+      ${renderPollWidget(p)}
       ${matchedCommentsHtml}
       <div class="post-actions">
         <button class="post-action-btn ${liked?'liked':''}" onclick="event.stopPropagation();toggleLikePost('${p.id}')"><i class="fa-${liked?'solid':'regular'} fa-heart"></i> ${p.likes||0}</button>
@@ -1913,6 +1955,7 @@ function renderPostDetail(p){
     </div>
     ${mediaHtml}
     ${contentHtml}
+    ${renderPollWidget(p)}
     <div style="display:flex;gap:16px;margin-bottom:16px;border-top:1px solid var(--border-color);border-bottom:1px solid var(--border-color);padding:10px 0;">
       <button class="post-action-btn ${liked?'liked':''}" onclick="toggleLikePost('${p.id}')"><i class="fa-${liked?'solid':'regular'} fa-heart"></i> ${p.likes||0}</button>
       <span class="post-action-btn"><i class="fa-regular fa-comment"></i> ${(p.comments||[]).length}</span>
