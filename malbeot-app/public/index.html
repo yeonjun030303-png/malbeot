@@ -385,10 +385,6 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
             <select id="regAge"></select>
           </div>
         </div>
-        <div class="form-group" id="regPasswordGroup">
-          <label>로그인 비밀번호 설정 (대소문자 구분, 형식 제한 없음)</label>
-          <input type="password" id="regPassword" placeholder="비밀번호 입력">
-        </div>
         <div style="background:var(--bg-subtle);border:1px solid var(--border-color);border-radius:8px;padding:12px;margin-bottom:14px;">
           <label style="font-size:11px;cursor:pointer;display:flex;gap:8px;align-items:flex-start;">
             <input type="checkbox" id="agreeLegal" style="margin-top:2px;">
@@ -884,7 +880,6 @@ let currentPostCache = null;
 let editingPostId = null;
 let blockReportContext = null;
 let profilePhotoIndex = 0;
-let isSmsVerified = false;
 let pendingSignupPhone = "";
 let activeChatTargetId = null;
 let communityPostsCache = [];
@@ -895,8 +890,6 @@ let editPhotoPosition = {x:50, y:50};
 let settingsDraft = null;
 let settingsDirty = false;
 let selectedReportCategory = null;
-// authMode: 'phone'(전화번호 회원가입) 또는 'kakao'(카카오 신규가입 - 추가정보만 입력)
-let authMode = 'phone';
 let pendingKakaoToken = '';
 // 카카오 로그인 REST API 키. Kakao Developers 콘솔에서 발급받은 값으로 반드시 교체해야 동작함.
 // Redirect URI는 콘솔에 window.location.origin + '/' 값 그대로 등록되어 있어야 함.
@@ -1168,7 +1161,7 @@ socket.on('connect', ()=>{
     socket.emit('auth:session_resume', {token: sessionToken}, (res)=>{
       if (res.success){
         currentUser = res.user; saveSession(res.token);
-        closeModal('landingScreen'); closeModal('loginModal'); closeModal('authModal');
+        closeModal('landingScreen'); closeModal('authModal');
         initApp();
       } else {
         clearSession();
@@ -1257,9 +1250,7 @@ function startKakaoLogin(){
         currentUser = res.user; saveSession(res.token);
         closeModal('landingScreen'); initApp();
       } else if (res.needProfile){
-        authMode = 'kakao';
         pendingKakaoToken = res.pendingToken;
-        document.getElementById('regPasswordGroup').classList.add('hidden');
         closeModal('landingScreen');
         openModal('authModal');
         setAuthStep(2);
@@ -1278,14 +1269,10 @@ function setAuthStep(n){
   document.getElementById('authStep3').classList.toggle('hidden', n!==3);
   document.getElementById('authStepIndicator').textContent = {2:'1 / 2 단계 · 기본 정보',3:'2 / 2 단계 · 사진 등록'}[n];
 }
-document.getElementById('btnBackStep1').onclick = ()=>{
-  if (authMode === 'kakao'){ closeModal('authModal'); openModal('landingScreen'); return; }
-  setAuthStep(1);
-};
+document.getElementById('btnBackStep1').onclick = ()=>{ closeModal('authModal'); openModal('landingScreen'); };
 document.getElementById('btnBackStep2').onclick = ()=>setAuthStep(2);
 document.getElementById('btnGoStep3').onclick = ()=>{
   if (!document.getElementById('regNickname').value.trim()) { showMiniAlert('별명을 입력하세요.', [{label:'확인', primary:true}]); return; }
-  if (authMode !== 'kakao' && !document.getElementById('regPassword').value) { showMiniAlert('비밀번호를 입력하세요.', [{label:'확인', primary:true}]); return; }
   if (!document.getElementById('agreeLegal').checked) { showMiniAlert('이용 약관에 동의해주세요.', [{label:'확인', primary:true}]); return; }
   setAuthStep(3);
 };
@@ -1296,13 +1283,7 @@ async function handleRegPhotoUpload(e){
   const p=document.getElementById('regPhotoPreview'); p.src=regPhotoBase64; p.classList.remove('hidden'); document.getElementById('regPhotoPlaceholder').classList.add('hidden');
 }
 document.getElementById('authForm').onsubmit = ()=>{
-  // 카카오 신규가입: 전화번호/SMS/비밀번호 없이 닉네임/지역/성별/나이/사진만으로 계정 생성
-  if (authMode === 'kakao'){
-    submitKakaoSignup(false);
-    return;
-  }
-  if (!isSmsVerified) { showMiniAlert('본인인증을 먼저 진행해 주세요.', [{label:'확인', primary:true}]); return; }
-  submitPhoneSignup(false);
+  submitKakaoSignup(false);
 };
 function submitKakaoSignup(confirmed){
   const kakaoData = {
@@ -1316,41 +1297,13 @@ function submitKakaoSignup(confirmed){
     confirmed
   };
   socket.emit('auth:kakao_complete_profile', kakaoData, (res)=>{
-    if (res.success){ currentUser = res.user; saveSession(res.token); closeModal('authModal'); authMode='phone'; initApp(); }
+    if (res.success){ currentUser = res.user; saveSession(res.token); closeModal('authModal'); initApp(); }
     else if (res.needsConfirm){
       showMiniAlert('닉네임에 부적절한 단어가 발견되었습니다. \"삭제된 닉네임입니다\"로 표기됩니다. 그래도 사용하시겠습니까?', [
         {label:'취소', primary:false},
         {label:'확인', primary:true, onClick:()=>submitKakaoSignup(true)}
       ]);
     } else showMiniAlert(res.message || '가입 중 오류가 발생했습니다. 카카오 로그인을 다시 시도해주세요.', [{label:'확인', primary:true, onClick:()=>{ closeModal('authModal'); openModal('landingScreen'); }}]);
-  });
-}
-function submitPhoneSignup(confirmed){
-  const authData = {
-    phone: normalizePhone(document.getElementById('inputPhone').value),
-    password: document.getElementById('regPassword').value,
-    nickname: document.getElementById('regNickname').value.trim(),
-    region: document.getElementById('regRegion').value,
-    gender: document.getElementById('regGender').value,
-    age: document.getElementById('regAge').value,
-    bio: '반갑습니다!',
-    photos: regPhotoBase64 ? [regPhotoBase64] : [],
-    confirmed
-  };
-  socket.emit('auth:signup', authData, (res)=>{
-    if (res.success){ currentUser = res.user; saveSession(res.token); closeModal('authModal'); initApp(); }
-    else if (res.alreadyExists){
-      showMiniAlert('이미 등록된 번호입니다.', [{label:'확인', primary:true, onClick:()=>{
-        closeModal('authModal');
-        document.getElementById('loginPhone').value = authData.phone;
-        openModal('loginModal');
-      }}]);
-    } else if (res.needsConfirm){
-      showMiniAlert('닉네임에 부적절한 단어가 발견되었습니다. \"삭제된 닉네임입니다\"로 표기됩니다. 그래도 사용하시겠습니까?', [
-        {label:'취소', primary:false},
-        {label:'확인', primary:true, onClick:()=>submitPhoneSignup(true)}
-      ]);
-    } else showMiniAlert(res.message || '가입 중 오류가 발생했습니다.', [{label:'확인', primary:true}]);
   });
 }
 
