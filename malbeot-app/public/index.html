@@ -635,8 +635,14 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <i class="fa-solid fa-camera fa-lg"></i><span style="margin-top:4px;">사진 등록하기</span>
       </div>
       <input type="file" id="composePhotoInput" accept="image/*,video/*" class="hidden" onchange="handleComposePhotoUpload(event)">
+      <div id="composeCategoryBar" style="display:flex;gap:8px;padding:10px 16px;">
+        <button type="button" class="btn btn-sm" data-cat="normal" onclick="selectComposeCategory('normal')">일반</button>
+        <button type="button" class="btn btn-sm" data-cat="hottopic" onclick="selectComposeCategory('hottopic')">핫토픽</button>
+        <button type="button" class="btn btn-sm" data-cat="balance" onclick="selectComposeCategory('balance')">밸런스게임</button>
+      </div>
       <textarea id="composeTextarea" class="compose-textarea" maxlength="100" placeholder="오늘 하루 어떤 즐거운 일이 있었는지 함께 나누어봐요... (최대 100자, 30일간 보존됩니다)"></textarea>
       <div style="text-align:right;padding:0 16px 10px 16px;font-size:11px;color:var(--text-muted);"><span id="composeCharCount">0</span>/100</div>
+      <div id="composePollBox" class="hidden" style="padding:0 16px 10px 16px;"></div>
     </div>
     <div class="compose-footer">
       <button class="btn btn-secondary" style="flex:1;" onclick="closeComposeScreen()">취소</button>
@@ -885,6 +891,38 @@ let communityPostsCache = [];
 let activeCommunityLogType = 'story';
 let activeSearchQuery = '';
 let composeLogType = 'story';
+let composeCategory = 'normal';
+let composePollOptions = [];
+function selectComposeCategory(cat){
+  composeCategory = cat;
+  composePollOptions = cat === 'normal' ? [] : ['',''];
+  renderComposeCategoryBar();
+  renderComposePollBox();
+}
+function renderComposeCategoryBar(){
+  document.querySelectorAll('#composeCategoryBar button').forEach(b=>{
+    const active = b.dataset.cat === composeCategory;
+    b.className = 'btn btn-sm ' + (active ? 'btn-primary' : 'btn-secondary');
+  });
+}
+function renderComposePollBox(){
+  const box = document.getElementById('composePollBox');
+  if (composeCategory === 'normal'){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  box.classList.remove('hidden');
+  const max = composeCategory === 'balance' ? 2 : 4;
+  let html = composePollOptions.map((v,i)=>`<input type="text" value="${escapeHtml(v)}" placeholder="투표 항목 ${i+1}" maxlength="30" oninput="updateComposePollOption(${i}, this.value)" style="width:100%;padding:8px 10px;margin-bottom:6px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-subtle);">`).join('');
+  if (composeCategory === 'hottopic' && composePollOptions.length < max){
+    html += `<button type="button" class="btn btn-secondary btn-sm" onclick="addComposePollOption()">+ 항목 추가</button>`;
+  }
+  box.innerHTML = html;
+}
+function updateComposePollOption(i, val){ composePollOptions[i] = val; }
+function addComposePollOption(){
+  const max = composeCategory === 'balance' ? 2 : 4;
+  if (composePollOptions.length >= max) return;
+  composePollOptions.push('');
+  renderComposePollBox();
+}
 let editPhotoPosition = {x:50, y:50};
 let settingsDraft = null;
 let settingsDirty = false;
@@ -1747,7 +1785,7 @@ function openPostRowMenu(id){
 }
 function toggleLikePost(id){ socket.emit('posts:like', {id}, ()=>{}); }
 
-function openComposeScreen(forceType){ editingPostId=null; composePhotoBase64=''; composeLogType = forceType || activeCommunityLogType; document.getElementById('composeTitle').textContent = composeLogType==='log' ? '말벗스토리 남기기' : '이야기 올리기'; document.getElementById('composeTextarea').value=''; document.getElementById('composeCharCount').textContent='0'; resetComposePhotoBox(); openFullScreen('composeScreen'); }
+function openComposeScreen(forceType){ editingPostId=null; composePhotoBase64=''; composeLogType = forceType || activeCommunityLogType; document.getElementById('composeTitle').textContent = composeLogType==='log' ? '말벗스토리 남기기' : '이야기 올리기'; document.getElementById('composeTextarea').value=''; document.getElementById('composeCharCount').textContent='0'; resetComposePhotoBox(); composeCategory='normal'; composePollOptions=[]; document.getElementById('composeCategoryBar').classList.toggle('hidden', composeLogType==='log'); renderComposeCategoryBar(); renderComposePollBox(); openFullScreen('composeScreen'); }
 function openStoryComposeScreen(){ closeStoryViewer(); openComposeScreen('log'); }
 function openComposeScreenForEdit(post){
   editingPostId=post.id; composePhotoBase64=post.photo||''; composeLogType = post.logType || 'story';
@@ -1816,7 +1854,7 @@ function submitComposeUpdate(confirmed){
 }
 function submitComposeCreate(confirmed){
   const content = document.getElementById('composeTextarea').value.trim();
-  socket.emit('posts:create', {content, photo:composePhotoBase64, logType:composeLogType, confirmed}, (res)=>{
+  socket.emit('posts:create', {content, photo:composePhotoBase64, logType:composeLogType, confirmed, category:composeCategory, pollOptions:composePollOptions}, (res)=>{
     if (res && res.success){
       currentUser.points = res.points; updateUserUI(); saveSession();
       closeComposeScreen(); loadCommunityPosts();
