@@ -467,6 +467,15 @@ async function purgeExpiredFilteredPosts() {
       }
     }
     if (purgedAny) broadcastPosts();
+
+    const chatsSnap = await db.ref('chats').once('value');
+    const allChats = chatsSnap.val() || {};
+    for (const roomId of Object.keys(allChats)) {
+      const room = allChats[roomId];
+      if (room.withdrawnAt && (now - room.withdrawnAt) > THREE_DAYS) {
+        await deleteRoom(roomId);
+      }
+    }
   } catch (e) { console.error('[필터링/삭제 게시글 자동정리 오류]', e); }
 }
 setInterval(purgeExpiredFilteredPosts, 60 * 60 * 1000);
@@ -707,6 +716,7 @@ io.on('connection', (socket) => {
         const room = allChats[roomId];
         if (room.userIds && room.userIds.includes(userId)) {
           await addMessage(roomId, { senderId: 'system', text: '탈퇴한 사용자입니다.', timestamp: Date.now() });
+          await saveRoomMeta(roomId, { withdrawnAt: Date.now() });
           const otherId = room.userIds.find(id => id !== userId);
           const sId = userToSocket[otherId];
           if (sId) io.to(sId).emit('chat:new_message', { roomId, message: { senderId: 'system', text: '탈퇴한 사용자입니다.', timestamp: Date.now() } });
