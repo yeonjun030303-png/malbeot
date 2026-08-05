@@ -260,6 +260,8 @@ body.dark-mode .tagxs{color:var(--text-muted);}
 .profile-post-mini .ppm-text{font-size:12px;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;}
 .profile-post-mini .ppm-meta{font-size:10px;color:var(--text-muted);margin-top:4px;}
 .profile-list-expand-btn{text-align:center;padding:10px 2px;font-size:12px;font-weight:700;color:var(--primary);cursor:pointer;}
+#scrollTopBtn{position:absolute;right:16px;bottom:80px;width:42px;height:42px;border-radius:50%;background:var(--primary);color:#fff;display:none;align-items:center;justify-content:center;box-shadow:var(--shadow-lg);cursor:pointer;z-index:150;font-size:16px;}
+#scrollTopBtn.show{display:flex;}
 
 /* ---- 프로필 사진 노출 위치(초점) 드래그 조절 ---- */
 .photo-position-box{width:150px;height:150px;border-radius:50%;overflow:hidden;position:relative;margin:10px auto 4px auto;cursor:grab;background:var(--bg-subtle);touch-action:none;border:2px solid var(--border-color);}
@@ -893,6 +895,8 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <button class="chat-send-btn" id="btnSendMsg"><i class="fa-solid fa-paper-plane"></i></button>
     </div>
   </div>
+
+  <div id="scrollTopBtn" onclick="scrollActiveContainerToTop()"><i class="fa-solid fa-arrow-up"></i></div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -1469,6 +1473,23 @@ function switchTab(tab){
   if (tab==='tab-mypage') loadProfileToForm();
 }
 document.querySelectorAll('.bottom-nav .nav-item').forEach(item=>item.addEventListener('click', ()=>switchTab(item.dataset.tab)));
+
+// 우측하단 위로가기 버튼: 화면(커뮤니티/홈 목록, 설정/프로필 등 풀스크린) 스크롤이 일정량 이상 내려가면 표시됨
+document.addEventListener('scroll', function(e){
+  const el = e.target;
+  if (!el || !el.classList) return;
+  if (!(el.classList.contains('content-area') || el.classList.contains('fs-body'))) return;
+  const btn = document.getElementById('scrollTopBtn');
+  if (!btn) return;
+  if (el.scrollTop > 300) { btn.classList.add('show'); btn._scrollSource = el; }
+  else if (btn._scrollSource === el) { btn.classList.remove('show'); }
+}, true);
+function scrollActiveContainerToTop(){
+  const btn = document.getElementById('scrollTopBtn');
+  const el = btn && btn._scrollSource;
+  if (el) el.scrollTo({top:0, behavior:'smooth'});
+  if (btn) btn.classList.remove('show');
+}
 ['filterRegion','filterGender'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{ loadHomeUserList(); loadCommunityPosts(); }));
 function getFilterValues(sortType){ return { region:document.getElementById('filterRegion').value, gender:document.getElementById('filterGender').value, ageMin, ageMax, sort: sortType || 'default' }; }
 
