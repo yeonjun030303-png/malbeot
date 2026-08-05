@@ -766,6 +766,10 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div class="fs-title">설정</div>
     </div>
     <div class="fs-body" style="padding:6px 18px 100px 18px;">
+      <div class="settings-list-item" id="adminModeRow" style="display:none;">
+        <div><div class="sli-label">관리자 모드</div><div class="sli-sub">본인 계정에만 표시됩니다</div></div>
+        <div class="toggle-switch" id="toggleAdminMode" onclick="toggleAdminMode()"><div class="knob"></div></div>
+      </div>
       <div class="settings-section-title settings-accordion-header open" id="accHeader-acc-notify" onclick="toggleSettingsAccordion('acc-notify')">
         <span>알림</span><i class="fa-solid fa-chevron-down accordion-arrow"></i>
       </div>
@@ -803,10 +807,6 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;gap:8px;">
         <button type="button" class="btn btn-secondary btn-block" style="color:var(--danger);" onclick="triggerLogout()"><i class="fa-solid fa-right-from-bracket"></i> 로그아웃</button>
         <button type="button" class="btn btn-secondary btn-block" style="color:var(--danger);" onclick="triggerWithdraw()"><i class="fa-solid fa-user-slash"></i> 회원탈퇴</button>
-      </div>
-      <div class="settings-list-item" onclick="showMiniAlert('현재 준비 중인 기능입니다.', [{label:'확인', primary:true}])">
-        <div class="sli-label">회원 비밀번호 수정</div>
-        <div class="sli-right"><i class="fa-solid fa-chevron-right"></i></div>
       </div>
       <div class="settings-list-item" onclick="openBlockedListScreen()">
         <div class="sli-label">차단한 회원</div>
@@ -852,6 +852,39 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </div>
   </div>
 
+  <div id="adminScreen" class="full-screen-overlay">
+    <div class="fs-header">
+      <button class="back-btn" onclick="closeAdminScreen()"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="fs-title">관리자 모드</div>
+    </div>
+    <div class="fs-body" style="padding:12px 18px 100px 18px;">
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button id="adminTabReportsBtn" class="btn btn-secondary" style="flex:1;" onclick="switchAdminTab('reports')">신고 관리</button>
+        <button id="adminTabChatsBtn" class="btn btn-secondary" style="flex:1;" onclick="switchAdminTab('chats')">전체 채팅방</button>
+      </div>
+      <div id="adminReportsTab">
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+          <div style="flex:1;text-align:center;padding:14px 0;border:1px solid var(--border-color);border-radius:10px;cursor:pointer;" onclick="filterAdminReports('post')">
+            <div id="adminTallyPost" style="font-size:22px;font-weight:700;">0</div>
+            <div style="font-size:12px;color:var(--text-muted);">게시글</div>
+          </div>
+          <div style="flex:1;text-align:center;padding:14px 0;border:1px solid var(--border-color);border-radius:10px;cursor:pointer;" onclick="filterAdminReports('user')">
+            <div id="adminTallyUser" style="font-size:22px;font-weight:700;">0</div>
+            <div style="font-size:12px;color:var(--text-muted);">프로필</div>
+          </div>
+          <div style="flex:1;text-align:center;padding:14px 0;border:1px solid var(--border-color);border-radius:10px;cursor:pointer;" onclick="filterAdminReports('chat')">
+            <div id="adminTallyChat" style="font-size:22px;font-weight:700;">0</div>
+            <div style="font-size:12px;color:var(--text-muted);">채팅</div>
+          </div>
+        </div>
+        <div id="adminReportList"></div>
+      </div>
+      <div id="adminChatsTab" class="hidden">
+        <div id="adminChatRoomList"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="blockedListScreen" class="full-screen-overlay">
     <div class="fs-header">
       <button class="back-btn" onclick="closeFullScreen('blockedListScreen')"><i class="fa-solid fa-arrow-left"></i></button>
@@ -880,7 +913,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <span id="chatHeaderAvatarDefault" class="chat-header-avatar" style="cursor:pointer;display:none;align-items:center;justify-content:center;" onclick="openProfileFromChatHeader()"></span>
       <div class="chat-header-nick" id="chatTargetName" style="cursor:pointer;" onclick="openProfileFromChatHeader()">말벗</div>
       <div style="margin-left:auto;display:flex;gap:4px;">
-        <button class="icon-round-btn" onclick="openBlockReportModal('chat')"><i class="fa-solid fa-ellipsis"></i></button>
+        <button class="icon-round-btn" onclick="openBlockReportModal('chat', activeRoomId)"><i class="fa-solid fa-ellipsis"></i></button>
         <button class="icon-round-btn" style="color:var(--danger);" onclick="triggerExitChat()"><i class="fa-solid fa-right-from-bracket"></i></button>
       </div>
     </div>
@@ -2837,6 +2870,8 @@ function openSettingsScreen(){
   document.getElementById('fontFamilySelect').value = settingsDraft.fontFamily;
   document.getElementById('blockedCountLabel').textContent = (currentUser && currentUser.blockedUserIds ? currentUser.blockedUserIds.length : 0) + '명';
   renderKeywordTags();
+  document.getElementById('adminModeRow').style.display = (currentUser && currentUser.isAdmin) ? 'flex' : 'none';
+  document.getElementById('toggleAdminMode').classList.remove('on');
   openFullScreen('settingsScreen');
 }
 /* ===================== 키워드 알림 ===================== */
@@ -2914,6 +2949,96 @@ function handleSettingsBack(){
   } else {
     closeFullScreen('settingsScreen'); switchTab('tab-home');
   }
+}
+
+/* ===================== 관리자 모드 ===================== */
+let adminReportsData = [];
+let adminReportFilter = 'post';
+function toggleAdminMode(){
+  document.getElementById('toggleAdminMode').classList.add('on');
+  closeFullScreen('settingsScreen');
+  switchAdminTab('reports');
+  openFullScreen('adminScreen');
+}
+function closeAdminScreen(){
+  document.getElementById('toggleAdminMode').classList.remove('on');
+  closeFullScreen('adminScreen');
+}
+function switchAdminTab(tab){
+  const rBtn = document.getElementById('adminTabReportsBtn');
+  const cBtn = document.getElementById('adminTabChatsBtn');
+  rBtn.style.background = tab==='reports' ? 'var(--primary)' : '';
+  rBtn.style.color = tab==='reports' ? '#fff' : '';
+  cBtn.style.background = tab==='chats' ? 'var(--primary)' : '';
+  cBtn.style.color = tab==='chats' ? '#fff' : '';
+  document.getElementById('adminReportsTab').classList.toggle('hidden', tab!=='reports');
+  document.getElementById('adminChatsTab').classList.toggle('hidden', tab!=='chats');
+  if (tab==='reports') loadAdminReports(); else loadAdminChatRooms();
+}
+function loadAdminReports(){
+  socket.emit('admin:reports:list', {}, (res)=>{
+    if (!res || !res.success) return;
+    adminReportsData = res.reports;
+    document.getElementById('adminTallyPost').textContent = res.counts.post;
+    document.getElementById('adminTallyUser').textContent = res.counts.user;
+    document.getElementById('adminTallyChat').textContent = res.counts.chat;
+    renderAdminReports();
+  });
+}
+function filterAdminReports(type){
+  adminReportFilter = type;
+  renderAdminReports();
+}
+const ADMIN_REPORT_TYPE_LABEL = { post:'게시글', user:'프로필', chat:'채팅' };
+function renderAdminReports(){
+  const list = adminReportsData.filter(r=>r.type===adminReportFilter);
+  const box = document.getElementById('adminReportList');
+  if (!list.length){ box.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">신고 내역이 없습니다.</div>`; return; }
+  box.innerHTML = list.map(r=>{
+    let actions = '';
+    if (r.status==='pending'){
+      if (r.type==='post'){
+        actions = `<button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','delete_post')">게시글 삭제</button><button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','complete_only')">처리완료 표시만</button>`;
+      } else if (r.type==='user'){
+        actions = `<button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','ban_user')">계정 정지</button><button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','complete_only')">처리완료 표시만</button>`;
+      } else if (r.type==='chat'){
+        actions = `<button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','delete_room')">채팅방 삭제</button><button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','complete_only')">처리완료 표시만</button>`;
+      }
+    }
+    return `<div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
+      <div style="display:flex;justify-content:space-between;"><b>${escapeHtml(ADMIN_REPORT_TYPE_LABEL[r.type]||r.type)} · ${escapeHtml(r.category||'')}</b><span style="font-size:11px;color:var(--text-muted);">${r.status==='pending'?'미처리':(r.status==='resolved'?'처리완료':r.status)}</span></div>
+      <div style="font-size:13px;color:var(--text-muted);margin:4px 0;">대상: ${escapeHtml(r.targetLabel||'')}</div>
+      <div style="font-size:12px;color:var(--text-muted);">신고자: ${escapeHtml(r.reporterNickname||'')} · ${formatRelativeTime(r.createdAt)}</div>
+      ${actions?`<div style="display:flex;gap:6px;margin-top:8px;">${actions}</div>`:''}
+    </div>`;
+  }).join('');
+}
+function resolveAdminReport(reportId, action){
+  socket.emit('admin:reports:resolve', {reportId, action}, (res)=>{
+    if (res && res.success) loadAdminReports();
+    else showMiniAlert('처리 중 오류가 발생했습니다.', [{label:'확인', primary:true}]);
+  });
+}
+function loadAdminChatRooms(){
+  socket.emit('admin:chatrooms:list', {}, (res)=>{
+    const box = document.getElementById('adminChatRoomList');
+    if (!res || !res.success){ box.innerHTML=''; return; }
+    if (!res.rooms.length){ box.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">채팅방이 없습니다.</div>`; return; }
+    box.innerHTML = res.rooms.map(r=>`
+      <div class="settings-list-item" onclick="viewAdminChatRoom('${r.roomId}')">
+        <div><div class="sli-label">${escapeHtml(r.participants.join(' · '))}</div><div class="sli-sub">${escapeHtml(r.lastMessagePreview||'')}</div></div>
+        <div class="sli-right" style="font-size:11px;color:var(--text-muted);">${r.lastMessageAt?formatRelativeTime(r.lastMessageAt):''}</div>
+      </div>`).join('');
+  });
+}
+function viewAdminChatRoom(roomId){
+  socket.emit('admin:chatroom:get_messages', roomId, (res)=>{
+    if (!res || !res.success) return;
+    const nickOf = (uid)=>{ const u=(res.users||[]).find(x=>x.id===uid); return u?u.nickname:'(알 수 없음)'; };
+    document.getElementById('followListModalTitle').textContent = '채팅 내용';
+    document.getElementById('followListModalBody').innerHTML = (res.messages||[]).map(m=>`<div style="padding:6px 0;border-bottom:1px solid var(--border-color);font-size:13px;"><b>${escapeHtml(nickOf(m.senderId))}</b>: ${m.type==='image'?'(사진)':escapeHtml(m.text||'')}</div>`).join('') || '<div style="text-align:center;padding:20px;color:var(--text-muted);">메시지가 없습니다.</div>';
+    openModal('followListModal');
+  });
 }
 
 /* ===================== 차단한 회원 목록 ===================== */

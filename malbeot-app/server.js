@@ -613,6 +613,7 @@ io.on('connection', (socket) => {
     try {
       const user = await findUserByPhone(data.phone);
       if (!user) return cb({ success: false, notFound: true, wrongField: 'phone' });
+      if (user.isBanned) return cb({ success: false, banned: true, message: '이용이 제한된 계정입니다.' });
       if (user.passwordHash) {
         const ok = await comparePassword(data.password || '', user.passwordHash);
         if (!ok) return cb({ success: false, wrongField: 'password' });
@@ -639,6 +640,7 @@ io.on('connection', (socket) => {
       if (!payload) return cb({ success: false, expired: true });
       const user = await getUser(payload.uid);
       if (!user) return cb({ success: false });
+      if (user.isBanned) return cb({ success: false, banned: true, message: '이용이 제한된 계정입니다.' });
       user.isOnline = true;
       user.lastSeen = Date.now();
       await saveUser(user);
@@ -703,6 +705,7 @@ io.on('connection', (socket) => {
       const { kakaoId } = await exchangeKakaoCode(data.code, data.redirectUri); console.log('[KAKAO_ID]', kakaoId);
       const existing = await findUserByKakaoId(kakaoId);
       if (existing) {
+        if (existing.isBanned) return cb({ success: false, banned: true, message: '이용이 제한된 계정입니다. 문의: kickoff030303@gmail.com' });
         existing.isOnline = true;
         existing.lastSeen = Date.now();
         await saveUser(existing);
@@ -1440,9 +1443,136 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
-  socket.on('user:report', (data, cb) => {
-    console.log('[신고 접수]', new Date().toISOString(), data);
-    cb && cb({ success: true });
+  // 신고 접수: 프론트가 보내는 {category, targetContext:{type,id}} 형태를 그대로 받아 reports 노드에 저장함
+  // targetContext.type은 'post'(게시글) | 'user'(프로필) | 'chat'(채팅방) 중 하나
+  socket.on('user:report', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const { category, targetContext } = data || {};
+      if (!category || !targetContext || !targetContext.type || !targetContext.id) {
+        return cb && cb({ success: false });
+      }
+      const ref = db.ref('reports').push();
+      const report = {
+        id: ref.key,
+        type: targetContext.type,
+        targetId: targetContext.id,
+        reporterUid: userId || null,
+        category,
+        status: 'pending',
+        createdAt: Date.now()
+      };
+      await ref.set(report);
+      cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // ===================== 관리자 대시보드 =====================
+  // 신고 목록 조회(게시글/프로필/채팅 전체) + 종류별 미처리(pending) 개수 집계
+  socket.on('admin:reports:list', async (data, cb) => {
+    try {
+      const requester = await getUser(socketToUser[socket.id]);
+      if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
+      const snap = await db.ref('reports').once('value');
+      const all = snap.val() || {};
+      const list = Object.values(all).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      const users = await getAllUsers();
+      const enriched = await Promise.all(list.map(async r => {
+        let targetLabel = '';
+        if (r.type === 'post') {
+          const p = await getPost(r.targetId);
+          targetLabel = p ? (p.content || '').slice(0, 40) : '(삭제된 게시글)';
+        } else if (r.type === 'user') {
+          const u = users[r.targetId];
+          targetLabel = u ? u.nickname : '(탈퇴한 사용자)';
+        } else if (r.type === 'chat') {
+          targetLabel = `채팅방 ${r.targetId}`;
+        }
+        const reporter = users[r.reporterUid];
+        return { ...r, targetLabel, reporterNickname: reporter ? reporter.nickname : '(알 수 없음)' };
+      }));
+      const counts = { post: 0, user: 0, chat: 0 };
+      enriched.forEach(r => { if (r.status === 'pending' && counts[r.type] !== undefined) counts[r.type]++; });
+      cb && cb({ success: true, reports: enriched, counts });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 신고 처리: action은 'delete_post'|'ban_user'|'delete_room'|'complete_only' 중 하나
+  // (채팅 메시지 1개 단위 삭제는 롱프레스 신고 기능(messageId 확보) 구현 후 추가 예정 — 현재는 방 단위만 가능)
+  socket.on('admin:reports:resolve', async (data, cb) => {
+    try {
+      const requester = await getUser(socketToUser[socket.id]);
+      if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
+      const { reportId, action } = data || {};
+      const snap = await db.ref(`reports/${reportId}`).once('value');
+      const report = snap.val();
+      if (!report) return cb && cb({ success: false });
+
+      if (action === 'delete_post' && report.type === 'post') {
+        const post = await getPost(report.targetId);
+        if (post) {
+          post.deleted = true;
+          post.deletedAt = Date.now();
+          post.deletedByAdmin = true;
+          await savePost(post);
+          broadcastPosts();
+        }
+      } else if (action === 'ban_user' && report.type === 'user') {
+        const target = await getUser(report.targetId);
+        if (target) {
+          target.isBanned = true;
+          target.bannedAt = Date.now();
+          await saveUser(target);
+          const sId = userToSocket[target.id];
+          if (sId) { io.to(sId).emit('account:banned'); delete userToSocket[target.id]; }
+          broadcastUsers();
+        }
+      } else if (action === 'delete_room' && report.type === 'chat') {
+        await deleteRoom(report.targetId);
+      }
+
+      await db.ref(`reports/${reportId}`).update({ status: 'resolved', resolveAction: action, resolvedAt: Date.now() });
+      cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 전체 채팅방 목록(서비스 내 모든 방) - 관리자만
+  socket.on('admin:chatrooms:list', async (data, cb) => {
+    try {
+      const requester = await getUser(socketToUser[socket.id]);
+      if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
+      const snap = await db.ref('chats').once('value');
+      const allChats = snap.val() || {};
+      const users = await getAllUsers();
+      const rooms = Object.keys(allChats).map(roomId => {
+        const room = allChats[roomId];
+        const messages = room.messages ? Object.values(room.messages) : [];
+        const participants = (room.userIds || []).map(uid => (users[uid] && users[uid].nickname) || '(탈퇴한 사용자)');
+        const lastMsg = messages[messages.length - 1] || {};
+        return {
+          roomId,
+          participants,
+          userIds: room.userIds || [],
+          messageCount: messages.length,
+          lastMessagePreview: lastMsg.type === 'image' ? '(사진)' : (lastMsg.text || ''),
+          lastMessageAt: lastMsg.timestamp || 0
+        };
+      }).sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+      cb && cb({ success: true, rooms });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 특정 채팅방의 메시지 전체(관리자 열람용) - 관리자만
+  socket.on('admin:chatroom:get_messages', async (roomId, cb) => {
+    try {
+      const requester = await getUser(socketToUser[socket.id]);
+      if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
+      const room = await getRoom(roomId);
+      if (!room) return cb && cb({ success: false });
+      const users = await getAllUsers();
+      const messages = room.messages ? Object.values(room.messages) : [];
+      cb && cb({ success: true, messages, users: (room.userIds || []).map(uid => ({ id: uid, nickname: (users[uid] && users[uid].nickname) || '(탈퇴한 사용자)' })) });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
   socket.on('disconnect', async () => {
