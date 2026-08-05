@@ -861,6 +861,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div style="display:flex;gap:8px;margin-bottom:16px;">
         <button id="adminTabReportsBtn" class="btn btn-secondary" style="flex:1;" onclick="switchAdminTab('reports')">신고 관리</button>
         <button id="adminTabChatsBtn" class="btn btn-secondary" style="flex:1;" onclick="switchAdminTab('chats')">전체 채팅방</button>
+        <button id="adminTabAbuseBtn" class="btn btn-secondary" style="flex:1;" onclick="switchAdminTab('abuse')">어뷰징 의심</button>
       </div>
       <div id="adminReportsTab">
         <div style="display:flex;gap:8px;margin-bottom:16px;">
@@ -881,6 +882,10 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       </div>
       <div id="adminChatsTab" class="hidden">
         <div id="adminChatRoomList"></div>
+      </div>
+      <div id="adminAbuseTab" class="hidden">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">같은 기기에서 가입한 계정이 2개 이상인 그룹만 표시됩니다.</div>
+        <div id="adminAbuseList"></div>
       </div>
     </div>
   </div>
@@ -1042,6 +1047,15 @@ const PHONE_FORMAT_MSG = '휴대폰 번호를 정확히 입력해주세요. (예
 
 /* ===================== 설정(다크모드/폰트) - 로그인 여부와 무관하게 항상 적용 ===================== */
 function loadSettings(){ try{ return JSON.parse(localStorage.getItem('malbeot_settings')) || {}; }catch(e){ return {}; } }
+// 기기 식별값: 최초 1회 생성해서 localStorage에 저장해두고, 이후엔 계속 같은 값을 재사용함(같은 기기/브라우저인지 판별용)
+function getDeviceId(){
+  let id = localStorage.getItem('malbeot_deviceId');
+  if (!id){
+    id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+    localStorage.setItem('malbeot_deviceId', id);
+  }
+  return id;
+}
 function getEffectiveSettings(){
   const s = loadSettings();
   return {
@@ -1389,7 +1403,7 @@ function startKakaoLogin(){
   window.history.replaceState({}, '', window.location.pathname); // 주소창에서 code 파라미터 제거
   const redirectUri = window.location.origin + '/';
   const tryExchange = ()=>{
-    socket.emit('auth:kakao_login', {code, redirectUri}, (res)=>{
+    socket.emit('auth:kakao_login', {code, redirectUri, deviceId: getDeviceId()}, (res)=>{
       if (res.success){
         currentUser = res.user; saveSession(res.token);
         closeModal('landingScreen'); initApp();
@@ -1430,9 +1444,9 @@ async function handleRegPhotoUpload(e){
   const p=document.getElementById('regPhotoPreview'); p.src=regPhotoBase64; p.classList.remove('hidden'); document.getElementById('regPhotoPlaceholder').classList.add('hidden');
 }
 document.getElementById('authForm').onsubmit = ()=>{
-  submitKakaoSignup(false);
+  submitKakaoSignup(false, false);
 };
-function submitKakaoSignup(confirmed){
+function submitKakaoSignup(confirmed, deviceConfirmed){
   const kakaoData = {
     pendingToken: pendingKakaoToken,
     nickname: document.getElementById('regNickname').value.trim(),
@@ -1441,14 +1455,21 @@ function submitKakaoSignup(confirmed){
     age: document.getElementById('regAge').value,
     bio: '반갑습니다!',
     photos: regPhotoBase64 ? [regPhotoBase64] : [],
-    confirmed
+    confirmed,
+    deviceId: getDeviceId(),
+    deviceConfirmed
   };
   socket.emit('auth:kakao_complete_profile', kakaoData, (res)=>{
     if (res.success){ currentUser = res.user; saveSession(res.token); closeModal('authModal'); initApp(); }
     else if (res.needsConfirm){
       showMiniAlert('닉네임에 부적절한 단어가 발견되었습니다. \"삭제된 닉네임입니다\"로 표기됩니다. 그래도 사용하시겠습니까?', [
         {label:'취소', primary:false},
-        {label:'확인', primary:true, onClick:()=>submitKakaoSignup(true)}
+        {label:'확인', primary:true, onClick:()=>submitKakaoSignup(true, deviceConfirmed)}
+      ]);
+    } else if (res.needsDeviceConfirm){
+      showMiniAlert('이 기기에서 이미 다른 계정으로 가입한 기록이 있어요. 그래도 새 계정을 만드시겠습니까?', [
+        {label:'취소', primary:false},
+        {label:'계속 진행', primary:true, onClick:()=>submitKakaoSignup(confirmed, true)}
       ]);
     } else showMiniAlert(res.message || '가입 중 오류가 발생했습니다. 카카오 로그인을 다시 시도해주세요.', [{label:'확인', primary:true, onClick:()=>{ closeModal('authModal'); openModal('landingScreen'); }}]);
   });
@@ -2967,13 +2988,19 @@ function closeAdminScreen(){
 function switchAdminTab(tab){
   const rBtn = document.getElementById('adminTabReportsBtn');
   const cBtn = document.getElementById('adminTabChatsBtn');
+  const aBtn = document.getElementById('adminTabAbuseBtn');
   rBtn.style.background = tab==='reports' ? 'var(--primary)' : '';
   rBtn.style.color = tab==='reports' ? '#fff' : '';
   cBtn.style.background = tab==='chats' ? 'var(--primary)' : '';
   cBtn.style.color = tab==='chats' ? '#fff' : '';
+  aBtn.style.background = tab==='abuse' ? 'var(--primary)' : '';
+  aBtn.style.color = tab==='abuse' ? '#fff' : '';
   document.getElementById('adminReportsTab').classList.toggle('hidden', tab!=='reports');
   document.getElementById('adminChatsTab').classList.toggle('hidden', tab!=='chats');
-  if (tab==='reports') loadAdminReports(); else loadAdminChatRooms();
+  document.getElementById('adminAbuseTab').classList.toggle('hidden', tab!=='abuse');
+  if (tab==='reports') loadAdminReports();
+  else if (tab==='chats') loadAdminChatRooms();
+  else loadAdminAbuse();
 }
 function loadAdminReports(){
   socket.emit('admin:reports:list', {}, (res)=>{
@@ -3039,6 +3066,33 @@ function viewAdminChatRoom(roomId){
     document.getElementById('followListModalBody').innerHTML = (res.messages||[]).map(m=>`<div style="padding:6px 0;border-bottom:1px solid var(--border-color);font-size:13px;"><b>${escapeHtml(nickOf(m.senderId))}</b>: ${m.type==='image'?'(사진)':escapeHtml(m.text||'')}</div>`).join('') || '<div style="text-align:center;padding:20px;color:var(--text-muted);">메시지가 없습니다.</div>';
     openModal('followListModal');
   });
+}
+function loadAdminAbuse(){
+  socket.emit('admin:abuse:list', {}, (res)=>{
+    const box = document.getElementById('adminAbuseList');
+    if (!res || !res.success){ box.innerHTML=''; return; }
+    if (!res.groups.length){ box.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">어뷰징 의심 계정이 없습니다.</div>`; return; }
+    box.innerHTML = res.groups.map(g=>`
+      <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">같은 기기로 가입한 계정 ${g.users.length}개</div>
+        ${g.users.map(u=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
+            <div><b>${escapeHtml(u.nickname)}</b><span style="font-size:11px;color:var(--text-muted);margin-left:6px;">${formatRelativeTime(u.createdAt)} 가입</span></div>
+            ${u.isBanned ? '<span style="font-size:11px;color:var(--danger);">정지됨</span>' : `<button class="btn btn-secondary btn-sm" onclick="banAbuseUser('${u.id}')">계정 정지</button>`}
+          </div>`).join('')}
+      </div>`).join('');
+  });
+}
+function banAbuseUser(userId){
+  showMiniAlert('이 계정을 정지할까요?', [
+    {label:'취소', primary:false},
+    {label:'정지', primary:true, onClick:()=>{
+      socket.emit('admin:abuse:ban_user', {userId}, (res)=>{
+        if (res && res.success) loadAdminAbuse();
+        else showMiniAlert('처리 중 오류가 발생했습니다.', [{label:'확인', primary:true}]);
+      });
+    }}
+  ]);
 }
 
 /* ===================== 차단한 회원 목록 ===================== */

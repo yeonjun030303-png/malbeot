@@ -176,6 +176,12 @@ async function getUser(id) {
 async function saveUser(user) {
   await db.ref(`users/${user.id}`).set(user);
 }
+// 요청의 실제 접속 IP를 추출 (Render 등 프록시 뒤에서는 x-forwarded-for 헤더 우선)
+function getClientIp(socket) {
+  const xff = socket.handshake.headers['x-forwarded-for'];
+  if (xff) return String(xff).split(',')[0].trim();
+  return socket.handshake.address || '';
+}
 async function getRawPosts() {
   const snap = await db.ref('posts').once('value');
   const val = snap.val() || {};
@@ -708,6 +714,8 @@ io.on('connection', (socket) => {
         if (existing.isBanned) return cb({ success: false, banned: true, message: '이용이 제한된 계정입니다. 문의: kickoff030303@gmail.com' });
         existing.isOnline = true;
         existing.lastSeen = Date.now();
+        existing.lastIp = getClientIp(socket);
+        if (!existing.deviceId && data.deviceId) existing.deviceId = data.deviceId; // 이 기능 추가 전 가입한 계정에 최초 1회만 채움
         await saveUser(existing);
         socketToUser[socket.id] = existing.id;
         userToSocket[existing.id] = socket.id;
@@ -736,6 +744,14 @@ io.on('connection', (socket) => {
       if (containsBannedWord(data.nickname) && data.confirmed !== true) {
         return cb({ success: false, needsConfirm: true });
       }
+      // 같은 기기(deviceId)로 이미 가입된 계정이 있으면 경고만 하고(차단X) 그대로 진행 허용 - 관리자 대시보드 어뷰징 의심 목록에서 조회 가능
+      if (data.deviceId && data.deviceConfirmed !== true) {
+        const allUsersForDeviceCheck = await getAllUsers();
+        const sameDeviceUser = Object.values(allUsersForDeviceCheck).find(u => u.deviceId === data.deviceId);
+        if (sameDeviceUser) {
+          return cb({ success: false, needsDeviceConfirm: true });
+        }
+      }
       if (data.photos && data.photos[0]) {
         const nsfwResult = await checkImageNsfw(data.photos[0]);
         if (nsfwResult.isNsfw) return cb({ success: false, message: '부적절한 프로필 사진으로 감지되어 가입할 수 없습니다. 다른 사진을 등록해주세요.' });
@@ -748,6 +764,7 @@ io.on('connection', (socket) => {
         isOnline: true, lastSeen: Date.now(), blockedUserIds: [],
         lastPostDate: null, adWatchCountToday: 0, lastAdChargeDate: null,
         profileUpdatedAt: Date.now(),
+        deviceId: data.deviceId || null, lastIp: getClientIp(socket),
         followingIds: [], followerIds: [], profileLikedBy: [], notifyKeywords: []
       };
       await saveUser(user);
@@ -1572,6 +1589,48 @@ io.on('connection', (socket) => {
       const users = await getAllUsers();
       const messages = room.messages ? Object.values(room.messages) : [];
       cb && cb({ success: true, messages, users: (room.userIds || []).map(uid => ({ id: uid, nickname: (users[uid] && users[uid].nickname) || '(탈퇴한 사용자)' })) });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 어뷰징 의심(동일 기기로 계정 2개 이상) 그룹 목록 - 관리자만
+  socket.on('admin:abuse:list', async (data, cb) => {
+    try {
+      const requester = await getUser(socketToUser[socket.id]);
+      if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
+      const allUsers = await getAllUsers();
+      const byDevice = {};
+      Object.values(allUsers).forEach(u => {
+        if (!u.deviceId) return;
+        if (!byDevice[u.deviceId]) byDevice[u.deviceId] = [];
+        byDevice[u.deviceId].push(u);
+      });
+      const groups = Object.entries(byDevice)
+        .filter(([, list]) => list.length >= 2)
+        .map(([deviceId, list]) => ({
+          deviceId,
+          users: list
+            .map(u => ({ id: u.id, nickname: u.nickname, createdAt: u.profileUpdatedAt || 0, isBanned: !!u.isBanned }))
+            .sort((a, b) => a.createdAt - b.createdAt)
+        }))
+        .sort((a, b) => b.users.length - a.users.length);
+      cb && cb({ success: true, groups });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 어뷰징 의심 목록에서 계정 정지 - 관리자만
+  socket.on('admin:abuse:ban_user', async (data, cb) => {
+    try {
+      const requester = await getUser(socketToUser[socket.id]);
+      if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
+      const target = await getUser(data && data.userId);
+      if (!target) return cb && cb({ success: false });
+      target.isBanned = true;
+      target.bannedAt = Date.now();
+      await saveUser(target);
+      const sId = userToSocket[target.id];
+      if (sId) { io.to(sId).emit('account:banned'); delete userToSocket[target.id]; }
+      broadcastUsers();
+      cb && cb({ success: true });
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
