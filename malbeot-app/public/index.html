@@ -47,6 +47,7 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 .header-right{display:flex;align-items:center;gap:10px;}
 .user-points-badge{background:var(--primary-light);color:var(--primary);padding:5px 12px;border-radius:var(--radius-full);font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px;}
 .icon-round-btn{width:34px;height:34px;border-radius:50%;background:var(--bg-subtle);display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:15px;cursor:pointer;border:none;}
+.icon-round-btn.active{background:var(--primary);color:#fff;}
 
 .sub-category-bar{background:#fff;border-bottom:1px solid var(--border-color);display:flex;padding:8px 14px;gap:8px;flex-shrink:0;}
 .filter-item select,.filter-item button{font-size:12px;padding:7px 10px;border:1px solid var(--border-color);border-radius:var(--radius-sm);outline:none;background:var(--bg-subtle);color:var(--text-main);font-weight:600;width:100%;}
@@ -443,6 +444,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       </div>
       <div class="user-points-badge hidden" id="headerPointsWrap" onclick="switchTab('tab-mypage')"><i class="fa-solid fa-bowl-rice" style="color:var(--warning);"></i> <span id="userPoints">100</span></div>
       <button class="icon-round-btn hidden" id="headerWriteBtn" onclick="openComposeScreen()"><i class="fa-solid fa-pen"></i></button>
+      <button class="icon-round-btn hidden" id="headerAdminModeBtn" onclick="toggleAdminModeView()" title="관리자 모드"><i class="fa-solid fa-user-shield"></i></button>
       <button class="icon-round-btn" id="headerSettingsBtn" onclick="openSettingsScreen()"><i class="fa-solid fa-gear"></i></button>
     </div>
   </header>
@@ -1493,6 +1495,8 @@ function updateUserUI(){
   if (!currentUser) return;
   document.getElementById('userPoints').textContent = currentUser.points;
   document.getElementById('mypagePointCount').textContent = currentUser.points;
+  const adminBtn = document.getElementById('headerAdminModeBtn');
+  if (adminBtn) adminBtn.classList.toggle('hidden', !currentUser.isAdmin);
 }
 function updateHeaderForTab(tab){
   const title = document.getElementById('headerTitle');
@@ -2975,15 +2979,26 @@ function handleSettingsBack(){
 /* ===================== 관리자 모드 ===================== */
 let adminReportsData = [];
 let adminReportFilter = 'post';
+let adminModeActive = false;
 function toggleAdminMode(){
   document.getElementById('toggleAdminMode').classList.add('on');
   closeFullScreen('settingsScreen');
   switchAdminTab('reports');
   openFullScreen('adminScreen');
+  adminModeActive = true;
+  const headerBtn = document.getElementById('headerAdminModeBtn');
+  if (headerBtn) headerBtn.classList.add('active');
 }
 function closeAdminScreen(){
   document.getElementById('toggleAdminMode').classList.remove('on');
   closeFullScreen('adminScreen');
+  adminModeActive = false;
+  const headerBtn = document.getElementById('headerAdminModeBtn');
+  if (headerBtn) headerBtn.classList.remove('active');
+}
+// 헤더 말벗로고 옆 버튼: 관리자 계정에만 보이며, 클릭할 때마다 회원모드/관리자모드 화면을 오간다
+function toggleAdminModeView(){
+  if (adminModeActive) closeAdminScreen(); else toggleAdminMode();
 }
 function switchAdminTab(tab){
   const rBtn = document.getElementById('adminTabReportsBtn');
