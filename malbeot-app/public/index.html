@@ -261,6 +261,10 @@ body.dark-mode .tagxs{color:var(--text-muted);}
 .profile-post-mini .ppm-text{font-size:12px;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;}
 .profile-post-mini .ppm-meta{font-size:10px;color:var(--text-muted);margin-top:4px;}
 .profile-list-expand-btn{text-align:center;padding:10px 2px;font-size:12px;font-weight:700;color:var(--primary);cursor:pointer;}
+.profile-list-more-row{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 2px;font-size:12px;font-weight:700;color:var(--primary);cursor:pointer;}
+.profile-reels-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;}
+.profile-reel-thumb{position:relative;aspect-ratio:1/1;border-radius:4px;overflow:hidden;background:var(--border-color);cursor:pointer;}
+.profile-reel-thumb img,.profile-reel-thumb video{width:100%;height:100%;object-fit:cover;}
 #scrollTopBtn{position:absolute;right:16px;bottom:80px;width:42px;height:42px;border-radius:50%;background:var(--primary);color:#fff;display:none;align-items:center;justify-content:center;box-shadow:var(--shadow-lg);cursor:pointer;z-index:150;font-size:16px;}
 #scrollTopBtn.show{display:flex;}
 
@@ -778,7 +782,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div id="ricePackageGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"></div>
       <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:18px;line-height:1.6;">
         결제는 Google Play / App Store 인앱결제로 안전하게 처리됩니다.<br>
-        쌀은 충전 즉시 사용 가능하며, 일부라도 사용 시 환불이 제한됩니다.
+        쌀은 충전 즉시 사용 가능하며, 일부라도 사용 시 환불이 제한됩니다.<br>부적절한 언행으로 이용정지·회원탈퇴 처리될 경우 환불이 불가합니다.
       </p>
     </div>
   </div>
@@ -2473,7 +2477,7 @@ function handleFollowListToggle(targetId, isFollowing){
     performFollowToggle(targetId, afterFn);
   }
 }
-// 프로필의 작성한 글/스토리/댓글 목록: 처음엔 5개만 보여주고, "전체보기"를 누르면 전부 펼쳐짐(다시 누르면 접힘)
+// 프로필의 작성한 글/댓글: 처음엔 3개만 보여주고 "···" 버튼으로 펼침/접힘. 말벗릴스(스토리)는 3x3 정사각형 그리드로 전체 표시
 let profileMiniListsData = {};
 let profileMiniListsExpanded = {};
 function renderProfileMiniList(wrapId, itemHtmls, emptyMsg){
@@ -2486,11 +2490,15 @@ function renderProfileMiniListDom(wrapId, emptyMsg){
   if (!wrap) return;
   const itemHtmls = profileMiniListsData[wrapId] || [];
   if (!itemHtmls.length){ wrap.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">${emptyMsg}</div>`; return; }
+  if (wrapId === 'profileStoriesScroll'){
+    wrap.innerHTML = `<div class="profile-reels-grid">${itemHtmls.join('')}</div>`;
+    return;
+  }
   const expanded = profileMiniListsExpanded[wrapId];
-  const shown = expanded ? itemHtmls : itemHtmls.slice(0,5);
+  const shown = expanded ? itemHtmls : itemHtmls.slice(0,3);
   let html = shown.join('');
-  if (itemHtmls.length > 5){
-    html += `<div class="profile-list-expand-btn" onclick="event.stopPropagation();toggleProfileMiniList('${wrapId}')">${expanded ? '접기' : `전체보기 (${itemHtmls.length})`}</div>`;
+  if (itemHtmls.length > 3){
+    html += `<div class="profile-list-more-row" onclick="event.stopPropagation();toggleProfileMiniList('${wrapId}')">${expanded ? '접기 <i class="fa-solid fa-chevron-up accordion-arrow"></i>' : '··· <i class="fa-solid fa-chevron-down accordion-arrow"></i>'}</div>`;
   }
   wrap.innerHTML = html;
 }
@@ -2526,12 +2534,8 @@ function loadProfilePostsSection(userId){
     if (storiesWrap){
       const stories = allPosts.filter(p=>p.authorId===userId && p.logType==='log').sort((a,b)=>(b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt));
       const storiesHtmls = stories.map(p=>`
-        <div class="profile-post-mini" onclick="closeProfileDetailScreen();openStoryViewer('${p.id}')">
-          ${p.photo?(p.mediaType==='video'?`<video class="ppm-thumb" src="${p.photo}" muted></video>`:`<img class="ppm-thumb" src="${p.photo}">`):''}
-          <div style="flex:1;min-width:0;">
-            <div class="ppm-text">${escapeHtml(p.content)}</div>
-            <div class="ppm-meta">${formatRelativeTime(p.updatedAt||p.createdAt)} · 공감 ${p.likes||0} · 댓글 ${(p.comments||[]).length}</div>
-          </div>
+        <div class="profile-reel-thumb" onclick="closeProfileDetailScreen();openStoryViewer('${p.id}')">
+          ${p.photo?(p.mediaType==='video'?`<video src="${p.photo}" muted></video>`:`<img src="${p.photo}">`):''}
         </div>`);
       renderProfileMiniList('profileStoriesScroll', storiesHtmls, profileMiniListEmptyMsgs.profileStoriesScroll);
     }
