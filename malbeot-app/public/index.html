@@ -3077,8 +3077,19 @@ function viewAdminChatRoom(roomId){
   socket.emit('admin:chatroom:get_messages', roomId, (res)=>{
     if (!res || !res.success) return;
     const nickOf = (uid)=>{ const u=(res.users||[]).find(x=>x.id===uid); return u?u.nickname:'(알 수 없음)'; };
-    document.getElementById('followListModalTitle').textContent = '채팅 내용';
-    document.getElementById('followListModalBody').innerHTML = (res.messages||[]).map(m=>`<div style="padding:6px 0;border-bottom:1px solid var(--border-color);font-size:13px;"><b>${escapeHtml(nickOf(m.senderId))}</b>: ${m.type==='image'?'(사진)':escapeHtml(m.text||'')}</div>`).join('') || '<div style="text-align:center;padding:20px;color:var(--text-muted);">메시지가 없습니다.</div>';
+    const firstUserId = res.users && res.users[0] ? res.users[0].id : null;
+    document.getElementById('followListModalTitle').textContent = '채팅 내용 (관리자 열람 · 읽음처리 안 됨)';
+    // 실제 채팅화면과 동일한 말풍선(.msg-row/.msg-bubble) 스타일을 재사용해 사진도 그대로 보여줌
+    const rows = (res.messages||[]).map(m=>{
+      if (m.senderId==='system') return `<div class="msg-system">${escapeHtml(m.text||'')}</div>`;
+      const side = m.senderId===firstUserId ? 'mine' : 'other';
+      const bubbleContent = m.type==='image' ? `<img src="${m.data}">` : escapeHtml(m.text||'');
+      return `<div class="msg-row ${side}">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">${escapeHtml(nickOf(m.senderId))}</div>
+        <div class="msg-bubble">${bubbleContent}</div>
+      </div>`;
+    }).join('');
+    document.getElementById('followListModalBody').innerHTML = rows ? `<div style="display:flex;flex-direction:column;gap:10px;">${rows}</div>` : '<div style="text-align:center;padding:20px;color:var(--text-muted);">메시지가 없습니다.</div>';
     openModal('followListModal');
   });
 }
