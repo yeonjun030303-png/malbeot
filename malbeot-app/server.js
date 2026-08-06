@@ -125,6 +125,7 @@ function validateProfileInput(data) {
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 const ONE_DAY = 24 * 60 * 60 * 1000;
 const VOTE_MAX_OPTIONS = 6; // 투표(구 핫토픽/밸런스게임 통합) 항목 최대 개수
+const WARNING_MESSAGE = '다른 사용자와의 대화(게시물, 댓글) 등 신고를 접수받아 검토한 결과, 부적절한 단어나 상대방이 불쾌할 수 있는 언행을 하여 경고했습니다. 다음에는 주의해 주세요.';
 const genId = (p) => `${p}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 const roomIdFor = (a, b) => [a, b].sort().join('_room_');
 
@@ -212,6 +213,32 @@ async function addMessage(roomId, msg) {
 }
 async function deleteRoom(roomId) {
   await db.ref(`chats/${roomId}`).remove();
+}
+
+// 신고(report)의 실제 대상(피신고자) 유저 ID를 유형별로 계산. 관리자 경고 기능에서 공용으로 사용.
+async function getAccusedUserId(report) {
+  if (!report) return null;
+  if (report.type === 'post') {
+    const p = await getPost(report.targetId);
+    return p ? p.authorId : null;
+  } else if (report.type === 'user') {
+    return report.targetId;
+  } else if (report.type === 'chat') {
+    const room = await getRoom(report.targetId);
+    return room && room.userIds ? room.userIds.find(uid => uid !== report.reporterUid) : null;
+  }
+  return null;
+}
+// 관리자에게 경고받은 내용을 다음 로그인 시 딱 1회만 강제 알림창으로 보여주기 위해 대기시켜둔 알림을 꺼내는 함수.
+// (접속 중이었다면 admin:reports:resolve 처리 시점에 즉시 account:warned 소켓 이벤트로 보여주고 notified:true로 표시해둠)
+async function popPendingWarningNotify(user) {
+  if (user.pendingWarningNotify && !user.pendingWarningNotify.notified) {
+    const info = { message: WARNING_MESSAGE };
+    user.pendingWarningNotify.notified = true;
+    await saveUser(user);
+    return info;
+  }
+  return null;
 }
 
 // data URL의 mime 타입을 보고 이미지/동영상을 구분 (video/* 이면 동영상)
@@ -631,7 +658,8 @@ io.on('connection', (socket) => {
       userToSocket[user.id] = socket.id;
       const token = issueSessionToken(user.id);
       const rewardNotify = await popPendingRewardNotify(user);
-      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify });
+      const warningNotify = await popPendingWarningNotify(user);
+      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify, warningNotify });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -654,7 +682,8 @@ io.on('connection', (socket) => {
       userToSocket[user.id] = socket.id;
       const token = issueSessionToken(user.id); // 갱신(연장)
       const rewardNotify = await popPendingRewardNotify(user);
-      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify });
+      const warningNotify = await popPendingWarningNotify(user);
+      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify, warningNotify });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -721,7 +750,8 @@ io.on('connection', (socket) => {
         userToSocket[existing.id] = socket.id;
         const token = issueSessionToken(existing.id);
         const rewardNotify = await popPendingRewardNotify(existing);
-        cb({ success: true, user: { ...existing, isAdmin: isAdmin(existing) }, token, rewardNotify });
+        const warningNotify = await popPendingWarningNotify(existing);
+        cb({ success: true, user: { ...existing, isAdmin: isAdmin(existing) }, token, rewardNotify, warningNotify });
         broadcastUsers();
         return;
       }
@@ -1420,6 +1450,16 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
+  // 본인이 받은 경고 이력 조회 (설정화면 경고 이력 메뉴)
+  socket.on('user:get_warnings', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const user = await getUser(userId);
+      if (!user) return cb && cb({ success: false, warnings: [] });
+      cb && cb({ success: true, warnings: user.warnings || [] });
+    } catch (e) { console.error(e); cb && cb({ success: false, warnings: [] }); }
+  });
+
   // 명시적 로그아웃 (연결은 유지한 채 온라인 상태만 즉시 내려줌)
   socket.on('auth:logout', async (cb) => {
     try {
@@ -1560,6 +1600,17 @@ io.on('connection', (socket) => {
         }
       } else if (action === 'delete_room' && report.type === 'chat') {
         await deleteRoom(report.targetId);
+      } else if (action === 'warn_user') {
+        const accusedId = await getAccusedUserId(report);
+        const target = accusedId ? await getUser(accusedId) : null;
+        if (target) {
+          target.warnings = target.warnings || [];
+          target.warnings.push({ reason: report.category || '', at: Date.now() });
+          target.pendingWarningNotify = { at: Date.now(), notified: false };
+          const sId = userToSocket[target.id];
+          if (sId) { io.to(sId).emit('account:warned', { message: WARNING_MESSAGE }); target.pendingWarningNotify.notified = true; }
+          await saveUser(target);
+        }
       }
 
       await db.ref(`reports/${reportId}`).update({ status: 'resolved', resolveAction: action, resolvedAt: Date.now() });
