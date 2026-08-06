@@ -2253,24 +2253,34 @@ function commentAvatarObj(c){ return { photos: c.authorPhoto ? [c.authorPhoto] :
 function renderCommentItem(p,c,allComments){
   const isMine = currentUser && c.authorId===currentUser.id;
   const isAuthor = c.authorId===p.authorId;
+  const canManage = isMine || (currentUser&&currentUser.isAdmin);
+  const cMenuBtn = canManage
+    ? `<button class="post-action-btn" style="padding:2px 6px;" onclick="openCommentMenu('${p.id}','${c.id}',${isMine})"><i class="fa-solid fa-ellipsis"></i></button>`
+    : (currentUser ? `<button class="post-action-btn" style="padding:2px 6px;" onclick="openBlockReportModal('user','${c.authorId}')"><i class="fa-solid fa-ellipsis"></i></button>` : '');
   const replies = allComments.filter(r=>r.parentId===c.id);
   const repliesHtml = replies.map(r=>{
     const rMine = currentUser && r.authorId===currentUser.id;
     const rIsAuthor = r.authorId===p.authorId;
+    const rCanManage = rMine || (currentUser&&currentUser.isAdmin);
+    const rMenuBtn = rCanManage
+      ? `<button class="post-action-btn" style="padding:2px 6px;" onclick="openCommentMenu('${p.id}','${r.id}',${rMine})"><i class="fa-solid fa-ellipsis"></i></button>`
+      : (currentUser ? `<button class="post-action-btn" style="padding:2px 6px;" onclick="openBlockReportModal('user','${r.authorId}')"><i class="fa-solid fa-ellipsis"></i></button>` : '');
     return `
     <div style="display:flex;gap:6px;margin-left:14px;padding:8px 0;border-top:1px solid var(--border-color);">
       <i class="fa-solid fa-arrow-turn-up fa-rotate-90" style="color:var(--text-muted);font-size:11px;margin-top:6px;flex-shrink:0;"></i>
       <div style="flex:1;min-width:0;display:flex;gap:8px;align-items:flex-start;padding:8px;border-radius:10px;${rMine?'background:var(--bg-subtle);':''}">
           ${avatarHtmlFor(commentAvatarObj(r),'avatar-sm')}
           <div style="flex:1;min-width:0;">
-            <div style="display:flex;justify-content:space-between;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
               <span style="font-weight:700;font-size:12px;color:${rIsAuthor?'var(--primary)':'inherit'};">${escapeHtml(r.authorNickname)}${rIsAuthor?'(작성자)':''}</span>
-              <span style="font-size:11px;color:var(--text-muted);font-weight:700;">${formatRelativeTime(r.updatedAt||r.createdAt)}</span>
+              ${rMenuBtn}
             </div>
-            <div style="font-size:13px;margin-top:2px;">${renderCommentContent(r.content, r.filtered, r.deleted, r.deletedByAdmin)}</div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;margin-top:2px;">
+              <div style="font-size:13px;flex:1;min-width:0;">${renderCommentContent(r.content, r.filtered, r.deleted, r.deletedByAdmin)}</div>
+              <span style="font-size:11px;color:var(--text-muted);font-weight:700;white-space:nowrap;flex-shrink:0;">${formatRelativeTime(r.updatedAt||r.createdAt)}</span>
+            </div>
             <div style="margin-top:4px;display:flex;gap:10px;align-items:center;">
               <button class="post-action-btn" onclick="toggleLikeComment('${p.id}','${r.id}')"><i class="fa-regular fa-heart"></i> ${(r.likes||0)}</button>
-              ${rMine?`<button class="post-action-btn" onclick="editComment('${p.id}','${r.id}')">수정</button><button class="post-action-btn" onclick="deleteComment('${p.id}','${r.id}')">삭제</button>`:(currentUser&&currentUser.isAdmin?`<button class="post-action-btn" style="color:var(--danger);" onclick="deleteComment('${p.id}','${r.id}')">삭제(관리자)</button>`:'')}
             </div>
           </div>
       </div>
@@ -2281,15 +2291,17 @@ function renderCommentItem(p,c,allComments){
       <div style="display:flex;gap:8px;align-items:flex-start;padding:8px;border-radius:10px;${isMine?'background:var(--bg-subtle);':''}">
         ${avatarHtmlFor(commentAvatarObj(c),'avatar-sm')}
         <div style="flex:1;min-width:0;">
-          <div style="display:flex;justify-content:space-between;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
             <span style="font-weight:700;font-size:13px;color:${isAuthor?'var(--primary)':'inherit'};">${escapeHtml(c.authorNickname)}${isAuthor?'(작성자)':''}</span>
-            <span style="font-size:11px;color:var(--text-muted);font-weight:700;">${formatRelativeTime(c.updatedAt||c.createdAt)}</span>
+            ${cMenuBtn}
           </div>
-          <div style="font-size:13px;margin-top:2px;">${renderCommentContent(c.content, c.filtered, c.deleted, c.deletedByAdmin)}</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;margin-top:2px;">
+            <div style="font-size:13px;flex:1;min-width:0;">${renderCommentContent(c.content, c.filtered, c.deleted, c.deletedByAdmin)}</div>
+            <span style="font-size:11px;color:var(--text-muted);font-weight:700;white-space:nowrap;flex-shrink:0;">${formatRelativeTime(c.updatedAt||c.createdAt)}</span>
+          </div>
           <div style="margin-top:4px;display:flex;gap:10px;align-items:center;">
             <button class="post-action-btn" onclick="toggleLikeComment('${p.id}','${c.id}')"><i class="fa-regular fa-heart"></i> ${(c.likes||0)}</button>
             <button class="post-action-btn" onclick="showReplyInput('${p.id}','${c.id}','${(c.authorNickname||'').replace(/'/g,"\\'")}')">답글달기</button>
-            ${isMine?`<button class="post-action-btn" onclick="editComment('${p.id}','${c.id}')">수정</button><button class="post-action-btn" onclick="deleteComment('${p.id}','${c.id}')">삭제</button>`:(currentUser&&currentUser.isAdmin?`<button class="post-action-btn" style="color:var(--danger);" onclick="deleteComment('${p.id}','${c.id}')">삭제(관리자)</button>`:'')}
           </div>
         </div>
       </div>
@@ -2331,6 +2343,19 @@ function editComment(postId, commentId){
 function deleteComment(postId, commentId){
   if (!confirm('댓글을 삭제하시겠습니까?')) return;
   socket.emit('comments:delete', {postId, commentId}, (res)=>{ if (res.success) refreshCommentsUI(); });
+}
+// 댓글/대댓글의 점3개 메뉴: 내 댓글(또는 관리자)이면 수정/삭제, 남의 댓글이면 회원 신고/차단 모달로 바로 연결
+function openCommentMenu(postId, commentId, isMine){
+  if (!currentUser) return;
+  const isAdmin = currentUser.isAdmin;
+  document.getElementById('reportBackBtn').classList.add('hidden');
+  document.getElementById('reportConfirmButtons').classList.add('hidden');
+  document.getElementById('reportCategoryModalTitle').textContent = '설정';
+  document.getElementById('reportCategoryList').innerHTML = `
+    ${isMine ? `<div class="category-item" onclick="closeModal('reportCategoryModal');editComment('${postId}','${commentId}')"><i class="fa-solid fa-pen"></i> 수정하기</div>` : ''}
+    <div class="category-item" style="color:var(--danger);" onclick="closeModal('reportCategoryModal');deleteComment('${postId}','${commentId}')"><i class="fa-solid fa-trash-can"></i> 삭제하기${isAdmin && !isMine ? ' (관리자)' : ''}</div>
+    <div class="category-item" style="text-align:center;color:var(--text-muted);" onclick="closeModal('reportCategoryModal')">취소</div>`;
+  openModal('reportCategoryModal');
 }
 function openPostDetailMenu(){ if (currentPostCache) openPostMenuGeneric(currentPostCache); }
 // 내가 쓴 글이면 수정/삭제, 남이 쓴 글이면 차단/신고 메뉴로 분기 (커뮤니티 목록의 점3개, 상세화면의 점3개 공통 사용)
