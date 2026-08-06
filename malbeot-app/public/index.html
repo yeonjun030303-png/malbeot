@@ -3049,8 +3049,8 @@ function renderAdminReports(){
     }
     return `<div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
       <div style="display:flex;justify-content:space-between;"><b>${escapeHtml(ADMIN_REPORT_TYPE_LABEL[r.type]||r.type)} · ${escapeHtml(r.category||'')}</b><span style="font-size:11px;color:var(--text-muted);">${r.status==='pending'?'미처리':(r.status==='resolved'?'처리완료':r.status)}</span></div>
-      <div style="font-size:13px;color:var(--text-muted);margin:4px 0;">대상: ${escapeHtml(r.targetLabel||'')}</div>
-      <div style="font-size:12px;color:var(--text-muted);">신고자: ${escapeHtml(r.reporterNickname||'')} · ${formatRelativeTime(r.createdAt)}</div>
+      <div style="font-size:13px;color:var(--text-muted);margin:4px 0;">대상: ${escapeHtml(r.targetLabel||'')}${r.accusedNickname?` · <b>${escapeHtml(r.accusedNickname)}</b>(피신고자)`:''}</div>
+      <div style="font-size:12px;color:var(--text-muted);">신고자: <b>${escapeHtml(r.reporterNickname||'')}</b>(신고자) · ${formatRelativeTime(r.createdAt)}</div>
       ${actions?`<div style="display:flex;gap:6px;margin-top:8px;">${actions}</div>`:''}
     </div>`;
   }).join('');
