@@ -1250,6 +1250,24 @@ function showMiniAlert(text, buttons){
   openModal('miniAlertModal');
 }
 
+// 메시지/게시글 텍스트 안의 URL을 감지해 클릭 가능한 링크로 변환.
+// 클릭 시 바로 이동하지 않고 확인창을 먼저 띄움(외부링크 클릭 경고).
+function linkifyMessageText(text){
+  const escaped = escapeHtml(text || '');
+  return escaped.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
+    const safeUrl = url.replace(/"/g, '&quot;');
+    return `<a href="${safeUrl}" onclick="return confirmExternalLink(event, '${safeUrl}')">${url}</a>`;
+  });
+}
+function confirmExternalLink(e, url){
+  if (e && e.preventDefault) e.preventDefault();
+  showMiniAlert('외부 링크는 안전하지 않을 수 있습니다. 이동하시겠습니까? (' + url + ')', [
+    {label:'취소'},
+    {label:'이동', primary:true, onClick:()=>{ window.open(url, '_blank', 'noopener'); }}
+  ]);
+  return false;
+}
+
 // 경고 알림창 표시: "확인했습니다" 버튼 하나뿐이고, ESC/뒤로가기/바깥클릭으로는 안 닫힘(closeTopmostScreen 목록에 미포함)
 function showWarningModal(message){
   document.getElementById('warningModalText').textContent = message || '';
@@ -2791,7 +2809,7 @@ function appendChatBubble(m, checkDate=true){
   const row = document.createElement('div'); row.className = 'msg-row ' + (isMine?'mine':'other');
   if (m.id) row.dataset.msgid = m.id;
   const bubble = document.createElement('div'); bubble.className='msg-bubble';
-  if (m.type==='image') bubble.innerHTML = `<img src="${m.data}">`; else bubble.textContent = m.text;
+  if (m.type==='image') bubble.innerHTML = `<img src="${m.data}">`; else bubble.innerHTML = linkifyMessageText(m.text);
   row.appendChild(bubble);
   const timeRow = document.createElement('div'); timeRow.className='msg-time-row';
   if (m.timestamp){ const t=document.createElement('span'); t.className='msg-time'; t.textContent=formatClockTime(m.timestamp); timeRow.appendChild(t); }
