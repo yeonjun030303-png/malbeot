@@ -215,6 +215,33 @@ async function deleteRoom(roomId) {
   await db.ref(`chats/${roomId}`).remove();
 }
 
+// ===== 단체채팅방(오픈채팅 스타일) DB 헬퍼 =====
+function generateInviteCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+async function getGroupRoom(roomId) {
+  const snap = await db.ref(`groupChats/${roomId}`).once('value');
+  return snap.val();
+}
+async function addGroupMessage(roomId, msg) {
+  const ref = db.ref(`groupChats/${roomId}/messages`).push();
+  msg.id = ref.key;
+  await ref.set(msg);
+  return msg;
+}
+async function deleteGroupRoomDb(roomId) {
+  await db.ref(`groupChats/${roomId}`).remove();
+}
+function emitToGroupMembers(memberIds, event, payload) {
+  (memberIds || []).forEach(uid => {
+    const sId = userToSocket[uid];
+    if (sId) io.to(sId).emit(event, payload);
+  });
+}
+
 // 신고(report)의 실제 대상(피신고자) 유저 ID를 유형별로 계산. 관리자 경고 기능에서 공용으로 사용.
 async function getAccusedUserId(report) {
   if (!report) return null;
@@ -1257,7 +1284,7 @@ io.on('connection', (socket) => {
         const targetUser = await getUser(otherId);
         const messages = (room.messages ? Object.values(room.messages) : []).filter(m => !(m.deletedFor || []).includes(userId));
         const unreadCount = messages.filter(m => m.senderId !== userId && m.senderId !== 'system' && !m.read).length;
-        rooms.push({ roomId, targetUser, messages, unreadCount });
+        rooms.push({ roomId, targetUser, messages, unreadCount, lastReadAt: room.lastReadAt || {} });
       }
       cb({ success: true, rooms });
     } catch (e) { console.error(e); cb({ success: false, rooms: [] }); }
@@ -1401,14 +1428,257 @@ io.on('connection', (socket) => {
           updates[`chats/${data.roomId}/messages/${mid}/read`] = true;
         }
       });
-      if (Object.keys(updates).length) {
-        await db.ref().update(updates);
-        const otherId = room.userIds.find(id => id !== userId);
-        const sId = userToSocket[otherId];
-        if (sId) io.to(sId).emit('chat:read_receipt', { roomId: data.roomId });
-      }
+      // 메시지별 read 플래그 대신, 카톡처럼 "안읽은 인원 수"를 계산하기 위한 lastReadAt(마지막으로 읽은 시각)도 함께 기록
+      const now = Date.now();
+      updates[`chats/${data.roomId}/lastReadAt/${userId}`] = now;
+      await db.ref().update(updates);
+      const otherId = room.userIds.find(id => id !== userId);
+      const sId = userToSocket[otherId];
+      if (sId) io.to(sId).emit('chat:read_receipt', { roomId: data.roomId, userId, lastReadAt: now });
     } catch (e) { console.error(e); }
   });
+
+  // ================= 단체채팅방(오픈채팅 스타일) =================
+  // 방 생성: 방 이름 최대 15자, 나=방장으로 시작, 초대코드 자동 발급
+  socket.on('group:create', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const title = String((data && data.title) || '').trim().slice(0, 15);
+      if (!title) return cb && cb({ success: false, message: '채팅방 이름을 입력해주세요.' });
+      const intro = String((data && data.intro) || '').trim().slice(0, 60);
+      const roomRef = db.ref('groupChats').push();
+      const roomId = roomRef.key;
+      let inviteCode;
+      do { inviteCode = generateInviteCode(); } while ((await db.ref(`groupInviteCodes/${inviteCode}`).once('value')).exists());
+      const meta = { roomId, title, intro, ownerId: userId, subOwnerIds: [], memberIds: [userId], inviteCode, createdAt: Date.now() };
+      await db.ref(`groupChats/${roomId}/meta`).set(meta);
+      await db.ref(`groupInviteCodes/${inviteCode}`).set(roomId);
+      await db.ref(`userGroupChats/${userId}/${roomId}`).set(true);
+      cb && cb({ success: true, roomId, inviteCode });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 초대코드로 입장: 강퇴(재입장금지)/정원(50명) 체크
+  socket.on('group:join', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const inviteCode = data && data.inviteCode;
+      const roomIdSnap = await db.ref(`groupInviteCodes/${inviteCode}`).once('value');
+      const roomId = roomIdSnap.val();
+      if (!roomId) return cb && cb({ success: false, message: '유효하지 않은 초대링크입니다.' });
+      const room = await getGroupRoom(roomId);
+      if (!room || !room.meta) return cb && cb({ success: false, message: '존재하지 않는 채팅방입니다.' });
+      const meta = room.meta;
+      if (room.kickedUserIds && room.kickedUserIds[userId]) return cb && cb({ success: false, message: '재입장이 제한된 채팅방입니다.' });
+      if ((meta.memberIds || []).includes(userId)) return cb && cb({ success: true, roomId });
+      if ((meta.memberIds || []).length >= 50) return cb && cb({ success: false, message: '채팅방 인원이 가득 찼습니다.' });
+      const memberIds = [...(meta.memberIds || []), userId];
+      await db.ref(`groupChats/${roomId}/meta/memberIds`).set(memberIds);
+      await db.ref(`userGroupChats/${userId}/${roomId}`).set(true);
+      const user = await getUser(userId);
+      const sysMsg = await addGroupMessage(roomId, { senderId: 'system', text: `${user ? user.nickname : '알 수 없음'}님이 입장했습니다.`, timestamp: Date.now() });
+      emitToGroupMembers(memberIds, 'group:new_message', { roomId, message: sysMsg });
+      emitToGroupMembers(memberIds, 'group:member_joined', { roomId, userId, memberIds });
+      cb && cb({ success: true, roomId });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 방 정보(사진/참여자/내 권한/알림설정) 조회 - 방 정보화면(≡ 버튼)에서 사용
+  socket.on('group:info', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const room = await getGroupRoom(data.roomId);
+      if (!room || !room.meta || !(room.meta.memberIds || []).includes(userId)) return cb && cb({ success: false });
+      const meta = room.meta;
+      const members = [];
+      for (const uid of (meta.memberIds || [])) {
+        const u = await getUser(uid);
+        if (u) {
+          members.push({
+            id: u.id, nickname: u.nickname, photo: (u.photos || [])[0] || null, gender: u.gender,
+            role: uid === meta.ownerId ? 'owner' : (meta.subOwnerIds || []).includes(uid) ? 'subowner' : 'member'
+          });
+        }
+      }
+      const allMessages = room.messages ? Object.values(room.messages) : [];
+      const gallery = allMessages.filter(m => m.type === 'image' || m.type === 'video').sort((a, b) => b.timestamp - a.timestamp).slice(0, 30);
+      const myRole = userId === meta.ownerId ? 'owner' : (meta.subOwnerIds || []).includes(userId) ? 'subowner' : 'member';
+      const muted = !!(room.muted && room.muted[userId]);
+      cb && cb({ success: true, meta, members, gallery, myRole, muted });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 방 나가기: 방장이 나가면 부방장(먼저 임명된 사람 우선) 자동 승계, 부방장도 없으면 가장 오래 있던 멤버 승계, 아무도 없으면 방 삭제
+  socket.on('group:leave', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const room = await getGroupRoom(data.roomId);
+      if (!room || !room.meta || !(room.meta.memberIds || []).includes(userId)) return cb && cb({ success: false });
+      const meta = room.meta;
+      const memberIds = (meta.memberIds || []).filter(id => id !== userId);
+      const subOwnerIds = (meta.subOwnerIds || []).filter(id => id !== userId);
+      let ownerId = meta.ownerId;
+      await db.ref(`userGroupChats/${userId}/${data.roomId}`).remove();
+      if (userId === meta.ownerId) {
+        if (subOwnerIds.length) {
+          ownerId = subOwnerIds.shift();
+        } else if (memberIds.length) {
+          ownerId = memberIds[0];
+        } else {
+          await deleteGroupRoomDb(data.roomId);
+          await db.ref(`groupInviteCodes/${meta.inviteCode}`).remove();
+          return cb && cb({ success: true, roomDeleted: true });
+        }
+      }
+      await db.ref(`groupChats/${data.roomId}/meta`).update({ memberIds, subOwnerIds, ownerId });
+      const user = await getUser(userId);
+      const sysMsg = await addGroupMessage(data.roomId, { senderId: 'system', text: `${user ? user.nickname : '알 수 없음'}님이 나갔습니다.`, timestamp: Date.now() });
+      emitToGroupMembers(memberIds, 'group:new_message', { roomId: data.roomId, message: sysMsg });
+      emitToGroupMembers(memberIds, 'group:member_left', { roomId: data.roomId, userId, memberIds, ownerId });
+      cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 강퇴 (방장 전용): banRejoin=true면 초대링크로도 재입장 불가
+  socket.on('group:kick', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const room = await getGroupRoom(data.roomId);
+      if (!room || !room.meta || room.meta.ownerId !== userId) return cb && cb({ success: false, message: '방장만 강퇴할 수 있습니다.' });
+      const meta = room.meta;
+      const targetId = data.targetId;
+      if (targetId === userId) return cb && cb({ success: false });
+      const memberIds = (meta.memberIds || []).filter(id => id !== targetId);
+      const subOwnerIds = (meta.subOwnerIds || []).filter(id => id !== targetId);
+      await db.ref(`groupChats/${data.roomId}/meta`).update({ memberIds, subOwnerIds });
+      await db.ref(`userGroupChats/${targetId}/${data.roomId}`).remove();
+      if (data.banRejoin) await db.ref(`groupChats/${data.roomId}/kickedUserIds/${targetId}`).set(true);
+      const targetSocket = userToSocket[targetId];
+      if (targetSocket) io.to(targetSocket).emit('group:kicked', { roomId: data.roomId });
+      const target = await getUser(targetId);
+      const sysMsg = await addGroupMessage(data.roomId, { senderId: 'system', text: `${target ? target.nickname : '알 수 없음'}님이 내보내졌습니다.`, timestamp: Date.now() });
+      emitToGroupMembers(memberIds, 'group:new_message', { roomId: data.roomId, message: sysMsg });
+      emitToGroupMembers(memberIds, 'group:member_left', { roomId: data.roomId, userId: targetId, memberIds });
+      cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 부방장 임명/해제 (방장 전용, 최대 2명)
+  socket.on('group:appoint_subowner', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const room = await getGroupRoom(data.roomId);
+      if (!room || !room.meta || room.meta.ownerId !== userId) return cb && cb({ success: false, message: '방장만 임명할 수 있습니다.' });
+      const meta = room.meta;
+      if (!(meta.memberIds || []).includes(data.targetId)) return cb && cb({ success: false });
+      let subOwnerIds = meta.subOwnerIds || [];
+      if (subOwnerIds.includes(data.targetId)) return cb && cb({ success: true, subOwnerIds });
+      if (subOwnerIds.length >= 2) return cb && cb({ success: false, message: '부방장은 최대 2명까지 임명할 수 있습니다.' });
+      subOwnerIds = [...subOwnerIds, data.targetId];
+      await db.ref(`groupChats/${data.roomId}/meta/subOwnerIds`).set(subOwnerIds);
+      emitToGroupMembers(meta.memberIds, 'group:subowner_changed', { roomId: data.roomId, subOwnerIds });
+      cb && cb({ success: true, subOwnerIds });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+  socket.on('group:revoke_subowner', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const room = await getGroupRoom(data.roomId);
+      if (!room || !room.meta || room.meta.ownerId !== userId) return cb && cb({ success: false, message: '방장만 해제할 수 있습니다.' });
+      const meta = room.meta;
+      const subOwnerIds = (meta.subOwnerIds || []).filter(id => id !== data.targetId);
+      await db.ref(`groupChats/${data.roomId}/meta/subOwnerIds`).set(subOwnerIds);
+      emitToGroupMembers(meta.memberIds, 'group:subowner_changed', { roomId: data.roomId, subOwnerIds });
+      cb && cb({ success: true, subOwnerIds });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 방별 알림 온/오프 토글
+  socket.on('group:toggle_mute', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const snap = await db.ref(`groupChats/${data.roomId}/muted/${userId}`).once('value');
+      const nowMuted = !snap.val();
+      await db.ref(`groupChats/${data.roomId}/muted/${userId}`).set(nowMuted);
+      cb && cb({ success: true, muted: nowMuted });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 메시지/사진 전송 (전체 멤버에게 브로드캐스트)
+  socket.on('group:send_message', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const room = await getGroupRoom(data.roomId);
+      if (!room || !room.meta || !(room.meta.memberIds || []).includes(userId)) return cb && cb({ success: false });
+      const msgPayload = { senderId: userId, text: data.text, timestamp: Date.now() };
+      if (data.replyTo && data.replyTo.preview) msgPayload.replyTo = { id: data.replyTo.id || null, preview: String(data.replyTo.preview).slice(0, 60) };
+      const msg = await addGroupMessage(data.roomId, msgPayload);
+      const sender = await getUser(userId);
+      emitToGroupMembers(room.meta.memberIds, 'group:new_message', { roomId: data.roomId, message: msg, senderNickname: sender && sender.nickname });
+      cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+  socket.on('group:send_image', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const room = await getGroupRoom(data.roomId);
+      if (!room || !room.meta || !(room.meta.memberIds || []).includes(userId)) return cb && cb({ success: false });
+      const nsfwResult = await checkImageNsfw(data.image);
+      if (nsfwResult.isNsfw) return cb && cb({ success: false, blocked: true, message: '부적절한 사진으로 감지되어 전송할 수 없습니다.' });
+      const msg = await addGroupMessage(data.roomId, { senderId: userId, type: 'image', data: data.image, timestamp: Date.now() });
+      const sender = await getUser(userId);
+      emitToGroupMembers(room.meta.memberIds, 'group:new_message', { roomId: data.roomId, message: msg, senderNickname: sender && sender.nickname });
+      cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 읽음 처리: lastReadAt 갱신 후 다른 멤버들에게 실시간 전파 (말풍선 옆 "안읽은 인원 수" 계산용)
+  socket.on('group:mark_read', async (data) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const room = await getGroupRoom(data.roomId);
+      if (!room || !room.meta || !(room.meta.memberIds || []).includes(userId)) return;
+      const now = Date.now();
+      await db.ref(`groupChats/${data.roomId}/lastReadAt/${userId}`).set(now);
+      emitToGroupMembers((room.meta.memberIds || []).filter(id => id !== userId), 'group:read_receipt', { roomId: data.roomId, userId, lastReadAt: now });
+    } catch (e) { console.error(e); }
+  });
+
+  // 공개 디렉토리 검색: 제목 기준 (카카오 오픈채팅처럼 미참여 방도 검색해서 바로 입장 가능)
+  socket.on('group:search', async (data, cb) => {
+    try {
+      const q = String((data && data.query) || '').trim().toLowerCase();
+      if (!q) return cb && cb({ success: true, rooms: [] });
+      const snap = await db.ref('groupChats').once('value');
+      const all = snap.val() || {};
+      const results = Object.keys(all)
+        .map(roomId => all[roomId].meta)
+        .filter(meta => meta && meta.title && meta.title.toLowerCase().includes(q))
+        .map(meta => ({ roomId: meta.roomId, title: meta.title, intro: meta.intro, memberCount: (meta.memberIds || []).length, inviteCode: meta.inviteCode }))
+        .slice(0, 30);
+      cb && cb({ success: true, rooms: results });
+    } catch (e) { console.error(e); cb && cb({ success: false, rooms: [] }); }
+  });
+
+  // 내 단체채팅방 목록 (채팅목록 화면용, 안읽음 숫자는 lastReadAt 이후 메시지 개수로 계산)
+  socket.on('group:get_list', async (cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const idxSnap = await db.ref(`userGroupChats/${userId}`).once('value');
+      const roomIds = Object.keys(idxSnap.val() || {});
+      const rooms = [];
+      for (const roomId of roomIds) {
+        const room = await getGroupRoom(roomId);
+        if (!room || !room.meta) continue;
+        const messages = room.messages ? Object.values(room.messages) : [];
+        const myLastReadAt = (room.lastReadAt && room.lastReadAt[userId]) || 0;
+        const unreadCount = messages.filter(m => m.senderId !== userId && m.senderId !== 'system' && m.timestamp > myLastReadAt).length;
+        rooms.push({ roomId, meta: room.meta, messages, unreadCount, lastReadAt: room.lastReadAt || {}, muted: !!(room.muted && room.muted[userId]) });
+      }
+      cb && cb({ success: true, rooms });
+    } catch (e) { console.error(e); cb && cb({ success: false, rooms: [] }); }
+  });
+
 
   // 팔로우 / 언팔로우 토글 (알림은 발생시키지 않음)
   socket.on('user:follow', async (targetId, cb) => {
