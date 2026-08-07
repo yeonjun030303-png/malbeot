@@ -178,6 +178,18 @@ body.dark-mode .search-matched-comment-line{color:var(--text-main);}
 .msg-time{font-size:10px;color:#868e96;margin-top:2px;}
 .msg-system{align-self:center;background:rgba(0,0,0,.06);color:var(--text-muted);font-size:11px;border-radius:99px;padding:4px 14px;}
 .chat-input-bar{padding:10px;background:#fff;display:flex;gap:8px;align-items:center;flex-shrink:0;}
+.chat-reply-preview-bar{padding:8px 12px;background:var(--bg-subtle);border-top:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0;}
+.reply-preview-text{font-size:12px;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
+.reply-preview-close{cursor:pointer;color:var(--text-muted);font-size:13px;padding:2px 4px;}
+.msg-reply-quote{font-size:11px;color:var(--text-muted);background:rgba(0,0,0,0.05);border-left:2px solid var(--primary);padding:4px 6px;margin-bottom:4px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.msg-bubble.msg-deleted{color:var(--text-muted);font-style:italic;background:var(--bg-subtle)!important;}
+.msg-context-menu{position:fixed;z-index:2000;background:#fff;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,0.18);padding:4px 0;min-width:130px;overflow:hidden;}
+.msg-context-item{padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.msg-context-item:active{background:var(--bg-subtle);}
+.msg-context-item.danger{color:var(--danger);}
+.msg-context-menu-sep{height:1px;background:var(--border-color);margin:2px 0;}
+.forward-target-row{display:flex;align-items:center;gap:10px;padding:10px 4px;cursor:pointer;border-bottom:1px solid var(--border-color);}
+.forward-target-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;}
 .chat-input-bar input[type=text]{flex:1;border:1px solid var(--border-color);border-radius:99px;padding:9px 14px;outline:none;}
 .chat-attach-btn,.chat-send-btn{background:none;border:none;color:var(--primary);font-size:19px;cursor:pointer;padding:4px 8px;}
 
@@ -624,6 +636,16 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </div>
   </div>
 
+  <div id="forwardTargetModal" class="modal-overlay" onclick="if(event.target===this) closeModal('forwardTargetModal')">
+    <div class="modal-card" style="padding:0;max-height:66vh;display:flex;flex-direction:column;overflow:hidden;">
+      <div style="position:relative;display:flex;align-items:center;justify-content:center;padding:14px 44px;border-bottom:1px solid var(--border-color);flex-shrink:0;">
+        <button type="button" class="icon-round-btn" style="width:28px;height:28px;font-size:13px;position:absolute;left:12px;" onclick="closeModal('forwardTargetModal')"><i class="fa-solid fa-arrow-left"></i></button>
+        <h3 style="margin:0;font-size:15px;text-align:center;">전달할 대화방 선택</h3>
+      </div>
+      <div id="forwardTargetList" style="overflow-y:auto;padding:4px 16px;flex:1;"></div>
+    </div>
+  </div>
+
   <div id="miniAlertModal" class="modal-overlay">
     <div class="mini-alert-card">
       <h3 style="margin-bottom:10px;">알림</h3>
@@ -961,6 +983,10 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <b>성매매·성추행·성희롱</b> 등 범죄 관련 대화, <b>아동 대상 간음·성적 알선</b> 발생 시 수사기관에 신고될 수 있습니다. 사진 전송, 외부 링크 클릭, 카톡 아이디·전화번호 등 <b>개인정보 유출을 미끼로 금전을 요구</b>하는 피싱 범죄에 주의하세요.
     </div>
     <div id="chatMessageArea" class="chat-messages-area"></div>
+    <div id="chatReplyPreviewBar" class="chat-reply-preview-bar" style="display:none;">
+      <span id="chatReplyPreviewText" class="reply-preview-text"></span>
+      <span class="reply-preview-close" onclick="clearReplyPreview()">✕</span>
+    </div>
     <div class="chat-input-bar">
       <button class="chat-attach-btn" onclick="triggerChatImageInput()"><i class="fa-solid fa-image"></i></button>
       <input type="file" id="chatImageInput" accept="image/*" class="hidden" onchange="handleChatImageUpload(event)">
@@ -2912,24 +2938,162 @@ function appendChatBubble(m, checkDate=true){
   const row = document.createElement('div'); row.className = 'msg-row ' + (isMine?'mine':'other');
   if (m.id) row.dataset.msgid = m.id;
   const bubble = document.createElement('div'); bubble.className='msg-bubble';
-  if (m.type==='image') bubble.innerHTML = `<img src="${m.data}">`; else bubble.innerHTML = linkifyMessageText(m.text);
+  const quoteHtml = m.replyTo ? `<div class="msg-reply-quote">${escapeHtml(m.replyTo.preview||'')}</div>` : '';
+  if (m.deletedForEveryone){
+    bubble.classList.add('msg-deleted');
+    bubble.textContent = '메시지가 삭제되었습니다';
+  } else if (m.type==='image') {
+    bubble.innerHTML = quoteHtml + `<img src="${m.data}">`;
+  } else {
+    bubble.innerHTML = quoteHtml + (m.forwarded?'<div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">전달된 메시지</div>':'') + linkifyMessageText(m.text);
+  }
   row.appendChild(bubble);
   const timeRow = document.createElement('div'); timeRow.className='msg-time-row';
   if (m.timestamp){ const t=document.createElement('span'); t.className='msg-time'; t.textContent=formatClockTime(m.timestamp); timeRow.appendChild(t); }
   if (isMine){ const st=document.createElement('span'); st.className='msg-status'; st.textContent = m.read?'읽음':'전송됨'; timeRow.appendChild(st); }
-  else if (m.id && activeRoomId && currentUser){
-    // 상대방 메시지에만 신고 버튼 노출 (report-button.js의 reportMessage 함수 사용)
-    const rpt = document.createElement('span');
-    rpt.textContent = '🚨';
-    rpt.title = '신고';
-    rpt.style.cssText = 'cursor:pointer;margin-left:6px;opacity:0.6;font-size:11px;';
-    rpt.onclick = ()=> reportMessage(activeRoomId, m.id, currentUser.id, m.type==='image' ? '(이미지)' : (m.text||''));
-    timeRow.appendChild(rpt);
-  }
   row.appendChild(timeRow);
   area.appendChild(row);
   area.scrollTop = area.scrollHeight;
+  if (m.id && !m.deletedForEveryone) attachMsgLongPress(bubble, m);
 }
+
+/* ===================== 채팅 메시지 롱프레스 메뉴 (복사/답장/전달/삭제/신고) ===================== */
+let msgContextMenuEl = null;
+let msgPressTimer = null;
+let pendingReplyTo = null;
+
+function attachMsgLongPress(bubbleEl, m){
+  const startT = (e)=>{
+    const t = e.touches && e.touches[0]; if (!t) return;
+    const sx=t.clientX, sy=t.clientY;
+    msgPressTimer = setTimeout(()=>{ msgPressTimer=null; if (navigator.vibrate) navigator.vibrate(15); openMsgContextMenuAt(sx, sy, m); }, 450);
+  };
+  const cancelT = ()=>{ if (msgPressTimer){ clearTimeout(msgPressTimer); msgPressTimer=null; } };
+  bubbleEl.addEventListener('touchstart', startT, {passive:true});
+  bubbleEl.addEventListener('touchend', cancelT);
+  bubbleEl.addEventListener('touchmove', cancelT);
+  bubbleEl.addEventListener('contextmenu', (e)=>{ e.preventDefault(); openMsgContextMenuAt(e.clientX, e.clientY, m); });
+}
+function closeMsgContextMenu(){
+  if (msgContextMenuEl){ msgContextMenuEl.remove(); msgContextMenuEl=null; }
+  document.removeEventListener('click', closeMsgContextMenuOutside, true);
+}
+function closeMsgContextMenuOutside(e){
+  if (msgContextMenuEl && !msgContextMenuEl.contains(e.target)) closeMsgContextMenu();
+}
+function openMsgContextMenuAt(x, y, m){
+  closeMsgContextMenu();
+  const isMine = currentUser && m.senderId===currentUser.id;
+  const items = [];
+  if (m.type!=='image') items.push({label:'복사', onClick:()=>copyMsgText(m)});
+  items.push({label:'답장', onClick:()=>startReplyTo(m)});
+  items.push({label:'전달', onClick:()=>openForwardModal(m)});
+  if (isMine){
+    const within30 = (Date.now()-(m.timestamp||0)) <= 30*60*1000;
+    if (within30) items.push({label:'모두에게 삭제', danger:true, onClick:()=>requestDeleteMessage(m,'everyone')});
+    items.push({label:'나에게만 삭제', danger:true, onClick:()=>requestDeleteMessage(m,'me')});
+  } else {
+    items.push({label:'나에게만 삭제', danger:true, onClick:()=>requestDeleteMessage(m,'me')});
+    items.push({label:'신고', danger:true, onClick:()=>reportMessage(activeRoomId, m.id, currentUser.id, m.type==='image' ? '(이미지)' : (m.text||''))});
+  }
+  const menu = document.createElement('div');
+  menu.className = 'msg-context-menu';
+  items.forEach(it=>{
+    const row = document.createElement('div');
+    row.className = 'msg-context-item' + (it.danger?' danger':'');
+    row.textContent = it.label;
+    row.onclick = ()=>{ closeMsgContextMenu(); it.onClick(); };
+    menu.appendChild(row);
+  });
+  document.body.appendChild(menu);
+  msgContextMenuEl = menu;
+  const mw = 150, mh = items.length*38+8;
+  let left = Math.min(Math.max(8, x-mw/2), window.innerWidth-mw-8);
+  let top = y-mh-12;
+  if (top < 8) top = Math.min(y+16, window.innerHeight-mh-8);
+  menu.style.left = left+'px';
+  menu.style.top = top+'px';
+  setTimeout(()=>document.addEventListener('click', closeMsgContextMenuOutside, true), 0);
+}
+function copyMsgText(m){
+  const text = m.text||'';
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text);
+  else { const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+}
+function startReplyTo(m){
+  pendingReplyTo = { id: m.id, preview: (m.type==='image' ? '(사진)' : (m.text||'')).slice(0,60) };
+  renderReplyPreviewBar();
+  chatInputTextEl.focus();
+}
+function clearReplyPreview(){
+  pendingReplyTo = null;
+  renderReplyPreviewBar();
+}
+function renderReplyPreviewBar(){
+  const bar = document.getElementById('chatReplyPreviewBar');
+  if (!bar) return;
+  if (!pendingReplyTo){ bar.style.display='none'; return; }
+  document.getElementById('chatReplyPreviewText').textContent = '답장: ' + pendingReplyTo.preview;
+  bar.style.display = 'flex';
+}
+function requestDeleteMessage(m, mode){
+  const text = mode==='everyone' ? '이 메시지를 모두에게서 삭제하시겠습니까?' : '이 메시지를 나에게만 삭제하시겠습니까? 내 화면에서만 사라집니다.';
+  showMiniAlert(text, [
+    {label:'취소'},
+    {label:'삭제', danger:true, onClick:()=>{
+      socket.emit('chat:delete_message', {roomId:activeRoomId, messageId:m.id, mode}, (res)=>{
+        if (res && res.success){
+          if (mode==='me'){
+            const row = document.querySelector(`#chatMessageArea .msg-row[data-msgid="${m.id}"]`);
+            if (row) row.remove();
+          }
+        } else if (res && res.message){
+          showMiniAlert(res.message, [{label:'확인', primary:true}]);
+        }
+      });
+    }}
+  ]);
+}
+socket.on('chat:message_deleted', (data)=>{
+  if (data.mode==='everyone'){
+    const row = document.querySelector(`#chatMessageArea .msg-row[data-msgid="${data.messageId}"]`);
+    if (row){
+      const bubble = row.querySelector('.msg-bubble');
+      if (bubble){ bubble.classList.add('msg-deleted'); bubble.textContent = '메시지가 삭제되었습니다'; }
+    }
+  }
+});
+function openForwardModal(m){
+  forwardContext = m;
+  const list = document.getElementById('forwardTargetList');
+  const rooms = currentChatRooms || [];
+  if (!rooms.length){
+    list.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:24px 0;">대화중인 상대가 없습니다.</div>`;
+  } else {
+    list.innerHTML = rooms.map(r=>{
+      const u = r.targetUser || {};
+      return `<div class="forward-target-row" onclick="confirmForward('${u.id}')">${avatarHtmlFor(u,'forward-target-avatar')}<span style="font-weight:600;font-size:13px;">${escapeHtml(u.nickname||'')}</span></div>`;
+    }).join('');
+  }
+  openModal('forwardTargetModal');
+}
+function confirmForward(targetUserId){
+  if (!forwardContext) return;
+  const fromRoomId = activeRoomId, messageId = forwardContext.id;
+  socket.emit('chat:forward_message', {fromRoomId, messageId, targetUserId}, (res)=>{
+    if (res && res.success){
+      closeModal('forwardTargetModal');
+      showMiniAlert('전달했습니다.', [{label:'확인', primary:true}]);
+    } else if (res && res.needPoints){
+      closeModal('forwardTargetModal');
+      showMiniAlert('쌀이 부족해 새 대화를 시작할 수 없습니다.', [{label:'확인', primary:true}]);
+    } else {
+      showMiniAlert((res && res.message) || '전달에 실패했습니다.', [{label:'확인', primary:true}]);
+    }
+  });
+}
+let forwardContext = null;
+
 // 버튼을 탭하면 입력창(input)이 포커스를 잃으면서(blur) 모바일 키보드가 내려가는 것이 기본 동작이라,
 // mousedown/touchstart 시점에 preventDefault로 포커스 이동 자체를 막아 카톡처럼 키보드가 유지되도록 함.
 const btnSendMsgEl = document.getElementById('btnSendMsg');
@@ -2940,9 +3104,12 @@ const chatInputTextEl = document.getElementById('chatInputText');
 btnSendMsgEl.onclick = ()=>{
   const text = chatInputTextEl.value.trim();
   if (!text || !activeRoomId) return;
-  socket.emit('chat:send_message', {roomId:activeRoomId, text});
+  const payload = {roomId:activeRoomId, text};
+  if (pendingReplyTo) payload.replyTo = pendingReplyTo;
+  socket.emit('chat:send_message', payload);
   chatInputTextEl.value='';
   chatInputTextEl.focus();
+  clearReplyPreview();
 };
 document.getElementById('chatInputText').addEventListener('keydown', (e)=>{
   if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); document.getElementById('btnSendMsg').click(); }

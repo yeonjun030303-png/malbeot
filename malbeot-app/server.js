@@ -1255,7 +1255,7 @@ io.on('connection', (socket) => {
         if (!room.userIds || !room.userIds.includes(userId)) continue;
         const otherId = room.userIds.find(id => id !== userId);
         const targetUser = await getUser(otherId);
-        const messages = room.messages ? Object.values(room.messages) : [];
+        const messages = (room.messages ? Object.values(room.messages) : []).filter(m => !(m.deletedFor || []).includes(userId));
         const unreadCount = messages.filter(m => m.senderId !== userId && m.senderId !== 'system' && !m.read).length;
         rooms.push({ roomId, targetUser, messages, unreadCount });
       }
@@ -1297,7 +1297,9 @@ io.on('connection', (socket) => {
       const userId = socketToUser[socket.id];
       const room = await getRoom(data.roomId);
       if (!room || !room.userIds.includes(userId)) return;
-      const msg = await addMessage(data.roomId, { senderId: userId, text: data.text, timestamp: Date.now(), read: false });
+      const msgPayload = { senderId: userId, text: data.text, timestamp: Date.now(), read: false };
+      if (data.replyTo && data.replyTo.preview) msgPayload.replyTo = { id: data.replyTo.id || null, preview: String(data.replyTo.preview).slice(0, 60) };
+      const msg = await addMessage(data.roomId, msgPayload);
       const sender = await getUser(userId);
       room.userIds.forEach(uid => {
         const sId = userToSocket[uid];
@@ -1320,6 +1322,68 @@ io.on('connection', (socket) => {
         if (sId) io.to(sId).emit('chat:new_message', { roomId: data.roomId, message: msg, senderNickname: sender && sender.nickname });
       });
       cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 채팅 메시지 삭제: mode='everyone'(내 메시지, 30분 이내에만, 양쪽 다 삭제표시) / mode='me'(나에게만, 내 화면에서만 숨김)
+  socket.on('chat:delete_message', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const room = await getRoom(data.roomId);
+      if (!room || !room.userIds || !room.userIds.includes(userId)) return cb && cb({ success: false });
+      const msg = (room.messages || {})[data.messageId];
+      if (!msg) return cb && cb({ success: false });
+      if (data.mode === 'everyone') {
+        if (msg.senderId !== userId) return cb && cb({ success: false, message: '본인 메시지만 모두에게 삭제할 수 있습니다.' });
+        if (Date.now() - (msg.timestamp || 0) > 30 * 60 * 1000) return cb && cb({ success: false, message: '보낸 지 30분이 지나 모두에게 삭제할 수 없습니다.' });
+        await db.ref(`chats/${data.roomId}/messages/${data.messageId}`).update({ deletedForEveryone: true, text: '', data: null });
+        room.userIds.forEach(uid => {
+          const sId = userToSocket[uid];
+          if (sId) io.to(sId).emit('chat:message_deleted', { roomId: data.roomId, messageId: data.messageId, mode: 'everyone' });
+        });
+        return cb && cb({ success: true });
+      } else {
+        const deletedFor = msg.deletedFor || [];
+        if (!deletedFor.includes(userId)) deletedFor.push(userId);
+        await db.ref(`chats/${data.roomId}/messages/${data.messageId}/deletedFor`).set(deletedFor);
+        return cb && cb({ success: true });
+      }
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 메시지 전달: 다른 1:1 채팅방(없으면 새로 시작)으로 텍스트/이미지 메시지를 그대로 복사 전송
+  socket.on('chat:forward_message', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const srcRoom = await getRoom(data.fromRoomId);
+      if (!srcRoom || !srcRoom.userIds || !srcRoom.userIds.includes(userId)) return cb && cb({ success: false });
+      const srcMsg = (srcRoom.messages || {})[data.messageId];
+      if (!srcMsg || srcMsg.deletedForEveryone) return cb && cb({ success: false });
+      const user = await getUser(userId);
+      const target = await getUser(data.targetUserId);
+      if (!user || !target) return cb && cb({ success: false, message: '대상 사용자를 찾을 수 없습니다.' });
+      if ((user.blockedUserIds || []).includes(target.id) || (target.blockedUserIds || []).includes(user.id)) {
+        return cb && cb({ success: false, message: '차단된 상대와는 대화할 수 없습니다.' });
+      }
+      const roomId = roomIdFor(user.id, target.id);
+      let room = await getRoom(roomId);
+      if (!room) {
+        if (user.points < 50) return cb && cb({ success: false, needPoints: true });
+        user.points -= 50;
+        await saveUser(user);
+        await saveRoomMeta(roomId, { roomId, userIds: [user.id, target.id] });
+        await addMessage(roomId, { senderId: 'system', text: '대화가 시작되었습니다. (쌀 50개 차감)', timestamp: Date.now() });
+      }
+      const newMsgBase = srcMsg.type === 'image'
+        ? { senderId: userId, type: 'image', data: srcMsg.data, timestamp: Date.now(), read: false, forwarded: true }
+        : { senderId: userId, text: srcMsg.text, timestamp: Date.now(), read: false, forwarded: true };
+      const msg = await addMessage(roomId, newMsgBase);
+      cb && cb({ success: true, roomId, points: user.points });
+      [user.id, target.id].forEach(uid => {
+        const sId = userToSocket[uid];
+        if (sId) io.to(sId).emit('chat:new_message', { roomId, message: msg, senderNickname: user.nickname });
+      });
+      broadcastUsers();
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
