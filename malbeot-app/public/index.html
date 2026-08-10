@@ -760,7 +760,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <button id="storyMuteBtn" class="hidden" style="position:absolute;top:12px;right:52px;z-index:6;background:rgba(0,0,0,.35);border:none;color:#fff;width:34px;height:34px;border-radius:50%;" onclick="event.stopPropagation();toggleStoryMute()"><i id="storyMuteIcon" class="fa-solid fa-volume-xmark"></i></button>
       <button style="position:absolute;top:12px;right:12px;z-index:6;background:rgba(0,0,0,.35);border:none;color:#fff;width:34px;height:34px;border-radius:50%;" onclick="event.stopPropagation();openStoryComposeScreen()"><i class="fa-solid fa-plus"></i></button>
 
-      <div style="position:absolute;right:10px;bottom:100px;display:flex;flex-direction:column;gap:18px;align-items:center;z-index:6;">
+      <div id="storyActionButtons" style="position:absolute;right:10px;bottom:100px;display:flex;flex-direction:column;gap:18px;align-items:center;z-index:6;">
         <button style="background:none;border:none;color:#fff;text-align:center;-webkit-text-stroke:.6px #000;" onclick="event.stopPropagation();toggleLikeStory()">
           <i id="storyLikeIcon" class="fa-regular fa-heart" style="font-size:28px;"></i>
           <div id="storyLikeCount" style="font-size:16px;font-weight:700;margin-top:8px;">0</div>
@@ -772,7 +772,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <button style="background:none;border:none;color:#fff;-webkit-text-stroke:.6px #000;" onclick="event.stopPropagation();openStoryMenu()"><i class="fa-solid fa-ellipsis fa-lg"></i></button>
       </div>
 
-      <div style="position:absolute;left:12px;right:64px;bottom:40px;color:#fff;z-index:6;-webkit-text-stroke:.4px #000;">
+      <div id="storyInfoBox" style="position:absolute;left:12px;right:64px;bottom:40px;color:#fff;z-index:6;-webkit-text-stroke:.4px #000;">
         <div id="storyViewCount" style="font-size:11px;font-weight:700;opacity:.9;margin-bottom:4px;"><i class="fa-regular fa-eye"></i> 조회 0</div>
         <div style="display:flex;align-items:center;gap:8px;">
           <span id="storyAuthorAvatar" style="cursor:pointer;" onclick="event.stopPropagation();"></span>
@@ -782,7 +782,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <div id="storyTitle" onclick="event.stopPropagation();openStoryCommentSheet()" style="margin-top:8px;font-size:13px;cursor:pointer;line-height:1.4;"></div>
       </div>
 
-      <div style="position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:center;padding:6px;z-index:6;">
+      <div id="storyBottomNav" style="position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:center;padding:6px;z-index:6;">
         <button onclick="event.stopPropagation();goNextStory()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:46px;height:26px;border-radius:14px;"><i class="fa-solid fa-chevron-down"></i></button>
       </div>
     </div>
@@ -1880,7 +1880,6 @@ function sortStories(list){
 function openStoryFeed(){
   socket.emit('stories:get_feed', {}, (res)=>{
     const stories = (res && res.stories) || [];
-    if (!stories.length){ showMiniAlert('등록된 말벗스토리가 아직 없습니다.', [{label:'확인', primary:true}]); return; }
     storyState.list = stories; storyState.index = 0;
     openFullScreen('storyViewerScreen');
     renderStoryFrame();
@@ -1906,7 +1905,21 @@ function closeStoryViewer(){
 function currentStory(){ return storyState.list[storyState.index]; }
 function renderStoryFrame(){
   const p = currentStory();
-  if (!p) return;
+  const actionButtons = document.getElementById('storyActionButtons');
+  const infoBox = document.getElementById('storyInfoBox');
+  const bottomNav = document.getElementById('storyBottomNav');
+  if (!p){
+    currentPostId = null; currentPostCache = null;
+    document.getElementById('storyMediaInner').innerHTML = `<div style="color:#fff;font-size:14px;text-align:center;padding:0 24px;">현재 등록된 릴스가 없습니다</div>`;
+    document.getElementById('storyMuteBtn').classList.add('hidden');
+    actionButtons.style.display = 'none';
+    infoBox.style.display = 'none';
+    bottomNav.style.display = 'none';
+    return;
+  }
+  actionButtons.style.display = '';
+  infoBox.style.display = '';
+  bottomNav.style.display = '';
   currentPostId = p.id; currentPostCache = p;
   const liked = currentUser && (p.likedBy||[]).includes(currentUser.id);
   const isVideo = p.mediaType === 'video';
