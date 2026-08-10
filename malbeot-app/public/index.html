@@ -3048,7 +3048,10 @@ function appendGroupChatBubble(m){
     row.appendChild(nickEl);
   }
   const bubble = document.createElement('div'); bubble.className='msg-bubble';
-  if (m.type==='image') { bubble.innerHTML = `<img src="${m.data}">`; }
+  if (m.deletedForEveryone){
+    bubble.classList.add('msg-deleted');
+    bubble.textContent = '메시지가 삭제되었습니다';
+  } else if (m.type==='image') { bubble.innerHTML = `<img src="${m.data}">`; }
   else { bubble.innerHTML = (m.replyTo && m.replyTo.preview ? `<div class="msg-reply-quote">${escapeHtml(m.replyTo.preview)}</div>` : '') + linkifyMessageText(m.text); }
   row.appendChild(bubble);
   const timeRow = document.createElement('div'); timeRow.className='msg-time-row';
@@ -3077,9 +3080,17 @@ function attachGroupMsgLongPress(bubbleEl, m){
 }
 function openGroupMsgContextMenuAt(x, y, m){
   closeMsgContextMenu();
+  const isMine = currentUser && m.senderId===currentUser.id;
   const items = [];
   if (m.type!=='image') items.push({label:'복사', onClick:()=>copyMsgText(m)});
   items.push({label:'답장', onClick:()=>startGroupReplyTo(m)});
+  if (isMine){
+    const within30 = (Date.now()-(m.timestamp||0)) <= 30*60*1000;
+    if (within30) items.push({label:'모두에게 삭제', danger:true, onClick:()=>requestGroupDeleteMessage(m,'everyone')});
+    items.push({label:'나에게만 삭제', danger:true, onClick:()=>requestGroupDeleteMessage(m,'me')});
+  } else {
+    items.push({label:'나에게만 삭제', danger:true, onClick:()=>requestGroupDeleteMessage(m,'me')});
+  }
   const menu = document.createElement('div');
   menu.className = 'msg-context-menu';
   items.forEach(it=>{
@@ -3099,6 +3110,38 @@ function openGroupMsgContextMenuAt(x, y, m){
   menu.style.top = top+'px';
   setTimeout(()=>document.addEventListener('click', closeMsgContextMenuOutside, true), 0);
 }
+function requestGroupDeleteMessage(m, mode){
+  const text = mode==='everyone' ? '이 메시지를 모두에게서 삭제하시겠습니까?' : '이 메시지를 나에게만 삭제하시겠습니까? 내 화면에서만 사라집니다.';
+  showMiniAlert(text, [
+    {label:'취소'},
+    {label:'삭제', danger:true, onClick:()=>{
+      socket.emit('group:delete_message', {roomId:activeGroupRoomId, messageId:m.id, mode}, (res)=>{
+        if (res && res.success){
+          if (mode==='me'){
+            const row = document.querySelector(`#groupChatMessageArea .msg-row[data-msgid="${m.id}"]`);
+            if (row) row.remove();
+          }
+        } else if (res && res.message){
+          showMiniAlert(res.message, [{label:'확인', primary:true}]);
+        }
+      });
+    }}
+  ]);
+}
+socket.on('group:message_deleted', (data)=>{
+  const cached = findCachedGroupRoom(data.roomId);
+  if (cached && cached.messages){
+    const msg = cached.messages.find(x=>x.id===data.messageId);
+    if (msg && data.mode==='everyone'){ msg.deletedForEveryone = true; msg.text=''; msg.data=null; }
+  }
+  if (activeGroupRoomId === data.roomId && data.mode==='everyone'){
+    const row = document.querySelector(`#groupChatMessageArea .msg-row[data-msgid="${data.messageId}"]`);
+    if (row){
+      const bubble = row.querySelector('.msg-bubble');
+      if (bubble){ bubble.classList.add('msg-deleted'); bubble.textContent = '메시지가 삭제되었습니다'; }
+    }
+  }
+});
 function startGroupReplyTo(m){
   pendingGroupReplyTo = { id: m.id, preview: (m.type==='image' ? '(사진)' : (m.text||'')).slice(0,60) };
   renderGroupReplyPreviewBar();

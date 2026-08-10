@@ -1632,6 +1632,29 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
+  // 그룹 메시지 삭제: 1:1 chat:delete_message와 동일한 규칙(모두에게 삭제는 본인 메시지+30분 이내만)
+  socket.on('group:delete_message', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const room = await getGroupRoom(data.roomId);
+      if (!room || !room.meta || !(room.meta.memberIds || []).includes(userId)) return cb && cb({ success: false });
+      const msg = (room.messages || {})[data.messageId];
+      if (!msg) return cb && cb({ success: false });
+      if (data.mode === 'everyone') {
+        if (msg.senderId !== userId) return cb && cb({ success: false, message: '본인 메시지만 모두에게 삭제할 수 있습니다.' });
+        if (Date.now() - (msg.timestamp || 0) > 30 * 60 * 1000) return cb && cb({ success: false, message: '보낸 지 30분이 지나 모두에게 삭제할 수 없습니다.' });
+        await db.ref(`groupChats/${data.roomId}/messages/${data.messageId}`).update({ deletedForEveryone: true, text: '', data: null });
+        emitToGroupMembers(room.meta.memberIds, 'group:message_deleted', { roomId: data.roomId, messageId: data.messageId, mode: 'everyone' });
+        return cb && cb({ success: true });
+      } else {
+        const deletedFor = msg.deletedFor || [];
+        if (!deletedFor.includes(userId)) deletedFor.push(userId);
+        await db.ref(`groupChats/${data.roomId}/messages/${data.messageId}/deletedFor`).set(deletedFor);
+        return cb && cb({ success: true });
+      }
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
   // 읽음 처리: lastReadAt 갱신 후 다른 멤버들에게 실시간 전파 (말풍선 옆 "안읽은 인원 수" 계산용)
   socket.on('group:mark_read', async (data) => {
     try {
@@ -1670,7 +1693,7 @@ io.on('connection', (socket) => {
       for (const roomId of roomIds) {
         const room = await getGroupRoom(roomId);
         if (!room || !room.meta) continue;
-        const messages = room.messages ? Object.values(room.messages) : [];
+        const messages = (room.messages ? Object.values(room.messages) : []).filter(m => !(m.deletedFor || []).includes(userId));
         const myLastReadAt = (room.lastReadAt && room.lastReadAt[userId]) || 0;
         const unreadCount = messages.filter(m => m.senderId !== userId && m.senderId !== 'system' && m.timestamp > myLastReadAt).length;
         rooms.push({ roomId, meta: room.meta, messages, unreadCount, lastReadAt: room.lastReadAt || {}, muted: !!(room.muted && room.muted[userId]) });
