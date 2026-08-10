@@ -1501,10 +1501,11 @@ io.on('connection', (socket) => {
         }
       }
       const allMessages = room.messages ? Object.values(room.messages) : [];
-      const gallery = allMessages.filter(m => m.type === 'image' || m.type === 'video').sort((a, b) => b.timestamp - a.timestamp).slice(0, 30);
+      const gallery = allMessages.filter(m => m.type === 'image' || m.type === 'video').sort((a, b) => b.timestamp - a.timestamp).slice(0, 60);
       const myRole = userId === meta.ownerId ? 'owner' : (meta.subOwnerIds || []).includes(userId) ? 'subowner' : 'member';
       const muted = !!(room.muted && room.muted[userId]);
-      cb && cb({ success: true, meta, members, gallery, myRole, muted });
+      const blockedUserIds = Object.keys((room.blockedUsers && room.blockedUsers[userId]) || {});
+      cb && cb({ success: true, meta, members, gallery, myRole, muted, blockedUserIds });
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
@@ -1601,6 +1602,22 @@ io.on('connection', (socket) => {
       const nowMuted = !snap.val();
       await db.ref(`groupChats/${data.roomId}/muted/${userId}`).set(nowMuted);
       cb && cb({ success: true, muted: nowMuted });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 방별 특정 유저 차단/해제 (개인 설정 - 나에게만 적용, 상대에겐 통보 안 됨). 차단하면 그 사람 메시지가 "차단한 상대방의 메시지입니다"로 대체 표시됨
+  socket.on('group:toggle_block', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const room = await getGroupRoom(data.roomId);
+      if (!room || !room.meta || !(room.meta.memberIds || []).includes(userId)) return cb && cb({ success: false });
+      const targetId = data.targetId;
+      if (!targetId || targetId === userId) return cb && cb({ success: false });
+      const snap = await db.ref(`groupChats/${data.roomId}/blockedUsers/${userId}/${targetId}`).once('value');
+      const nowBlocked = !snap.val();
+      if (nowBlocked) await db.ref(`groupChats/${data.roomId}/blockedUsers/${userId}/${targetId}`).set(true);
+      else await db.ref(`groupChats/${data.roomId}/blockedUsers/${userId}/${targetId}`).remove();
+      cb && cb({ success: true, blocked: nowBlocked });
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
