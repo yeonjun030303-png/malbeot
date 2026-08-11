@@ -262,6 +262,11 @@ async function getAccusedUserId(report) {
   } else if (report.type === 'chat') {
     const room = await getRoom(report.targetId);
     return room && room.userIds ? room.userIds.find(uid => uid !== report.reporterUid) : null;
+  } else if (report.type === 'comment') {
+    const [postId, commentId] = (report.targetId || '').split('::');
+    const p = postId ? await getPost(postId) : null;
+    const c = p && p.comments && p.comments[commentId];
+    return c ? c.authorId : null;
   }
   return null;
 }
@@ -969,6 +974,9 @@ io.on('connection', (socket) => {
       list.sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
       const myUserId = socketToUser[socket.id];
       const myUser = myUserId ? await getUser(myUserId) : null;
+      if (myUser && myUser.blockedUserIds && myUser.blockedUserIds.length) {
+        list = list.filter(p => !myUser.blockedUserIds.includes(p.authorId));
+      }
       list = sortPostsByType(list, filters.sort, myUser && myUser.region);
       cb({ success: true, posts: list });
     } catch (e) { console.error(e); cb({ success: false, posts: [] }); }
@@ -1035,7 +1043,16 @@ io.on('connection', (socket) => {
         return cb({ success: false, cooldown: true, waitSec, message: `글은 5분에 한 번만 작성할 수 있어요. ${Math.ceil(waitSec/60)}분 후 다시 시도해주세요.` });
       }
 
-      const bannedWord = containsBannedWord(data.content);
+      // 투표 항목 텍스트도 게시글 본문과 동일하게 금칙어 검사 대상에 포함시키기 위해
+      // pollOptions 파싱을 먼저 수행한 뒤 content + 옵션 전체를 합쳐서 한 번에 필터링함.
+      const category = data.category === 'vote' ? 'vote' : 'normal';
+      let rawOptions = [];
+      if (category !== 'normal') {
+        rawOptions = Array.isArray(data.pollOptions) ? data.pollOptions.map(t => (t || '').trim()).filter(Boolean) : [];
+        const min = 2, max = VOTE_MAX_OPTIONS;
+        if (rawOptions.length < min || rawOptions.length > max) return cb({ success: false, message: '투표 항목 개수를 확인해주세요.' });
+      }
+      const bannedWord = containsBannedWord(data.content) || rawOptions.some(t => containsBannedWord(t));
       if (bannedWord && data.confirmed !== true) return cb({ success: false, needsConfirm: true });
       let imageBlocked = false;
       if (data.photo) {
@@ -1048,13 +1065,9 @@ io.on('connection', (socket) => {
       let earned = false;
       if (user.lastPostDate !== todayStr) { user.points += 50; user.lastPostDate = todayStr; earned = true; }
       await saveUser(user);
-      const category = data.category === 'vote' ? 'vote' : 'normal';
       let pollOptions = null, pollVotes = null;
       if (category !== 'normal') {
-        const rawOptions = Array.isArray(data.pollOptions) ? data.pollOptions.map(t => (t || '').trim()).filter(Boolean) : [];
-        const min = 2, max = VOTE_MAX_OPTIONS;
-        if (rawOptions.length < min || rawOptions.length > max) return cb({ success: false, message: '투표 항목 개수를 확인해주세요.' });
-        pollOptions = rawOptions.slice(0, max).map((text, i) => ({ id: 'o' + i, text: text.slice(0, 30) }));
+        pollOptions = rawOptions.slice(0, VOTE_MAX_OPTIONS).map((text, i) => ({ id: 'o' + i, text: text.slice(0, 30) }));
         pollVotes = {};
       }
       const post = {
@@ -2014,11 +2027,17 @@ io.on('connection', (socket) => {
           const room = await getRoom(r.targetId);
           const otherId = room && room.userIds ? room.userIds.find(uid => uid !== r.reporterUid) : null;
           accusedNickname = otherId && users[otherId] ? users[otherId].nickname : '(알 수 없음)';
+        } else if (r.type === 'comment') {
+          const [postId, commentId] = (r.targetId || '').split('::');
+          const p = postId ? await getPost(postId) : null;
+          const c = p && p.comments && p.comments[commentId];
+          targetLabel = c ? (c.content || '').slice(0, 40) : '(삭제된 댓글)';
+          accusedNickname = c && users[c.authorId] ? users[c.authorId].nickname : '(탈퇴한 사용자)';
         }
         const reporter = users[r.reporterUid];
         return { ...r, targetLabel, accusedNickname, reporterNickname: reporter ? reporter.nickname : '(알 수 없음)' };
       }));
-      const counts = { post: 0, user: 0, chat: 0 };
+      const counts = { post: 0, user: 0, chat: 0, comment: 0 };
       enriched.forEach(r => { if (r.status === 'pending' && counts[r.type] !== undefined) counts[r.type]++; });
       cb && cb({ success: true, reports: enriched, counts });
     } catch (e) { console.error(e); cb && cb({ success: false }); }
@@ -2056,6 +2075,17 @@ io.on('connection', (socket) => {
         }
       } else if (action === 'delete_room' && report.type === 'chat') {
         await deleteRoom(report.targetId);
+      } else if (action === 'delete_comment' && report.type === 'comment') {
+        const [postId, commentId] = (report.targetId || '').split('::');
+        const post = postId ? await getPost(postId) : null;
+        const c = post && post.comments && post.comments[commentId];
+        if (c) {
+          c.deleted = true;
+          c.deletedAt = Date.now();
+          c.deletedByAdmin = true;
+          await savePost(post);
+          broadcastPosts();
+        }
       } else if (action === 'warn_user') {
         const accusedId = await getAccusedUserId(report);
         const target = accusedId ? await getUser(accusedId) : null;
