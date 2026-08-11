@@ -106,6 +106,9 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 
 .full-screen-overlay{position:absolute;inset:0;background:#fff;z-index:150;display:none;flex-direction:column;}
 .full-screen-overlay.active{display:flex;}
+.full-screen-overlay.drawer-right{left:auto;width:82%;box-shadow:-6px 0 20px rgba(0,0,0,.18);}
+#drawerBackdrop{display:none;position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:149;}
+#drawerBackdrop.active{display:block;}
 .fs-header{height:52px;flex-shrink:0;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--border-color);position:relative;}
 .fs-header .back-btn{background:none;border:none;font-size:20px;color:var(--text-main);cursor:pointer;padding:6px;}
 .fs-header .fs-title{position:absolute;left:50%;transform:translateX(-50%);font-size:15px;font-weight:700;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;}
@@ -517,7 +520,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div style="display:flex;gap:8px;padding:10px 14px;align-items:center;">
         <div style="flex:1;position:relative;">
           <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px;"></i>
-          <input type="text" id="groupSearchInput" placeholder="단체채팅방 검색" oninput="onGroupSearchInput(this.value)" style="width:100%;box-sizing:border-box;padding:9px 12px 9px 32px;border:1px solid var(--border-color);border-radius:20px;font-size:13px;background:var(--bg-card);color:inherit;">
+          <input type="text" id="groupSearchInput" placeholder="채팅방 검색" oninput="onGroupSearchInput(this.value)" style="width:100%;box-sizing:border-box;padding:9px 12px 9px 32px;border:1px solid var(--border-color);border-radius:20px;font-size:13px;background:var(--bg-card);color:inherit;">
         </div>
         <button type="button" onclick="openGroupCreateModal()" style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:none;background:var(--primary);color:#fff;font-size:15px;"><i class="fa-solid fa-plus"></i></button>
       </div>
@@ -1039,7 +1042,8 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </div>
   </div>
 
-  <div id="groupInfoScreen" class="full-screen-overlay">
+  <div id="drawerBackdrop" onclick="closeFullScreen('groupInfoScreen')"></div>
+  <div id="groupInfoScreen" class="full-screen-overlay drawer-right">
     <div class="chat-header-row">
       <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeFullScreen('groupInfoScreen')"><i class="fa-solid fa-arrow-left"></i></button>
       <div class="chat-header-nick" style="cursor:default;">채팅방 정보</div>
@@ -1061,12 +1065,11 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <div id="groupInfoMemberList"></div>
       </div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border-color);">
-        <span style="font-size:13px;">이 채팅방 알림 끄기</span>
-        <input type="checkbox" id="groupMuteToggle" onchange="toggleGroupMute()">
+      <div style="display:flex;justify-content:space-around;padding:14px 0;border-top:1px solid var(--border-color);">
+        <button type="button" style="background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--text-main);" onclick="shareGroupInvite()"><i class="fa-solid fa-share-nodes" style="font-size:17px;"></i><span style="font-size:11px;">공유</span></button>
+        <button type="button" style="background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--text-main);" onclick="toggleGroupMute()"><i id="groupMuteIcon" class="fa-solid fa-bell" style="font-size:17px;"></i><span style="font-size:11px;">알림</span></button>
+        <button type="button" style="background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--danger);" onclick="leaveGroupRoomFromInfo()"><i class="fa-solid fa-right-from-bracket" style="font-size:17px;"></i><span style="font-size:11px;">나가기</span></button>
       </div>
-      <button class="btn btn-secondary" style="width:100%;margin-top:10px;" onclick="shareGroupInvite()"><i class="fa-solid fa-share-nodes"></i> 초대코드 공유하기</button>
-      <button class="btn" style="width:100%;margin-top:10px;color:var(--danger);background:color-mix(in srgb, var(--danger) 12%, #fff);" onclick="leaveGroupRoomFromInfo()"><i class="fa-solid fa-right-from-bracket"></i> 채팅방 나가기</button>
     </div>
   </div>
 
@@ -1089,6 +1092,11 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
 <script>
 const socket = io();
 let currentUser = JSON.parse(sessionStorage.getItem('malbeot_session')) || null;
+// 단체채팅방 초대링크(/join/코드)로 들어온 경우, 로그인 완료 후 initApp()에서 자동 입장 처리
+let pendingInviteCode = (function(){
+  const m = location.pathname.match(/^\/join\/([A-Za-z0-9]+)/);
+  return m ? m[1] : null;
+})();
 let sessionToken = sessionStorage.getItem('malbeot_token') || null;
 let currentChatRooms = [];
 let currentGroupChatRooms = [];
@@ -1240,8 +1248,22 @@ function clearSession(){
 }
 function closeModal(id){ document.getElementById(id).classList.remove('active'); }
 function openModal(id){ document.getElementById(id).classList.add('active'); }
-function openFullScreen(id){ document.getElementById(id).classList.add('active'); }
-function closeFullScreen(id){ document.getElementById(id).classList.remove('active'); }
+function openFullScreen(id){
+  const el = document.getElementById(id);
+  el.classList.add('active');
+  if (el.classList.contains('drawer-right')){
+    const backdrop = el.parentElement.querySelector('#drawerBackdrop');
+    if (backdrop) backdrop.classList.add('active');
+  }
+}
+function closeFullScreen(id){
+  const el = document.getElementById(id);
+  el.classList.remove('active');
+  if (el.classList.contains('drawer-right')){
+    const backdrop = el.parentElement.querySelector('#drawerBackdrop');
+    if (backdrop) backdrop.classList.remove('active');
+  }
+}
 
 /* ===================== 상단 알림 배너 ===================== */
 let notifyBannerTimer = null;
@@ -1690,7 +1712,45 @@ function initApp(){
   updateUserUI(); loadHomeUserList(); loadCommunityPosts(); loadProfileToForm(); switchTab('tab-home'); requestNotifyPermissionIfNeeded();
   // 구글/애플 인앱결제(RevenueCat)가 이 유저에게 쌀을 지급할 수 있도록 계정 연결
   if (window.linkIAPUser && currentUser) window.linkIAPUser(currentUser.id);
+  // 초대링크(/join/코드)로 들어온 경우 자동 입장
+  if (pendingInviteCode){
+    const code = pendingInviteCode; pendingInviteCode = null;
+    history.replaceState(null, '', '/');
+    joinGroupByInviteCode(code);
+    switchTab('tab-chat');
+  }
 }
+/* ===================== 뒤로가기(백스페이스/기기 back) 지원 =====================
+   화면 전체(.full-screen-overlay)나 모달(.modal-overlay)이 열릴 때마다 자동으로 감지해서
+   히스토리에 한 단계씩 쌓아두고, 뒤로가기를 누르면 앱을 벗어나지 않고 가장 최근에 연 화면만 닫히게 처리함. */
+let uiBackStack = [];
+let uiPopping = false;
+const uiOverlayObserver = new MutationObserver(muts=>{
+  muts.forEach(m=>{
+    if (m.attributeName !== 'class') return;
+    const el = m.target;
+    if (!(el.classList.contains('full-screen-overlay') || el.classList.contains('modal-overlay'))) return;
+    const isActive = el.classList.contains('active');
+    const idx = uiBackStack.indexOf(el);
+    if (isActive && idx === -1){
+      uiBackStack.push(el);
+      history.pushState({ uiOverlay: uiBackStack.length }, '');
+    } else if (!isActive && idx !== -1){
+      uiBackStack.splice(idx, 1);
+      if (!uiPopping){ try{ history.back(); }catch(e){} }
+    }
+  });
+});
+document.querySelectorAll('.full-screen-overlay, .modal-overlay').forEach(el=> uiOverlayObserver.observe(el, {attributes:true}));
+window.addEventListener('popstate', ()=>{
+  if (uiBackStack.length > 0){
+    uiPopping = true;
+    const el = uiBackStack[uiBackStack.length - 1];
+    el.classList.remove('active');
+    setTimeout(()=>{ uiPopping = false; }, 0);
+  }
+});
+
 function requestNotifyPermissionIfNeeded(){
   if ('Notification' in window && Notification.permission === 'default') { Notification.requestPermission(); }
 }
@@ -2531,8 +2591,8 @@ function confirmDeletePostFully(id){
 /* ===================== 프로필 상세 ===================== */
 function openProfileDetailScreen(userId){
   currentProfileUserId = userId; profilePhotoIndex = 0;
-  socket.emit('users:get_list', {region:'전체', gender:'전체', ageMin:19, ageMax:99}, (res)=>{
-    const user = (res.users||[]).find(u=>u.id===userId);
+  socket.emit('users:get_one', {userId}, (res)=>{
+    const user = res && res.user;
     if (!user) return;
     currentProfileUserCache = user;
     renderProfileDetail(user);
@@ -2541,8 +2601,8 @@ function openProfileDetailScreen(userId){
 }
 function refreshOpenProfileIfNeeded(){
   if (!document.getElementById('profileDetailScreen').classList.contains('active') || !currentProfileUserId) return;
-  socket.emit('users:get_list', {region:'전체', gender:'전체', ageMin:19, ageMax:99}, (res)=>{
-    const user = (res.users||[]).find(u=>u.id===currentProfileUserId);
+  socket.emit('users:get_one', {userId:currentProfileUserId}, (res)=>{
+    const user = res && res.user;
     if (user){ currentProfileUserCache = user; renderProfileDetail(user); }
   });
 }
@@ -2980,6 +3040,7 @@ function submitGroupCreate(){
     }
   });
 }
+// 채팅방 검색: 1:1 채팅 + 내가 이미 들어간 단체채팅방(로컬 필터) + 아직 안 들어간 공개 단체채팅방(서버 검색)을 한번에 보여줌
 function onGroupSearchInput(value){
   clearTimeout(groupSearchDebounce);
   const q = value.trim();
@@ -2987,28 +3048,75 @@ function onGroupSearchInput(value){
   const listBox = document.getElementById('chatRoomList');
   if (!q){ resultBox.innerHTML=''; listBox.style.display=''; return; }
   groupSearchDebounce = setTimeout(()=>{
+    listBox.style.display='none';
+    const qLower = q.toLowerCase();
+    const joinedGroupIds = new Set((currentGroupChatRooms||[]).map(r=>r.roomId));
+    const localDmMatches = (currentChatRooms||[]).filter(r=> ((r.targetUser&&r.targetUser.nickname)||'').toLowerCase().includes(qLower));
+    const localGroupMatches = (currentGroupChatRooms||[]).filter(r=> (((r.meta)&&r.meta.title)||'').toLowerCase().includes(qLower));
     socket.emit('group:search', {query:q}, (res)=>{
-      listBox.style.display='none';
-      const rooms = (res && res.rooms) || [];
-      if (!rooms.length){ resultBox.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;">검색 결과가 없습니다.</div>`; return; }
-      resultBox.innerHTML = rooms.map(r=>`
-        <div class="chat-row-wrap"><div class="chat-row-fg" style="cursor:default;">
+      const publicRooms = ((res && res.rooms) || []).filter(r=> !joinedGroupIds.has(r.roomId));
+      resultBox.innerHTML='';
+      if (!localDmMatches.length && !localGroupMatches.length && !publicRooms.length){
+        resultBox.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;">검색 결과가 없습니다.</div>`;
+        return;
+      }
+      if (localGroupMatches.length || localDmMatches.length){
+        const label = document.createElement('div');
+        label.style.cssText = 'padding:8px 4px 4px;font-size:12px;color:var(--text-muted);font-weight:700;';
+        label.textContent = '내 채팅방';
+        resultBox.appendChild(label);
+      }
+      localGroupMatches.forEach(r=>{
+        const meta = r.meta || {};
+        const wrap = document.createElement('div'); wrap.className='chat-row-wrap';
+        wrap.innerHTML = `<div class="chat-row-fg">
+          <div class="avatar-sm" style="display:flex;align-items:center;justify-content:center;background:var(--bg-secondary,#eee);"><i class="fa-solid fa-users"></i></div>
+          <div class="chat-row-text"><div class="chat-row-nick">${escapeHtml(meta.title||'')}</div></div>
+        </div>`;
+        wrap.querySelector('.chat-row-fg').addEventListener('click', ()=>{ clearGroupSearch(); openGroupChatRoom(r.roomId); });
+        resultBox.appendChild(wrap);
+      });
+      localDmMatches.forEach(r=>{
+        const target = r.targetUser || {};
+        const wrap = document.createElement('div'); wrap.className='chat-row-wrap';
+        wrap.innerHTML = `<div class="chat-row-fg">
+          ${avatarHtmlFor(target,'avatar-sm')}
+          <div class="chat-row-text"><div class="chat-row-nick">${escapeHtml(target.nickname||'')}</div></div>
+        </div>`;
+        wrap.querySelector('.chat-row-fg').addEventListener('click', ()=>{ clearGroupSearch(); openChatModal(r.roomId, target, r.messages); });
+        resultBox.appendChild(wrap);
+      });
+      if (publicRooms.length){
+        const label = document.createElement('div');
+        label.style.cssText = 'padding:8px 4px 4px;font-size:12px;color:var(--text-muted);font-weight:700;';
+        label.textContent = '공개 단체채팅방';
+        resultBox.appendChild(label);
+      }
+      publicRooms.forEach(r=>{
+        const wrap = document.createElement('div'); wrap.className='chat-row-wrap';
+        wrap.innerHTML = `<div class="chat-row-fg" style="cursor:default;">
           <div class="avatar-sm" style="display:flex;align-items:center;justify-content:center;background:var(--bg-secondary,#eee);"><i class="fa-solid fa-users"></i></div>
           <div class="chat-row-text">
             <div class="chat-row-nick">${escapeHtml(r.title)} <span style="color:var(--text-muted);font-weight:400;">${r.memberCount}</span></div>
             <div class="chat-row-last">${escapeHtml(r.intro||'')}</div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="joinGroupByInviteCode('${r.inviteCode}')">입장</button>
-        </div></div>`).join('');
+          <button type="button" class="btn btn-primary btn-sm">입장</button>
+        </div>`;
+        wrap.querySelector('button').addEventListener('click', ()=>{ joinGroupByInviteCode(r.inviteCode); });
+        resultBox.appendChild(wrap);
+      });
     });
   }, 300);
+}
+function clearGroupSearch(){
+  document.getElementById('groupSearchInput').value='';
+  document.getElementById('groupSearchResultList').innerHTML='';
+  document.getElementById('chatRoomList').style.display='';
 }
 function joinGroupByInviteCode(inviteCode){
   socket.emit('group:join', {inviteCode}, (res)=>{
     if (res && res.success){
-      document.getElementById('groupSearchInput').value='';
-      document.getElementById('groupSearchResultList').innerHTML='';
-      document.getElementById('chatRoomList').style.display='';
+      clearGroupSearch();
       loadChatRoomList();
       showMiniAlert('채팅방에 입장했습니다.', [{label:'확인', primary:true}]);
     } else {
@@ -3271,7 +3379,8 @@ function renderGroupInfoScreen(){
   document.getElementById('groupInfoTitle').textContent = meta.title || '';
   document.getElementById('groupInfoIntro').textContent = meta.intro || '';
   document.getElementById('groupInfoMemberCount').textContent = `${(meta.memberIds||[]).length}/50`;
-  document.getElementById('groupMuteToggle').checked = !!res.muted;
+  const muteIcon = document.getElementById('groupMuteIcon');
+  if (muteIcon) muteIcon.className = res.muted ? 'fa-solid fa-bell-slash' : 'fa-solid fa-bell';
   const gallery = document.getElementById('groupInfoGallery');
   gallery.innerHTML = (res.gallery||[]).slice(0,6).map(g=>`<div style="aspect-ratio:1;border-radius:8px;overflow:hidden;background:#eee;cursor:pointer;" onclick="openImageLightbox('${g.data}')"><img src="${g.data}" style="width:100%;height:100%;object-fit:cover;"></div>`).join('') || `<div style="grid-column:1/-1;color:var(--text-muted);font-size:12px;text-align:center;padding:10px 0;">등록된 사진/동영상이 없습니다.</div>`;
   document.getElementById('groupGalleryMoreBtn').style.display = (res.gallery||[]).length > 6 ? 'block' : 'none';
@@ -3283,10 +3392,14 @@ function renderGroupInfoScreen(){
       : mem.role==='subowner' ? '<i class="fa-solid fa-crown" style="color:#ec4899;position:absolute;top:-4px;left:50%;transform:translateX(-50%);font-size:11px;"></i>' : '';
     const avatarHtml = mem.photo ? `<img src="${mem.photo}" class="avatar-sm" alt="사진">` : defaultAvatarHtml(mem.gender, 'avatar-sm');
     const isBlocked = blockedIds.includes(mem.id);
-    const canTap = mem.id !== currentUser.id;
-    return `<div class="chat-row-wrap"><div class="chat-row-fg" style="cursor:${canTap?'pointer':'default'};" ${canTap?`onclick="openGroupMemberActions('${mem.id}','${mem.role}',${isBlocked})"`:''}>
-      <div style="position:relative;">${crown}${avatarHtml}</div>
-      <div class="chat-row-text"><div class="chat-row-nick">${escapeHtml(mem.nickname)}${isBlocked?' <span style="font-size:11px;color:var(--danger);">(차단됨)</span>':''}</div></div>
+    const canManage = mem.id !== currentUser.id;
+    // 이름/프로필 사진 클릭 = 프로필 열기, 관리(부방장 임명/강퇴/차단)는 우측 ⋮ 아이콘으로 분리
+    return `<div class="chat-row-wrap"><div class="chat-row-fg" style="justify-content:space-between;" onclick="openProfileDetailScreen('${mem.id}')">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+        <div style="position:relative;">${crown}${avatarHtml}</div>
+        <div class="chat-row-text"><div class="chat-row-nick">${escapeHtml(mem.nickname)}${isBlocked?' <span style="font-size:11px;color:var(--danger);">(차단됨)</span>':''}</div></div>
+      </div>
+      ${canManage?`<button type="button" style="background:none;border:none;color:var(--text-muted);font-size:15px;padding:8px;cursor:pointer;flex-shrink:0;" onclick="event.stopPropagation();openGroupMemberActions('${mem.id}','${mem.role}',${isBlocked})"><i class="fa-solid fa-ellipsis-vertical"></i></button>`:''}
     </div></div>`;
   }).join('');
 }
@@ -3319,16 +3432,23 @@ function closeImageLightbox(){
 }
 function toggleGroupMute(){
   if (!activeGroupRoomId) return;
-  socket.emit('group:toggle_mute', {roomId:activeGroupRoomId}, ()=>{});
+  socket.emit('group:toggle_mute', {roomId:activeGroupRoomId}, ()=>{
+    socket.emit('group:info', {roomId:activeGroupRoomId}, (res)=>{
+      if (res && res.success){ activeGroupRoomMeta = res; renderGroupInfoScreen(); }
+    });
+  });
 }
 function shareGroupInvite(){
   if (!activeGroupRoomMeta) return;
   const code = activeGroupRoomMeta.meta.inviteCode;
-  const text = `말벗 단체채팅방 "${activeGroupRoomMeta.meta.title}" 초대코드: ${code}`;
-  if (navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(()=>{ showMiniAlert('초대코드가 클립보드에 복사되었습니다.', [{label:'확인', primary:true}]); });
+  const url = `${location.origin}/join/${code}`;
+  const title = activeGroupRoomMeta.meta.title || '';
+  if (navigator.share){
+    navigator.share({ title: `말벗 단체채팅방 초대: ${title}`, url }).catch(()=>{});
+  } else if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(()=>{ showMiniAlert('초대 링크가 클립보드에 복사되었습니다.', [{label:'확인', primary:true}]); });
   } else {
-    showMiniAlert(text, [{label:'확인', primary:true}]);
+    showMiniAlert(url, [{label:'확인', primary:true}]);
   }
 }
 function leaveGroupRoomFromInfo(){

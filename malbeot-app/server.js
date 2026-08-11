@@ -35,6 +35,13 @@ app.use('/api/reports', reportsRouter);
 // 호스팅 서비스가 무접속 상태에서 슬립 모드로 전환되는 것을 막는 데 사용할 수 있음)
 app.get('/health', (req, res) => res.status(200).send('ok'));
 
+// 단체채팅방 초대링크 (카카오 오픈채팅처럼 실제 URL로 들어오면 앱 내 페이지로 바로 진입)
+// 지금은 웹뷰만 있어서 index.html을 그대로 내려주고, 클라이언트가 경로의 코드를 읽어 로그인 후 자동 입장시킴.
+// TODO: 나중에 네이티브 앱이 생기면 여기서 User-Agent를 보고 앱 미설치 기기는 스토어로 리다이렉트하도록 확장할 것.
+app.get('/join/:code', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 let socketToUser = {};
 let userToSocket = {};
 
@@ -900,6 +907,16 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb({ success: false }); }
   });
   // 홈 리스트: 나 자신 포함, filters.sort로 기본순/popular/distance/views 정렬 선택 가능
+  // 단일 유저 프로필 조회 (채팅 상단 헤더, 단체채팅방 참여자 목록 등에서 목록 필터에 상관없이 특정 유저 1명을 정확히 조회할 때 사용)
+  socket.on('users:get_one', async (data, cb) => {
+    try {
+      const user = await getUser(data.userId);
+      if (!user) return cb({ success: false });
+      const result = user.nicknameFiltered ? { ...user, nickname: "삭제된 닉네임입니다" } : user;
+      cb({ success: true, user: result });
+    } catch (e) { console.error(e); cb({ success: false }); }
+  });
+
   socket.on('users:get_list', async (filters, cb) => {
     try {
       const users = await getAllUsers();
