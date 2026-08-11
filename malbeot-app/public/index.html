@@ -95,7 +95,8 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 .btn-sm{padding:6px 12px;font-size:12px;border-radius:6px;}
 .btn-kakao{background:#FEE500;color:#191600;}
 
-.bottom-nav{position:absolute;bottom:0;left:0;right:0;height:64px;background:#fff;border-top:1px solid var(--border-color);display:flex;justify-content:space-around;align-items:center;z-index:10;}
+.bottom-nav{position:absolute;bottom:0;left:0;right:0;height:64px;background:#fff;border-top:1px solid var(--border-color);display:flex;justify-content:space-around;align-items:center;z-index:10;transition:transform .25s ease;}
+.bottom-nav.nav-hidden{transform:translateY(100%);}
 .nav-item{background:none;border:none;flex:1;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;font-size:21px;}
 .nav-item.active{color:var(--primary);}
 
@@ -1294,6 +1295,24 @@ function resetToLandingScreen(){
 }
 
 /* 현재 열려 있는 화면/모달 중 가장 위에 뜬 것을 닫음 (ESC 키, 좌측 가장자리 오른쪽 스와이프에서 공통으로 사용) */
+/* 피드(쓰레드 등)를 아래로 스크롤하면 하단 네비를 잠깐 숨겨 화면을 크게 보여주고,
+   스크롤을 멈추거나 위로 스크롤하면 다시 나타나게 함 */
+(function initBottomNavAutoHide(){
+  const nav = document.querySelector('.bottom-nav');
+  const scrollArea = document.querySelector('.content-area');
+  if (!nav || !scrollArea) return;
+  let lastTop = 0, stopTimer = null;
+  scrollArea.addEventListener('scroll', ()=>{
+    const top = scrollArea.scrollTop;
+    const delta = top - lastTop;
+    if (delta > 4 && top > 40) nav.classList.add('nav-hidden');
+    else if (delta < -4 || top <= 40) nav.classList.remove('nav-hidden');
+    lastTop = top;
+    clearTimeout(stopTimer);
+    stopTimer = setTimeout(()=>{ nav.classList.remove('nav-hidden'); }, 600);
+  }, { passive: true });
+})();
+
 function closeTopmostScreen(){
   const isActive = id => document.getElementById(id) && document.getElementById(id).classList.contains('active');
   if (isActive('followListModal')) return closeModal('followListModal');
