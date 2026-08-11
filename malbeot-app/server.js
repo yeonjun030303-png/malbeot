@@ -1325,10 +1325,23 @@ io.on('connection', (socket) => {
         const targetUser = await getUser(otherId);
         const messages = (room.messages ? Object.values(room.messages) : []).filter(m => !(m.deletedFor || []).includes(userId));
         const unreadCount = messages.filter(m => m.senderId !== userId && m.senderId !== 'system' && !m.read).length;
-        rooms.push({ roomId, targetUser, messages, unreadCount, lastReadAt: room.lastReadAt || {} });
+        const muted = !!(room.muted && room.muted[userId]);
+        rooms.push({ roomId, targetUser, messages, unreadCount, lastReadAt: room.lastReadAt || {}, muted });
       }
       cb({ success: true, rooms });
     } catch (e) { console.error(e); cb({ success: false, rooms: [] }); }
+  });
+
+  // 1:1 채팅 알림끄기(mute) 토글 - 기존에는 단체채팅에만 있던 기능을 1:1에도 동일하게 추가
+  socket.on('chat:toggle_mute', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      if (!userId) return cb && cb({ success: false });
+      const snap = await db.ref(`chats/${data.roomId}/muted/${userId}`).once('value');
+      const nowMuted = !snap.val();
+      await db.ref(`chats/${data.roomId}/muted/${userId}`).set(nowMuted);
+      cb && cb({ success: true, muted: nowMuted });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
   socket.on('chat:start_or_send', async (data, cb) => {
