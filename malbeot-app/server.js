@@ -566,6 +566,15 @@ setInterval(purgeExpiredFilteredPosts, 60 * 60 * 1000);
 function kstDateStr(d) {
   return new Date(d.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
+// 일일 접속 보상: 하루(KST 기준) 최초 로그인/세션복구 시 쌀 50개 자동 지급 (스위치 없이 항상 지급).
+// user 객체를 직접 변형만 하고 저장은 호출부의 saveUser(user)가 한 번에 처리함.
+function grantDailyLoginRewardIfNeeded(user) {
+  const today = kstDateStr(new Date());
+  if (user.lastDailyRewardDate === today) return null;
+  user.points = (user.points || 0) + 50;
+  user.lastDailyRewardDate = today;
+  return 50;
+}
 // 지급된 포인트를 다음 로그인 시 딱 1회만 안내창으로 보여주기 위해 대기시켜둔 알림을 꺼내는 함수.
 // (접속 중이었다면 즉시 reward:vote_winner 소켓 이벤트로 보여주고 notified:true로 표시해둠)
 async function popPendingRewardNotify(user) {
@@ -694,13 +703,14 @@ io.on('connection', (socket) => {
       }
       user.isOnline = true;
       user.lastSeen = Date.now();
+      const dailyRewardAmount = grantDailyLoginRewardIfNeeded(user);
       await saveUser(user);
       socketToUser[socket.id] = user.id;
       userToSocket[user.id] = socket.id;
       const token = issueSessionToken(user.id);
       const rewardNotify = await popPendingRewardNotify(user);
       const warningNotify = await popPendingWarningNotify(user);
-      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify, warningNotify });
+      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify, warningNotify, dailyRewardNotify: dailyRewardAmount ? { amount: dailyRewardAmount } : null });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -718,13 +728,14 @@ io.on('connection', (socket) => {
       if (user.isBanned) return cb({ success: false, banned: true, message: '이용이 제한된 계정입니다.' });
       user.isOnline = true;
       user.lastSeen = Date.now();
+      const dailyRewardAmount = grantDailyLoginRewardIfNeeded(user);
       await saveUser(user);
       socketToUser[socket.id] = user.id;
       userToSocket[user.id] = socket.id;
       const token = issueSessionToken(user.id); // 갱신(연장)
       const rewardNotify = await popPendingRewardNotify(user);
       const warningNotify = await popPendingWarningNotify(user);
-      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify, warningNotify });
+      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify, warningNotify, dailyRewardNotify: dailyRewardAmount ? { amount: dailyRewardAmount } : null });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -786,13 +797,14 @@ io.on('connection', (socket) => {
         existing.lastSeen = Date.now();
         existing.lastIp = getClientIp(socket);
         if (!existing.deviceId && data.deviceId) existing.deviceId = data.deviceId; // 이 기능 추가 전 가입한 계정에 최초 1회만 채움
+        const dailyRewardAmount = grantDailyLoginRewardIfNeeded(existing);
         await saveUser(existing);
         socketToUser[socket.id] = existing.id;
         userToSocket[existing.id] = socket.id;
         const token = issueSessionToken(existing.id);
         const rewardNotify = await popPendingRewardNotify(existing);
         const warningNotify = await popPendingWarningNotify(existing);
-        cb({ success: true, user: { ...existing, isAdmin: isAdmin(existing) }, token, rewardNotify, warningNotify });
+        cb({ success: true, user: { ...existing, isAdmin: isAdmin(existing) }, token, rewardNotify, warningNotify, dailyRewardNotify: dailyRewardAmount ? { amount: dailyRewardAmount } : null });
         broadcastUsers();
         return;
       }
@@ -1844,6 +1856,34 @@ io.on('connection', (socket) => {
       const list = ids.map(id => users[id]).filter(Boolean);
       cb({ success: true, users: list });
     } catch (e) { console.error(e); cb({ success: false, users: [] }); }
+  });
+
+  // 프로필 방문 기록 (KST 날짜별로 저장 - 날짜가 바뀌면 자연히 새 목록이 되어 "일일 초기화" 효과)
+  // 본인 프로필을 본인이 보는 경우는 기록하지 않음
+  socket.on('profile:record_visit', async (data, cb) => {
+    try {
+      const visitorId = socketToUser[socket.id];
+      const targetId = data && data.targetUserId;
+      if (!visitorId || !targetId || visitorId === targetId) return cb && cb({ success: true });
+      const today = kstDateStr(new Date());
+      await db.ref(`profileVisits/${targetId}/${today}/${visitorId}`).set(Date.now());
+      cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 오늘(KST) 내 프로필 방문자 수 + 목록 조회 (본인만 조회 가능 - 로그인한 본인 소켓 기준으로 본인 것만 조회)
+  socket.on('profile:get_today_visitors', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      if (!userId) return cb && cb({ success: false, count: 0, visitors: [] });
+      const today = kstDateStr(new Date());
+      const snap = await db.ref(`profileVisits/${userId}/${today}`).once('value');
+      const raw = snap.val() || {};
+      const visitorIds = Object.keys(raw).sort((a, b) => raw[b] - raw[a]);
+      const users = await getAllUsers();
+      const visitors = visitorIds.map(id => users[id]).filter(Boolean);
+      cb && cb({ success: true, count: visitorIds.length, visitors });
+    } catch (e) { console.error(e); cb && cb({ success: false, count: 0, visitors: [] }); }
   });
 
   // 차단 해제

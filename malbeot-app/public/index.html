@@ -532,6 +532,10 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
 
     <section id="tab-mypage" class="tab-content">
       <div class="mypage-stack" style="display:flex;flex-direction:column;gap:14px;">
+        <div class="settings-list-item" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:14px 16px;" onclick="openProfileVisitorsScreen()">
+          <div><div class="sli-label"><i class="fa-solid fa-eye"></i> 오늘 내 프로필 방문자</div><div class="sli-sub">매일 자정에 초기화됩니다</div></div>
+          <div class="sli-right"><span id="myPageVisitorCount" style="font-weight:700;margin-right:4px;">0명</span><i class="fa-solid fa-chevron-right"></i></div>
+        </div>
         <div class="settings-card" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:16px;">
           <div style="margin-bottom:6px;">
             <h2 style="font-size:16px;margin:0;"><i class="fa-solid fa-id-card"></i> 내 프로필 편집</h2>
@@ -980,6 +984,14 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div class="fs-title">차단한 회원</div>
     </div>
     <div class="fs-body" id="blockedListBody" style="padding:8px 16px;"></div>
+  </div>
+
+  <div id="profileVisitorsScreen" class="full-screen-overlay">
+    <div class="fs-header">
+      <button class="back-btn" onclick="closeFullScreen('profileVisitorsScreen')"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="fs-title">오늘 방문자</div>
+    </div>
+    <div class="fs-body" id="profileVisitorsBody" style="padding:8px 16px;"></div>
   </div>
 
   <div id="adModal" class="modal-overlay">
@@ -1560,6 +1572,9 @@ socket.on('connect', ()=>{
         if (res.rewardNotify){
           showMiniAlert(`어제의 인기 투표로 선정되셔서 포인트 ${res.rewardNotify.amount}개를 지급했어요!`, [{label:'확인', primary:true}]);
         }
+        if (res.dailyRewardNotify){
+          showMiniAlert(`오늘의 접속 보상으로 쌀 ${res.dailyRewardNotify.amount}개가 지급되었습니다!`, [{label:'확인', primary:true}]);
+        }
         if (res.warningNotify){ showWarningModal(res.warningNotify.message); }
       } else {
         clearSession();
@@ -1659,6 +1674,9 @@ function startKakaoLogin(){
         closeModal('landingScreen'); initApp();
         if (res.rewardNotify){
           showMiniAlert(`어제의 인기 투표로 선정되셔서 포인트 ${res.rewardNotify.amount}개를 지급했어요!`, [{label:'확인', primary:true}]);
+        }
+        if (res.dailyRewardNotify){
+          showMiniAlert(`오늘의 접속 보상으로 쌀 ${res.dailyRewardNotify.amount}개가 지급되었습니다!`, [{label:'확인', primary:true}]);
         }
         if (res.warningNotify){ showWarningModal(res.warningNotify.message); }
       } else if (res.needProfile){
@@ -1815,7 +1833,7 @@ function switchTab(tab){
   if (tab==='tab-home') loadHomeUserList();
   if (tab==='tab-community') loadCommunityPosts();
   if (tab==='tab-chat') loadChatRoomList();
-  if (tab==='tab-mypage') loadProfileToForm();
+  if (tab==='tab-mypage') { loadProfileToForm(); refreshMyPageVisitorCount(); }
 }
 document.querySelectorAll('.bottom-nav .nav-item').forEach(item=>item.addEventListener('click', ()=>switchTab(item.dataset.tab)));
 
@@ -1847,9 +1865,13 @@ function openSortModal(target){
   sortModalTarget = target;
   const current = target === 'home' ? homeSortType : communitySortType;
   const list = document.getElementById('sortModalList');
-  list.innerHTML = Object.keys(SORT_TYPE_LABELS).map(key => `
-    <div class="category-item" style="${key===current?'background:var(--primary);color:#fff;':''}" onclick="applySortType('${key}')">${SORT_TYPE_LABELS[key]}</div>
-  `).join('');
+  list.innerHTML = Object.keys(SORT_TYPE_LABELS).map(key => {
+    const isSelected = key === current;
+    const isPopular = key === 'popular';
+    const style = isSelected ? 'background:var(--primary);color:#fff;' : (isPopular ? 'color:#ff6b35;font-weight:700;' : '');
+    const icon = isPopular ? '<i class="fa-solid fa-fire" style="margin-right:5px;"></i>' : '';
+    return `<div class="category-item" style="${style}" onclick="applySortType('${key}')">${icon}${SORT_TYPE_LABELS[key]}</div>`;
+  }).join('');
   openModal('sortModal');
 }
 function applySortType(type){
@@ -2610,6 +2632,7 @@ function confirmDeletePostFully(id){
 /* ===================== 프로필 상세 ===================== */
 function openProfileDetailScreen(userId){
   currentProfileUserId = userId; profilePhotoIndex = 0;
+  socket.emit('profile:record_visit', {targetUserId: userId});
   socket.emit('users:get_one', {userId}, (res)=>{
     const user = res && res.user;
     if (!user) return;
@@ -4122,6 +4145,30 @@ function banAbuseUser(userId){
       });
     }}
   ]);
+}
+
+/* ===================== 오늘 프로필 방문자 (본인만 조회 가능, 매일 자정 KST 초기화) ===================== */
+function refreshMyPageVisitorCount(){
+  socket.emit('profile:get_today_visitors', {}, (res)=>{
+    const el = document.getElementById('myPageVisitorCount');
+    if (el && res && res.success) el.textContent = `${res.count}명`;
+  });
+}
+function openProfileVisitorsScreen(){
+  socket.emit('profile:get_today_visitors', {}, (res)=>{
+    const body = document.getElementById('profileVisitorsBody');
+    const visitors = (res && res.visitors) || [];
+    document.getElementById('myPageVisitorCount').textContent = `${(res && res.count) || 0}명`;
+    body.innerHTML = visitors.length ? visitors.map(u=>`
+      <div class="user-card" style="cursor:pointer;" onclick="openProfileDetailScreen('${u.id}')">
+        ${avatarHtmlFor(u,'avatar')}
+        <div style="flex:1;min-width:0;">
+          <span class="user-nickname">${escapeHtml(u.nickname)}</span>
+          <div style="display:flex;gap:6px;margin-top:4px;"><span class="tag">${u.region}</span><span class="tag">${u.gender==='female'?'여성':'남성'}</span><span class="tag">${u.age}세</span></div>
+        </div>
+      </div>`).join('') : `<div style="text-align:center;padding:40px;color:var(--text-muted);">오늘 방문한 사람이 아직 없습니다.</div>`;
+    openFullScreen('profileVisitorsScreen');
+  });
 }
 
 /* ===================== 차단한 회원 목록 ===================== */
