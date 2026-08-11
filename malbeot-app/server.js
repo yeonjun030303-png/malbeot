@@ -35,15 +35,10 @@ app.use('/api/reports', reportsRouter);
 // 호스팅 서비스가 무접속 상태에서 슬립 모드로 전환되는 것을 막는 데 사용할 수 있음)
 app.get('/health', (req, res) => res.status(200).send('ok'));
 
-// 단체채팅방 초대링크(실제 URL) 진입점: /join/코드 로 접속하면 프론트가 그 코드를 읽어 자동 입장 처리함
-// (지금은 웹앱뿐이라 그냥 앱 페이지로 리다이렉트하지만, 나중에 네이티브 앱이 생기면
-//  여기서 미설치 기기를 감지해 스토어로 보내는 분기를 추가할 것)
-app.get('/join/:code', (req, res) => {
-  res.redirect('/?joinCode=' + encodeURIComponent(req.params.code));
-});
-
 // 단체채팅방 초대링크 (카카오 오픈채팅처럼 실제 URL로 들어오면 앱 내 페이지로 바로 진입)
-// 지금은 웹뷰만 있어서 index.html을 그대로 내려주고, 클라이언트가 경로의 코드를 읽어 로그인 후 자동 입장시킴.
+// 지금은 웹뷰만 있어서 index.html을 그대로 내려주고, 클라이언트가 경로(/join/코드)를 그대로 읽어 로그인 후 자동 입장시킴.
+// 주의: 절대 여기서 redirect하지 말 것 - 클라이언트가 location.pathname에서 '/join/코드' 패턴을 직접 파싱하기 때문에,
+//       경로가 바뀌면(redirect로 '/?joinCode=...' 등으로) 클라이언트가 코드를 못 읽어 자동입장이 깨짐.
 // TODO: 나중에 네이티브 앱이 생기면 여기서 User-Agent를 보고 앱 미설치 기기는 스토어로 리다이렉트하도록 확장할 것.
 app.get('/join/:code', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
