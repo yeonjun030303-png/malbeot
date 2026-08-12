@@ -7,6 +7,7 @@ const admin = require('firebase-admin');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { checkImageNsfw, containsBannedWord } = require('./moderation');
+const webpush = require('web-push');
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({
@@ -14,6 +15,41 @@ admin.initializeApp({
   databaseURL: process.env.FIREBASE_DB_URL
 });
 const db = admin.database();
+
+// ===== 웹 푸시 알림 (VAPID) =====
+// .env에 VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT(예: mailto:본인이메일)를 설정핼야 동작함.
+// 키가 없으면 웹 푸시만 조용히 비활성화되고 기존 소켓 기반 인앱 알림은 그대로 동작함.
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:kickoff030303@gmail.com';
+const PUSH_ENABLED = !!(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
+if (PUSH_ENABLED) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+} else {
+  console.warn('[경고] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY가 .env에 없어 웹 푸시 알림이 비활성화됩니다.');
+}
+
+// 유저가 앱을 꺼두었을 때(소켓 미접속)도 도착하는 실제 브라우저 푸시 발송
+// 만료/무효 구독(404/410)은 자동으로 정리함
+async function sendWebPush(userId, payload) {
+  if (!PUSH_ENABLED || !userId) return;
+  try {
+    const snap = await db.ref(`users/${userId}/pushSubscriptions`).once('value');
+    const subs = snap.val();
+    if (!subs) return;
+    for (const [subId, sub] of Object.entries(subs)) {
+      try {
+        await webpush.sendNotification(sub, JSON.stringify(payload));
+      } catch (err) {
+        if (err.statusCode === 404 || err.statusCode === 410) {
+          await db.ref(`users/${userId}/pushSubscriptions/${subId}`).remove();
+        } else {
+          console.error('[웹푸시 전송 오류]', err.statusCode, err.body);
+        }
+      }
+    }
+  } catch (e) { console.error('[웹푸시 조회 오류]', e); }
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -34,6 +70,29 @@ app.use('/api/reports', reportsRouter);
 // 상시 구동 확인용 헬스체크 엔드포인트 (UptimeRobot 등 외부 핑 서비스로 주기적으로 호출하면
 // 호스팅 서비스가 무접속 상태에서 슬립 모드로 전환되는 것을 막는 데 사용할 수 있음)
 app.get('/health', (req, res) => res.status(200).send('ok'));
+
+// ===== 웹 푸시 구독 관리 API =====
+app.get('/api/push/vapid-public-key', (req, res) => {
+  res.json({ publicKey: VAPID_PUBLIC_KEY });
+});
+app.post('/api/push/subscribe', async (req, res) => {
+  try {
+    const { userId, subscription } = req.body;
+    if (!userId || !subscription || !subscription.endpoint) return res.status(400).json({ error: '필수 항목이 누락되었습니다.' });
+    const subId = Buffer.from(subscription.endpoint).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(-40);
+    await db.ref(`users/${userId}/pushSubscriptions/${subId}`).set(subscription);
+    res.json({ success: true });
+  } catch (e) { console.error('[푸시 구독 저장 오류]', e); res.status(500).json({ error: '구독 저장 실패' }); }
+});
+app.post('/api/push/unsubscribe', async (req, res) => {
+  try {
+    const { userId, endpoint } = req.body;
+    if (!userId || !endpoint) return res.status(400).json({ error: '필수 항목이 누락되었습니다.' });
+    const subId = Buffer.from(endpoint).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(-40);
+    await db.ref(`users/${userId}/pushSubscriptions/${subId}`).remove();
+    res.json({ success: true });
+  } catch (e) { console.error('[푸시 구독 해제 오류]', e); res.status(500).json({ error: '구독 해제 실패' }); }
+});
 
 // 단체채팅방 초대링크 (카카오 오픈채팅처럼 실제 URL로 들어오면 앱 내 페이지로 바로 진입)
 // 지금은 웹뷰만 있어서 index.html을 그대로 내려주고, 클라이언트가 경로(/join/코드)를 그대로 읽어 로그인 후 자동 입장시킴.
@@ -342,6 +401,8 @@ function notifyUser(userId, payload) {
   if (!userId) return;
   const sId = userToSocket[userId];
   if (sId) io.to(sId).emit('notify:new', payload);
+  // 소켓 미접속(=앱이 꺼져있음) 상태일 때만 웹 푸시로 대신 알림 (앱 켜져있을 땐 인앱 알림으로 충분)
+  else sendWebPush(userId, { title: payload.title || '말벗', body: payload.body || payload.text || '', type: payload.type || null, postId: payload.postId || null, userId: payload.userId || null });
 }
 
 // 내가 팔로우하는 사람이 새 글/스토리를 올리면 팔로워 전원에게 알림
@@ -1440,6 +1501,7 @@ io.on('connection', (socket) => {
       [user.id, target.id].forEach(uid => {
         const sId = userToSocket[uid];
         if (sId) io.to(sId).emit('chat:new_message', { roomId, message: msg, senderNickname: user.nickname });
+        else if (uid !== user.id) sendWebPush(uid, { title: user.nickname || '말벗', body: msg.type === 'image' ? '사진을 보냈습니다' : (msg.text || ''), type: 'chat', roomId });
       });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
@@ -1457,6 +1519,7 @@ io.on('connection', (socket) => {
       room.userIds.forEach(uid => {
         const sId = userToSocket[uid];
         if (sId) io.to(sId).emit('chat:new_message', { roomId: data.roomId, message: msg, senderNickname: sender && sender.nickname });
+        else if (uid !== userId) sendWebPush(uid, { title: (sender && sender.nickname) || '말벗', body: msg.text || '', type: 'chat', roomId: data.roomId });
       });
     } catch (e) { console.error(e); }
   });
@@ -1473,6 +1536,7 @@ io.on('connection', (socket) => {
       room.userIds.forEach(uid => {
         const sId = userToSocket[uid];
         if (sId) io.to(sId).emit('chat:new_message', { roomId: data.roomId, message: msg, senderNickname: sender && sender.nickname });
+        else if (uid !== userId) sendWebPush(uid, { title: (sender && sender.nickname) || '말벗', body: '사진을 보냈습니다', type: 'chat', roomId: data.roomId });
       });
       cb && cb({ success: true });
     } catch (e) { console.error(e); cb && cb({ success: false }); }
@@ -1535,6 +1599,7 @@ io.on('connection', (socket) => {
       [user.id, target.id].forEach(uid => {
         const sId = userToSocket[uid];
         if (sId) io.to(sId).emit('chat:new_message', { roomId, message: msg, senderNickname: user.nickname });
+        else if (uid !== user.id) sendWebPush(uid, { title: user.nickname || '말벗', body: msg.type === 'image' ? '사진을 보냈습니다' : (msg.text || ''), type: 'chat', roomId });
       });
       broadcastUsers();
     } catch (e) { console.error(e); cb && cb({ success: false }); }
