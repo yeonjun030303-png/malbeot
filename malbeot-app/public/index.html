@@ -72,6 +72,9 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 .avatar.male-default,.avatar-large.male-default,.avatar-sm.male-default,.avatar-md.male-default{background:var(--blue-light);color:var(--blue-avatar);display:flex;align-items:center;justify-content:center;}
 .user-nickname{font-size:15px;font-weight:700;color:var(--primary);}
 .tag{font-size:11px;padding:2px 7px;border-radius:var(--radius-sm);background:var(--bg-subtle);color:var(--text-muted);font-weight:600;}
+.tag-match{background:var(--primary)!important;color:#fff!important;font-weight:800;}
+.interest-select-tag{cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.interest-select-tag.selected{background:var(--primary);color:#fff;font-weight:700;}
 
 .post-row{padding:14px 4px;border-bottom:1px solid var(--border-color);cursor:pointer;}
 .post-row-top{display:flex;align-items:center;gap:8px;}
@@ -950,6 +953,24 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div class="settings-list-item" style="cursor:default;">
         <div class="sli-label">버전 정보</div>
         <div class="sli-right" id="appVersionLabel">v1.0.0</div>
+      </div>
+      </div>
+
+      <div class="settings-section-title settings-accordion-header" id="accHeader-acc-interest" onclick="toggleSettingsAccordion('acc-interest')">
+        <span>관심사</span><i class="fa-solid fa-chevron-down accordion-arrow"></i>
+      </div>
+      <div class="settings-accordion-body" id="acc-interest">
+      <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
+        <div class="sli-label" style="margin-bottom:8px;">MBTI</div>
+        <div id="mbtiTagList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+      <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
+        <div class="sli-label" style="margin-bottom:8px;">목적</div>
+        <div id="purposeTagList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+      <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
+        <div class="sli-label" style="margin-bottom:8px;">취미 (여러 개 선택 가능)</div>
+        <div id="hobbyTagList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
       </div>
       </div>
     </div>
@@ -2738,6 +2759,34 @@ function toggleProfilePhotoLike(targetUserId, photoIndex){
     renderProfileDetail(currentProfileUserCache);
   });
 }
+// 프로필 대상자가 설정한 관심사(MBTI/목적/취미)만 태그로 만들어줌.
+// 보고 있는 사람(나)의 관심사와 겹치는 항목은 tag-match 클래스로 강조 표시함(본인 프로필에서는 강조 안 함)
+function buildInterestTagsHtml(user){
+  const interests = user.interests || {};
+  const myInterests = (currentUser && currentUser.interests) || {};
+  const isMe = currentUser && user.id===currentUser.id;
+  const gender = user.gender || 'female';
+  const parts = [];
+  if (interests.mbti){
+    const match = !isMe && myInterests.mbti && myInterests.mbti===interests.mbti;
+    parts.push(`<span class="tag ${match?'tag-match':''}">${interests.mbti}</span>`);
+  }
+  if (interests.purpose){
+    const po = PURPOSE_OPTIONS.find(o=>o.key===interests.purpose);
+    if (po){
+      const match = !isMe && myInterests.purpose && myInterests.purpose===interests.purpose;
+      parts.push(`<span class="tag ${match?'tag-match':''}">${po.label}</span>`);
+    }
+  }
+  (interests.hobbies||[]).forEach(h=>{
+    const ho = HOBBY_OPTIONS.find(o=>o.key===h);
+    if (!ho) return;
+    const match = !isMe && (myInterests.hobbies||[]).includes(h);
+    parts.push(`<span class="tag ${match?'tag-match':''}">${hobbyLabel(ho,gender)}</span>`);
+  });
+  if (!parts.length) return '';
+  return `<div class="profile-tags" style="flex-wrap:wrap;margin-top:0;">${parts.join('')}</div>`;
+}
 function renderProfileDetail(user){
   document.getElementById('profileDetailTitle').textContent = `${user.nickname}님의 프로필`;
   const hasPhotos = user.photos && user.photos.length;
@@ -2769,6 +2818,7 @@ function renderProfileDetail(user){
         </div>
       </div>
       <div class="profile-tags"><span class="tag">${user.region}</span><span class="tag">${user.gender==='female'?'여성':'남성'}</span><span class="tag">${user.age}세</span></div>
+      ${buildInterestTagsHtml(user)}
       <div class="profile-bio-box">${escapeHtml(user.bio||'등록된 자기소개가 없습니다.')}</div>
       ${isMe?'':`<button class="btn ${isFollowing?'btn-secondary':'btn-primary'} btn-block" style="margin-bottom:8px;${isFollowing?'color:var(--primary);':''}" onclick="toggleFollowUser('${user.id}')"><i class="fa-solid fa-user${isFollowing?'-check':'-plus'}"></i> ${isFollowing?'팔로잉':'팔로우'}</button>`}
       ${isMe?'':'<button class="btn btn-primary btn-block" onclick="openMessageComposeScreen()"><i class="fa-solid fa-comments"></i> 메시지 보내기</button>'}
@@ -3140,7 +3190,7 @@ function renderChatRoomList(){
       <div class="chat-row-delete" onclick="deleteRoomFromList('${room.roomId}')"><i class="fa-solid fa-trash-can"></i></div>
       <div class="chat-row-mute" onclick="toggleChatMuteFromList('${room.roomId}', this)"><i class="fa-solid ${room.muted?'fa-bell-slash':'fa-bell'}"></i></div>
       <div class="chat-row-fg" data-roomid="${room.roomId}">
-        ${avatarHtmlFor(target,'avatar-sm')}
+        <span onclick="event.stopPropagation();openProfileDetailScreen('${target.id}')" style="cursor:pointer;display:inline-block;">${avatarHtmlFor(target,'avatar-sm')}</span>
         <div class="chat-row-text">
           <div class="chat-row-nick">${escapeHtml(target.nickname||'')}</div>
           <div class="chat-row-last">${escapeHtml(lastPreview)}</div>
@@ -3219,7 +3269,7 @@ function onGroupSearchInput(value){
         const target = r.targetUser || {};
         const wrap = document.createElement('div'); wrap.className='chat-row-wrap';
         wrap.innerHTML = `<div class="chat-row-fg">
-          ${avatarHtmlFor(target,'avatar-sm')}
+          <span onclick="event.stopPropagation();openProfileDetailScreen('${target.id}')" style="cursor:pointer;display:inline-block;">${avatarHtmlFor(target,'avatar-sm')}</span>
           <div class="chat-row-text"><div class="chat-row-nick">${escapeHtml(target.nickname||'')}</div></div>
         </div>`;
         wrap.querySelector('.chat-row-fg').addEventListener('click', ()=>{ clearGroupSearch(); openChatModal(r.roomId, target, r.messages); });
@@ -4080,6 +4130,65 @@ document.getElementById('btnCompleteAd').onclick = ()=>{
 };
 document.getElementById('btnCloseAd').onclick = ()=>closeModal('adModal');
 
+/* ===================== 관심사(MBTI/목적/취미) ===================== */
+const MBTI_TYPES = ['INTJ','INTP','ENTJ','ENTP','INFJ','INFP','ENFJ','ENFP','ISTJ','ISFJ','ESTJ','ESFJ','ISTP','ISFP','ESTP','ESFP'];
+const PURPOSE_OPTIONS = [
+  {key:'light', label:'가볍게 만날 사람'},
+  {key:'contact', label:'연락만 할 사람'},
+  {key:'serious', label:'진지하게 만날 사람'}
+];
+const HOBBY_OPTIONS = [
+  {key:'sports', label:'스포츠'},
+  {key:'activity', label:'액티비티'},
+  {key:'homebody', label:{female:'집순이', male:'집돌이'}},
+  {key:'netflix', label:'넷플 몰아보기'},
+  {key:'game', label:'게임'},
+  {key:'travel', label:'여행'},
+  {key:'food', label:'맛집 탐방'},
+  {key:'cafe', label:'카페 투어'},
+  {key:'reading', label:'독서'},
+  {key:'pet', label:'반려동물'},
+  {key:'fitness', label:'헬스/운동'},
+  {key:'music', label:'음악감상'},
+  {key:'cooking', label:'요리'},
+  {key:'photo', label:'사진/영상'}
+];
+function hobbyLabel(opt, gender){ return typeof opt.label==='object' ? (opt.label[gender==='male'?'male':'female']) : opt.label; }
+// 설정화면의 관심사 아코디언(MBTI/목적/취미) 태그를 현재 내 선택 상태에 맞춰 다시 그림
+function renderInterestSettingsUI(){
+  if (!currentUser) return;
+  const interests = currentUser.interests || {};
+  const gender = currentUser.gender || 'female';
+  document.getElementById('mbtiTagList').innerHTML = MBTI_TYPES.map(t=>
+    `<span class="tag interest-select-tag ${interests.mbti===t?'selected':''}" onclick="toggleMbtiInterest('${t}')">${t}</span>`
+  ).join('');
+  document.getElementById('purposeTagList').innerHTML = PURPOSE_OPTIONS.map(o=>
+    `<span class="tag interest-select-tag ${interests.purpose===o.key?'selected':''}" onclick="togglePurposeInterest('${o.key}')">${o.label}</span>`
+  ).join('');
+  document.getElementById('hobbyTagList').innerHTML = HOBBY_OPTIONS.map(o=>
+    `<span class="tag interest-select-tag ${(interests.hobbies||[]).includes(o.key)?'selected':''}" onclick="toggleHobbyInterest('${o.key}')">${hobbyLabel(o,gender)}</span>`
+  ).join('');
+}
+// 관심사는 다른 알림 키워드처럼 선택 즉시 서버에 저장됨(설정화면의 '저장' 버튼과 무관)
+function saveInterestsField(next){
+  socket.emit('profile:update', { interests: next }, (res)=>{
+    if (res && res.success){ currentUser = res.user; saveSession(); renderInterestSettingsUI(); }
+  });
+}
+function toggleMbtiInterest(t){
+  const cur = currentUser.interests || {};
+  saveInterestsField({ ...cur, mbti: cur.mbti===t ? null : t });
+}
+function togglePurposeInterest(k){
+  const cur = currentUser.interests || {};
+  saveInterestsField({ ...cur, purpose: cur.purpose===k ? null : k });
+}
+function toggleHobbyInterest(k){
+  const cur = currentUser.interests || {};
+  const hobbies = cur.hobbies || [];
+  const nextHobbies = hobbies.includes(k) ? hobbies.filter(h=>h!==k) : [...hobbies, k];
+  saveInterestsField({ ...cur, hobbies: nextHobbies });
+}
 /* ===================== 설정 화면 ===================== */
 function openSettingsScreen(){
   settingsDraft = getEffectiveSettings();
@@ -4093,6 +4202,7 @@ function openSettingsScreen(){
   document.getElementById('fontFamilySelect').value = settingsDraft.fontFamily;
   document.getElementById('blockedCountLabel').textContent = (currentUser && currentUser.blockedUserIds ? currentUser.blockedUserIds.length : 0) + '명';
   renderKeywordTags();
+  renderInterestSettingsUI();
   document.getElementById('adminModeRow').style.display = (currentUser && currentUser.isAdmin) ? 'flex' : 'none';
   document.getElementById('toggleAdminMode').classList.remove('on');
   openFullScreen('settingsScreen');
@@ -4129,7 +4239,7 @@ function removeNotifyKeyword(encoded){
 }
 // 설정화면 섹션(알림/계정/화면/정보)을 아코디언으로 펼치고 접음. 누른 섹션만 펼쳐지고 나머지는 자동으로 접힘
 function toggleSettingsAccordion(id){
-  const allIds = ['acc-notify','acc-account','acc-display','acc-info'];
+  const allIds = ['acc-notify','acc-account','acc-display','acc-info','acc-interest'];
   const body = document.getElementById(id);
   const willOpen = body && !body.classList.contains('open');
   allIds.forEach(aid=>{
