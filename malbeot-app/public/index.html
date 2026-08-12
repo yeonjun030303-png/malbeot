@@ -75,6 +75,10 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 .tag-match{background:var(--primary)!important;color:#fff!important;font-weight:800;}
 .interest-select-tag{cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .interest-select-tag.selected{background:var(--primary);color:#fff;font-weight:700;}
+.interest-subacc-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.interest-subacc-header .interest-subacc-arrow{font-size:11px;color:var(--text-muted);transition:transform .2s;}
+.interest-subacc-header .interest-subacc-arrow.open{transform:rotate(180deg);}
+.interest-subacc-current{color:var(--primary);font-weight:700;font-size:12px;margin-left:4px;}
 
 .post-row{padding:14px 4px;border-bottom:1px solid var(--border-color);cursor:pointer;}
 .post-row-top{display:flex;align-items:center;gap:8px;}
@@ -961,12 +965,18 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       </div>
       <div class="settings-accordion-body" id="acc-interest">
       <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
-        <div class="sli-label" style="margin-bottom:8px;">MBTI</div>
-        <div id="mbtiTagList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        <div class="sli-label interest-subacc-header" onclick="toggleInterestSubAcc('mbti')">
+          <span>MBTI<span class="interest-subacc-current" id="mbtiCurrentLabel"></span></span>
+          <i class="fa-solid fa-chevron-down interest-subacc-arrow" id="mbtiSubAccArrow"></i>
+        </div>
+        <div id="mbtiTagList" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
       </div>
       <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
-        <div class="sli-label" style="margin-bottom:8px;">목적</div>
-        <div id="purposeTagList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        <div class="sli-label interest-subacc-header" onclick="toggleInterestSubAcc('purpose')">
+          <span>목적<span class="interest-subacc-current" id="purposeCurrentLabel"></span></span>
+          <i class="fa-solid fa-chevron-down interest-subacc-arrow" id="purposeSubAccArrow"></i>
+        </div>
+        <div id="purposeTagList" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
       </div>
       <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
         <div class="sli-label" style="margin-bottom:8px;">취미 (여러 개 선택 가능)</div>
@@ -4154,20 +4164,42 @@ const HOBBY_OPTIONS = [
   {key:'photo', label:'사진/영상'}
 ];
 function hobbyLabel(opt, gender){ return typeof opt.label==='object' ? (opt.label[gender==='male'?'male':'female']) : opt.label; }
-// 설정화면의 관심사 아코디언(MBTI/목적/취미) 태그를 현재 내 선택 상태에 맞춰 다시 그림
+// MBTI/목적 하위 아코디언은 기본으로 접혀있고, 항목을 고르면 자동으로 다시 접힘(수동으로 접는 게 아님)
+const interestSubAccOpen = { mbti:false, purpose:false };
+function toggleInterestSubAcc(cat){
+  interestSubAccOpen[cat] = !interestSubAccOpen[cat];
+  renderInterestSettingsUI();
+}
+// 설정화면의 관심사 아코디언(MBTI/목적/취미) 태그를 현재 내 선택 상태 + 하위 아코디언 열림 상태에 맞춰 다시 그림
 function renderInterestSettingsUI(){
   if (!currentUser) return;
   const interests = currentUser.interests || {};
   const gender = currentUser.gender || 'female';
-  document.getElementById('mbtiTagList').innerHTML = MBTI_TYPES.map(t=>
-    `<span class="tag interest-select-tag ${interests.mbti===t?'selected':''}" onclick="toggleMbtiInterest('${t}')">${t}</span>`
-  ).join('');
-  document.getElementById('purposeTagList').innerHTML = PURPOSE_OPTIONS.map(o=>
-    `<span class="tag interest-select-tag ${interests.purpose===o.key?'selected':''}" onclick="togglePurposeInterest('${o.key}')">${o.label}</span>`
-  ).join('');
-  document.getElementById('hobbyTagList').innerHTML = HOBBY_OPTIONS.map(o=>
-    `<span class="tag interest-select-tag ${(interests.hobbies||[]).includes(o.key)?'selected':''}" onclick="toggleHobbyInterest('${o.key}')">${hobbyLabel(o,gender)}</span>`
-  ).join('');
+
+  document.getElementById('mbtiCurrentLabel').textContent = interests.mbti || '선택 안 함';
+  document.getElementById('mbtiTagList').style.display = interestSubAccOpen.mbti ? 'flex' : 'none';
+  document.getElementById('mbtiSubAccArrow').classList.toggle('open', interestSubAccOpen.mbti);
+  document.getElementById('mbtiTagList').innerHTML =
+    `<span class="tag interest-select-tag ${!interests.mbti?'selected':''}" onclick="toggleMbtiInterest(null)">선택 안 함</span>` +
+    MBTI_TYPES.map(t=>
+      `<span class="tag interest-select-tag ${interests.mbti===t?'selected':''}" onclick="toggleMbtiInterest('${t}')">${t}</span>`
+    ).join('');
+
+  const purposeLabel = PURPOSE_OPTIONS.find(o=>o.key===interests.purpose);
+  document.getElementById('purposeCurrentLabel').textContent = purposeLabel ? purposeLabel.label : '선택 안 함';
+  document.getElementById('purposeTagList').style.display = interestSubAccOpen.purpose ? 'flex' : 'none';
+  document.getElementById('purposeSubAccArrow').classList.toggle('open', interestSubAccOpen.purpose);
+  document.getElementById('purposeTagList').innerHTML =
+    `<span class="tag interest-select-tag ${!interests.purpose?'selected':''}" onclick="togglePurposeInterest(null)">선택 안 함</span>` +
+    PURPOSE_OPTIONS.map(o=>
+      `<span class="tag interest-select-tag ${interests.purpose===o.key?'selected':''}" onclick="togglePurposeInterest('${o.key}')">${o.label}</span>`
+    ).join('');
+
+  document.getElementById('hobbyTagList').innerHTML =
+    `<span class="tag interest-select-tag ${!(interests.hobbies&&interests.hobbies.length)?'selected':''}" onclick="clearHobbyInterests()">선택 안 함</span>` +
+    HOBBY_OPTIONS.map(o=>
+      `<span class="tag interest-select-tag ${(interests.hobbies||[]).includes(o.key)?'selected':''}" onclick="toggleHobbyInterest('${o.key}')">${hobbyLabel(o,gender)}</span>`
+    ).join('');
 }
 // 관심사는 다른 알림 키워드처럼 선택 즉시 서버에 저장됨(설정화면의 '저장' 버튼과 무관)
 function saveInterestsField(next){
@@ -4175,19 +4207,26 @@ function saveInterestsField(next){
     if (res && res.success){ currentUser = res.user; saveSession(); renderInterestSettingsUI(); }
   });
 }
+// MBTI/목적은 단일 선택 - 고르면 저장과 동시에 하위 아코디언이 자동으로 닫힘
 function toggleMbtiInterest(t){
   const cur = currentUser.interests || {};
-  saveInterestsField({ ...cur, mbti: cur.mbti===t ? null : t });
+  interestSubAccOpen.mbti = false;
+  saveInterestsField({ ...cur, mbti: t });
 }
 function togglePurposeInterest(k){
   const cur = currentUser.interests || {};
-  saveInterestsField({ ...cur, purpose: cur.purpose===k ? null : k });
+  interestSubAccOpen.purpose = false;
+  saveInterestsField({ ...cur, purpose: k });
 }
 function toggleHobbyInterest(k){
   const cur = currentUser.interests || {};
   const hobbies = cur.hobbies || [];
   const nextHobbies = hobbies.includes(k) ? hobbies.filter(h=>h!==k) : [...hobbies, k];
   saveInterestsField({ ...cur, hobbies: nextHobbies });
+}
+function clearHobbyInterests(){
+  const cur = currentUser.interests || {};
+  saveInterestsField({ ...cur, hobbies: [] });
 }
 /* ===================== 설정 화면 ===================== */
 function openSettingsScreen(){
