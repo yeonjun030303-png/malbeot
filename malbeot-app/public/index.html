@@ -2100,7 +2100,7 @@ function renderUserCards(list){
 function loadCommunityPosts(){
   socket.emit('posts:get_list', getFilterValues(communitySortType), (res)=>{
     if (!res.success) return;
-    const filtered = (res.posts||[]).filter(p => (p.logType||'story') === activeCommunityLogType);
+    const filtered = filterOutBlockedAuthors((res.posts||[]).filter(p => (p.logType||'story') === activeCommunityLogType));
     activeSearchQuery = '';
     renderPosts(filtered);
   });
@@ -2112,7 +2112,7 @@ function handleCommunitySearchInput(){
   if (!q){ loadCommunityPosts(); return; }
   socket.emit('posts:get_list', getFilterValues(communitySortType), (res)=>{
     if (!res.success) return;
-    const filtered = (res.posts||[]).filter(p => (p.logType||'story') === activeCommunityLogType);
+    const filtered = filterOutBlockedAuthors((res.posts||[]).filter(p => (p.logType||'story') === activeCommunityLogType));
     const searched = filtered.filter(p=>{
       if ((p.content||'').includes(q)) return true;
       const comments = p.comments || [];
@@ -2141,7 +2141,7 @@ function sortStories(list){
 }
 function openStoryFeed(){
   socket.emit('stories:get_feed', {}, (res)=>{
-    const stories = (res && res.stories) || [];
+    const stories = filterOutBlockedAuthors((res && res.stories) || []);
     storyState.list = stories; storyState.index = 0;
     openFullScreen('storyViewerScreen');
     renderStoryFrame();
@@ -2447,6 +2447,12 @@ function submitVote(postId, optionId){
   socket.emit('posts:vote', {postId, optionId}, (res)=>{
     if (res && res.success){ loadCommunityPosts(); if (currentPostId===postId) refreshPostDetail(); }
   });
+}
+// 내가 차단한 사용자가 작성한 글/스토리는 홈·커뮤니티·릴스 목록에서 아예 노출되지 않도록 걸러냄
+function filterOutBlockedAuthors(list){
+  const blockedIds = (currentUser && currentUser.blockedUserIds) || [];
+  if (!blockedIds.length) return list || [];
+  return (list || []).filter(p => !blockedIds.includes(p.authorId));
 }
 function renderPosts(list){
   communityPostsCache = list || [];
