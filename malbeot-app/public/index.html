@@ -140,6 +140,15 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 
 /* ---- 검색어 강조 표시 (파란 텍스트 박스) ---- */
 .search-hl{background:#4c6ef5;color:#fff;padding:1px 4px;border-radius:4px;font-weight:800;}
+/* ---- 채팅창 내 대화 검색 바 ---- */
+.chat-search-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-card);border-bottom:1px solid var(--border-color);}
+.chat-search-bar.hidden{display:none;}
+.chat-search-bar input{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:13px;color:var(--text-main);}
+.chat-search-counter{font-size:12px;color:var(--text-muted);white-space:nowrap;min-width:32px;text-align:center;}
+.chat-search-nav-btn{background:none;border:none;color:var(--text-muted);font-size:14px;padding:4px 6px;cursor:pointer;flex-shrink:0;}
+.chat-search-nav-btn:active{color:var(--primary);}
+.chat-new-msg-pill{position:absolute;left:50%;bottom:78px;transform:translateX(-50%);background:var(--primary);color:#fff;font-size:12px;font-weight:700;padding:7px 14px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.2);cursor:pointer;display:flex;align-items:center;gap:6px;z-index:5;}
+.chat-new-msg-pill.hidden{display:none;}
 .search-matched-comments{margin-top:8px;display:flex;flex-direction:column;gap:4px;}
 .search-matched-comment-line{background:var(--primary-light);border:1px solid var(--primary);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text-main);line-height:1.4;}
 body.dark-mode .search-matched-comment-line{color:var(--text-main);}
@@ -959,30 +968,6 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <div class="sli-right" id="appVersionLabel">v1.0.0</div>
       </div>
       </div>
-
-      <div class="settings-section-title settings-accordion-header" id="accHeader-acc-interest" onclick="toggleSettingsAccordion('acc-interest')">
-        <span>관심사</span><i class="fa-solid fa-chevron-down accordion-arrow"></i>
-      </div>
-      <div class="settings-accordion-body" id="acc-interest">
-      <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
-        <div class="sli-label interest-subacc-header" onclick="toggleInterestSubAcc('mbti')">
-          <span>MBTI<span class="interest-subacc-current" id="mbtiCurrentLabel"></span></span>
-          <i class="fa-solid fa-chevron-down interest-subacc-arrow" id="mbtiSubAccArrow"></i>
-        </div>
-        <div id="mbtiTagList" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
-      </div>
-      <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
-        <div class="sli-label interest-subacc-header" onclick="toggleInterestSubAcc('purpose')">
-          <span>목적<span class="interest-subacc-current" id="purposeCurrentLabel"></span></span>
-          <i class="fa-solid fa-chevron-down interest-subacc-arrow" id="purposeSubAccArrow"></i>
-        </div>
-        <div id="purposeTagList" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
-      </div>
-      <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
-        <div class="sli-label" style="margin-bottom:8px;">취미 (여러 개 선택 가능)</div>
-        <div id="hobbyTagList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
-      </div>
-      </div>
     </div>
     <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 18px;background:var(--bg-app);border-top:1px solid var(--border-color);">
       <button class="btn btn-primary btn-block" onclick="saveSettings(true)"><i class="fa-solid fa-floppy-disk"></i> 저장</button>
@@ -1098,14 +1083,24 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <span id="chatHeaderAvatarDefault" class="chat-header-avatar" style="cursor:pointer;display:none;align-items:center;justify-content:center;" onclick="openProfileFromChatHeader()"></span>
       <div class="chat-header-nick" id="chatTargetName" style="cursor:pointer;" onclick="openProfileFromChatHeader()">말벗</div>
       <div style="margin-left:auto;display:flex;gap:4px;">
+        <button class="icon-round-btn" onclick="openChatSearchBar()"><i class="fa-solid fa-magnifying-glass"></i></button>
         <button class="icon-round-btn" onclick="openBlockReportModal('chat', activeRoomId)"><i class="fa-solid fa-ellipsis"></i></button>
         <button class="icon-round-btn" style="color:var(--danger);" onclick="triggerExitChat()"><i class="fa-solid fa-right-from-bracket"></i></button>
       </div>
+    </div>
+    <div id="chatSearchBar" class="chat-search-bar hidden">
+      <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);font-size:13px;"></i>
+      <input type="text" id="chatSearchInput" placeholder="대화 내용 검색" oninput="onChatSearchInput()">
+      <span id="chatSearchCounter" class="chat-search-counter">0/0</span>
+      <button class="chat-search-nav-btn" onclick="navigateChatSearch(1)"><i class="fa-solid fa-chevron-up"></i></button>
+      <button class="chat-search-nav-btn" onclick="navigateChatSearch(-1)"><i class="fa-solid fa-chevron-down"></i></button>
+      <button class="chat-search-nav-btn" onclick="closeChatSearchBar()"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="chat-warning-banner">
       <b>성매매·성추행·성희롱</b> 등 범죄 관련 대화, <b>아동 대상 간음·성적 알선</b> 발생 시 수사기관에 신고될 수 있습니다. 사진 전송, 외부 링크 클릭, 카톡 아이디·전화번호 등 <b>개인정보 유출을 미끼로 금전을 요구</b>하는 피싱 범죄에 주의하세요.
     </div>
     <div id="chatMessageArea" class="chat-messages-area"></div>
+    <div id="chatNewMsgPill" class="chat-new-msg-pill hidden" onclick="scrollChatToBottom()"><i class="fa-solid fa-arrow-down"></i> 새 메시지</div>
     <div id="chatReplyPreviewBar" class="chat-reply-preview-bar" style="display:none;">
       <span id="chatReplyPreviewText" class="reply-preview-text"></span>
       <span class="reply-preview-close" onclick="clearReplyPreview()">✕</span>
@@ -1220,6 +1215,7 @@ let blockReportContext = null;
 let profilePhotoIndex = 0;
 let pendingSignupPhone = "";
 let activeChatTargetId = null;
+let currentChatMessages = []; // 현재 열려있는 1:1 채팅방의 메시지 배열(검색 기능용)
 let communityPostsCache = [];
 let activeCommunityLogType = 'story';
 let activeSearchQuery = '';
@@ -1715,7 +1711,13 @@ socket.on('posts:updated', ()=>{
 socket.on('chat:new_message', ({roomId, message, senderNickname})=>{
   const isMine = currentUser && message.senderId === currentUser.id;
   if (activeRoomId === roomId) {
+    currentChatMessages.push(message);
+    const area = document.getElementById('chatMessageArea');
     appendChatBubble(message);
+    if (!isMine && message.senderId !== 'system' && area && (area.scrollHeight - area.scrollTop - area.clientHeight >= 120)){
+      // 스크롤을 올려 옛 메시지(검색결과 등)를 보고 있는 중에도 새 메시지 도착을 알 수 있게 하단에 알림 pill을 띄움
+      document.getElementById('chatNewMsgPill').classList.remove('hidden');
+    }
     if (!isMine && message.senderId !== 'system') socket.emit('chat:mark_read', {roomId});
   } else if (message.senderId !== 'system' && !isMine && getEffectiveSettings().notifyChat && !mutedChatRoomIds.has(roomId)) {
     const preview = message.type === 'image' ? '(사진)' : (message.text || '');
@@ -1893,6 +1895,17 @@ window.addEventListener('popstate', ()=>{
     const el = uiBackStack[uiBackStack.length - 1];
     el.classList.remove('active');
     setTimeout(()=>{ uiPopping = false; }, 0);
+  }
+});
+// 백스페이스 키: 입력창(텍스트/입력)에 포커스가 없을 때 누르면 기기 뒤로가기와 동일하게 현재 열린 화면/모달을 닫음
+document.addEventListener('keydown', (e)=>{
+  if (e.key !== 'Backspace') return;
+  const tag = document.activeElement ? document.activeElement.tagName : '';
+  const isEditable = tag==='INPUT' || tag==='TEXTAREA' || (document.activeElement && document.activeElement.isContentEditable);
+  if (isEditable) return; // 입력창 안에서는 원래대로 글자 삭제
+  if (uiBackStack.length > 0){
+    e.preventDefault();
+    try{ history.back(); }catch(err){}
   }
 });
 
@@ -2829,6 +2842,7 @@ function renderProfileDetail(user){
       </div>
       <div class="profile-tags"><span class="tag">${user.region}</span><span class="tag">${user.gender==='female'?'여성':'남성'}</span><span class="tag">${user.age}세</span></div>
       ${buildInterestTagsHtml(user)}
+      ${isMe ? buildMyInterestEditorHtml() : ''}
       <div class="profile-bio-box">${escapeHtml(user.bio||'등록된 자기소개가 없습니다.')}</div>
       ${isMe?'':`<button class="btn ${isFollowing?'btn-secondary':'btn-primary'} btn-block" style="margin-bottom:8px;${isFollowing?'color:var(--primary);':''}" onclick="toggleFollowUser('${user.id}')"><i class="fa-solid fa-user${isFollowing?'-check':'-plus'}"></i> ${isFollowing?'팔로잉':'팔로우'}</button>`}
       ${isMe?'':'<button class="btn btn-primary btn-block" onclick="openMessageComposeScreen()"><i class="fa-solid fa-comments"></i> 메시지 보내기</button>'}
@@ -2848,6 +2862,7 @@ function renderProfileDetail(user){
       </div>
       <div class="profile-posts-scroll" id="profileCommentsScroll"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
     </div>`;
+  if (isMe) renderMyInterestEditorUI();
   loadProfilePostsSection(user.id);
 }
 // 팔로우/언팔로우 실제 처리 (성공 시 내 followingIds를 갱신하고 afterFn 콜백 실행)
@@ -3217,6 +3232,7 @@ function renderChatRoomList(){
   });
 }
 function leaveGroupRoomFromList(roomId){
+  closeSwipedRow();
   showMiniAlert('이 단체채팅방에서 나가시겠습니까?', [
     {label:'취소'},
     {label:'나가기', danger:true, onClick: ()=>{ socket.emit('group:leave', {roomId}, ()=>{ loadChatRoomList(); }); }}
@@ -3706,6 +3722,7 @@ function toggleChatMuteFromList(roomId, iconWrapEl){
     const icon = iconWrapEl.querySelector('i');
     icon.className = res.muted ? 'fa-solid fa-bell-slash' : 'fa-solid fa-bell';
     if (res.muted) mutedChatRoomIds.add(roomId); else mutedChatRoomIds.delete(roomId);
+    closeSwipedRow();
   });
 }
 function toggleGroupMuteFromList(roomId, iconWrapEl){
@@ -3713,9 +3730,11 @@ function toggleGroupMuteFromList(roomId, iconWrapEl){
     if (!res || !res.success) return;
     const icon = iconWrapEl.querySelector('i');
     icon.className = res.muted ? 'fa-solid fa-bell-slash' : 'fa-solid fa-bell';
+    closeSwipedRow();
   });
 }
 function deleteRoomFromList(roomId){
+  closeSwipedRow();
   showMiniAlert('이 대화방을 나가시겠습니까? 상대방에게 대화 종료가 알려집니다.', [
     {label:'취소'},
     {label:'나가기', danger:true, onClick:()=>{ socket.emit('chat:end', roomId, ()=>loadChatRoomList()); }}
@@ -3737,6 +3756,9 @@ function openChatRoomById(roomId){
 function openChatModal(roomId, target, messages){
   activeRoomId = roomId;
   activeChatTargetId = target.id;
+  currentChatMessages = (messages||[]).slice();
+  closeChatSearchBar();
+  document.getElementById('chatNewMsgPill').classList.add('hidden');
   const avatarEl = document.getElementById('chatHeaderAvatar');
   const avatarDefaultEl = document.getElementById('chatHeaderAvatarDefault');
   if (target.photos && target.photos[0]) {
@@ -3771,6 +3793,7 @@ function closeChatModal(){
   closeModal('chatModal');
   activeRoomId = null;
   activeChatTargetId = null;
+  closeChatSearchBar();
 }
 function openProfileFromChatHeader(){
   if (!activeChatTargetId) return;
@@ -3778,8 +3801,104 @@ function openProfileFromChatHeader(){
   closeChatModal();
   openProfileDetailScreen(targetId);
 }
+/* ===================== 채팅창 내 대화 검색 =====================
+   돋보기 버튼으로 검색바를 열고, 검색어를 입력하면 최신 메시지부터 1/N 순번을 매김.
+   위쪽 화살표=더 과거 매치로, 아래쪽 화살표=더 최신 매치로 이동(끝에서 순환).
+   매치로 이동하면 해당 메시지 말풍선의 텍스트를 파란 박스(.search-hl)로 강조하고, X를 누르면
+   검색만 취소되고(강조 제거) 스크롤 위치는 그대로 유지됨. */
+let chatSearchQuery = '';
+let chatSearchMatches = [];
+let chatSearchIndex = -1;
+let chatSearchHighlightEl = null;
+let chatSearchHighlightOriginalHtml = null;
+function openChatSearchBar(){
+  const bar = document.getElementById('chatSearchBar');
+  if (!bar) return;
+  bar.classList.remove('hidden');
+  const input = document.getElementById('chatSearchInput');
+  input.value = '';
+  input.focus();
+  chatSearchQuery = ''; chatSearchMatches = []; chatSearchIndex = -1;
+  document.getElementById('chatSearchCounter').textContent = '0/0';
+}
+function closeChatSearchBar(){
+  const bar = document.getElementById('chatSearchBar');
+  if (bar) bar.classList.add('hidden');
+  restoreChatSearchHighlight();
+  chatSearchQuery = ''; chatSearchMatches = []; chatSearchIndex = -1;
+  const input = document.getElementById('chatSearchInput');
+  if (input) input.value = '';
+  const counter = document.getElementById('chatSearchCounter');
+  if (counter) counter.textContent = '0/0';
+}
+function restoreChatSearchHighlight(){
+  if (chatSearchHighlightEl && chatSearchHighlightOriginalHtml !== null){
+    chatSearchHighlightEl.innerHTML = chatSearchHighlightOriginalHtml;
+  }
+  chatSearchHighlightEl = null;
+  chatSearchHighlightOriginalHtml = null;
+}
+function onChatSearchInput(){
+  const q = document.getElementById('chatSearchInput').value.trim();
+  chatSearchQuery = q;
+  restoreChatSearchHighlight();
+  if (!q){
+    chatSearchMatches = []; chatSearchIndex = -1;
+    document.getElementById('chatSearchCounter').textContent = '0/0';
+    return;
+  }
+  // currentChatMessages는 오래된 순으로 저장돼있어서, 뒤집으면 배열 0번=가장 최신 매치가 됨(=1/N)
+  chatSearchMatches = currentChatMessages
+    .filter(m => m.id && !m.deletedForEveryone && m.type!=='image' && m.text && m.text.includes(q))
+    .slice().reverse();
+  if (!chatSearchMatches.length){
+    chatSearchIndex = -1;
+    document.getElementById('chatSearchCounter').textContent = '0/0';
+    return;
+  }
+  chatSearchIndex = 0;
+  goToChatSearchMatch();
+}
+// dir=1(위 화살표)=더 과거 매치로 다음칸 이동, dir=-1(아래 화살표)=더 최신 매치로 이동. 끝에서 순환됨
+function navigateChatSearch(dir){
+  if (!chatSearchMatches.length) return;
+  chatSearchIndex = (chatSearchIndex + dir + chatSearchMatches.length) % chatSearchMatches.length;
+  goToChatSearchMatch();
+}
+function scrollChatToBottom(){
+  const area = document.getElementById('chatMessageArea');
+  if (area) area.scrollTop = area.scrollHeight;
+  const pill = document.getElementById('chatNewMsgPill');
+  if (pill) pill.classList.add('hidden');
+}
+(function initChatScrollPillListener(){
+  const area = document.getElementById('chatMessageArea');
+  if (!area) return;
+  area.addEventListener('scroll', ()=>{
+    if (area.scrollHeight - area.scrollTop - area.clientHeight < 40){
+      document.getElementById('chatNewMsgPill').classList.add('hidden');
+    }
+  });
+})();
+function goToChatSearchMatch(){
+  restoreChatSearchHighlight();
+  const m = chatSearchMatches[chatSearchIndex];
+  document.getElementById('chatSearchCounter').textContent = `${chatSearchIndex+1}/${chatSearchMatches.length}`;
+  if (!m) return;
+  const row = document.querySelector(`#chatMessageArea .msg-row[data-msgid="${m.id}"]`);
+  if (!row) return;
+  row.scrollIntoView({block:'center', behavior:'smooth'});
+  const bubble = row.querySelector('.msg-bubble');
+  if (bubble){
+    chatSearchHighlightEl = bubble;
+    chatSearchHighlightOriginalHtml = bubble.innerHTML;
+    const quoteHtml = m.replyTo ? `<div class="msg-reply-quote">${escapeHtml(m.replyTo.preview||'')}</div>` : '';
+    bubble.innerHTML = quoteHtml + (m.forwarded?'<div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">전달된 메시지</div>':'') + highlightMatch(m.text, chatSearchQuery);
+  }
+}
 function appendChatBubble(m, checkDate=true){
   const area = document.getElementById('chatMessageArea');
+  const wasNearBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 120;
   if (checkDate && m.timestamp){
     const dateStr = new Date(m.timestamp).toDateString();
     if (dateStr !== area.dataset.lastDate){ const sep=document.createElement('div'); sep.className='chat-date-sep'; sep.textContent=formatDateSep(m.timestamp); area.appendChild(sep); area.dataset.lastDate=dateStr; }
@@ -3804,7 +3923,8 @@ function appendChatBubble(m, checkDate=true){
   if (isMine){ const st=document.createElement('span'); st.className='msg-status'; st.textContent = m.read?'읽음':'전송됨'; timeRow.appendChild(st); }
   row.appendChild(timeRow);
   area.appendChild(row);
-  area.scrollTop = area.scrollHeight;
+  // 스크롤을 올려 옛 메시지를 보고 있을 때는 화면을 강제로 내리지 않음(대신 새 메시지 pill로 알림). 하단 근처거나 내가 보낸 메시지면 그대로 따라 내려감
+  if (wasNearBottom || isMine){ area.scrollTop = area.scrollHeight; }
   if (m.id && !m.deletedForEveryone) attachMsgLongPress(bubble, m);
 }
 
@@ -4166,45 +4286,73 @@ const HOBBY_OPTIONS = [
 function hobbyLabel(opt, gender){ return typeof opt.label==='object' ? (opt.label[gender==='male'?'male':'female']) : opt.label; }
 // MBTI/목적 하위 아코디언은 기본으로 접혀있고, 항목을 고르면 자동으로 다시 접힘(수동으로 접는 게 아님)
 const interestSubAccOpen = { mbti:false, purpose:false };
+// 관심사 편집 UI는 설정화면이 아니라 "나만의 페이지"(본인 프로필 화면)에만 노출됨. 옆에 작은 로고(스파클 아이콘)로 꾸밈
+function buildMyInterestEditorHtml(){
+  return `
+    <div class="settings-section-title" style="margin-top:14px;display:flex;align-items:center;gap:6px;padding:0;">
+      <i class="fa-solid fa-wand-magic-sparkles" style="color:var(--primary);font-size:13px;"></i><span>관심사</span>
+    </div>
+    <div style="background:var(--bg-subtle);border-radius:10px;padding:10px 12px;margin-top:6px;">
+      <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;padding:8px 0;">
+        <div class="sli-label interest-subacc-header" onclick="toggleInterestSubAcc('mbti')">
+          <span>MBTI<span class="interest-subacc-current" id="myMbtiCurrentLabel"></span></span>
+          <i class="fa-solid fa-chevron-down interest-subacc-arrow" id="myMbtiSubAccArrow"></i>
+        </div>
+        <div id="myMbtiTagList" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
+      </div>
+      <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;padding:8px 0;">
+        <div class="sli-label interest-subacc-header" onclick="toggleInterestSubAcc('purpose')">
+          <span>목적<span class="interest-subacc-current" id="myPurposeCurrentLabel"></span></span>
+          <i class="fa-solid fa-chevron-down interest-subacc-arrow" id="myPurposeSubAccArrow"></i>
+        </div>
+        <div id="myPurposeTagList" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
+      </div>
+      <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;padding:8px 0;">
+        <div class="sli-label" style="margin-bottom:8px;">취미 (여러 개 선택 가능)</div>
+        <div id="myHobbyTagList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+    </div>`;
+}
 function toggleInterestSubAcc(cat){
   interestSubAccOpen[cat] = !interestSubAccOpen[cat];
-  renderInterestSettingsUI();
+  renderMyInterestEditorUI();
 }
-// 설정화면의 관심사 아코디언(MBTI/목적/취미) 태그를 현재 내 선택 상태 + 하위 아코디언 열림 상태에 맞춰 다시 그림
-function renderInterestSettingsUI(){
+// 나만의 페이지의 관심사 아코디언(MBTI/목적/취미) 태그를 현재 내 선택 상태 + 하위 아코디언 열림 상태에 맞춰 다시 그림
+function renderMyInterestEditorUI(){
   if (!currentUser) return;
+  if (!document.getElementById('myMbtiCurrentLabel')) return; // 나만의 페이지가 열려있지 않으면 스킵
   const interests = currentUser.interests || {};
   const gender = currentUser.gender || 'female';
 
-  document.getElementById('mbtiCurrentLabel').textContent = interests.mbti || '선택 안 함';
-  document.getElementById('mbtiTagList').style.display = interestSubAccOpen.mbti ? 'flex' : 'none';
-  document.getElementById('mbtiSubAccArrow').classList.toggle('open', interestSubAccOpen.mbti);
-  document.getElementById('mbtiTagList').innerHTML =
+  document.getElementById('myMbtiCurrentLabel').textContent = interests.mbti || '선택 안 함';
+  document.getElementById('myMbtiTagList').style.display = interestSubAccOpen.mbti ? 'flex' : 'none';
+  document.getElementById('myMbtiSubAccArrow').classList.toggle('open', interestSubAccOpen.mbti);
+  document.getElementById('myMbtiTagList').innerHTML =
     `<span class="tag interest-select-tag ${!interests.mbti?'selected':''}" onclick="toggleMbtiInterest(null)">선택 안 함</span>` +
     MBTI_TYPES.map(t=>
       `<span class="tag interest-select-tag ${interests.mbti===t?'selected':''}" onclick="toggleMbtiInterest('${t}')">${t}</span>`
     ).join('');
 
   const purposeLabel = PURPOSE_OPTIONS.find(o=>o.key===interests.purpose);
-  document.getElementById('purposeCurrentLabel').textContent = purposeLabel ? purposeLabel.label : '선택 안 함';
-  document.getElementById('purposeTagList').style.display = interestSubAccOpen.purpose ? 'flex' : 'none';
-  document.getElementById('purposeSubAccArrow').classList.toggle('open', interestSubAccOpen.purpose);
-  document.getElementById('purposeTagList').innerHTML =
+  document.getElementById('myPurposeCurrentLabel').textContent = purposeLabel ? purposeLabel.label : '선택 안 함';
+  document.getElementById('myPurposeTagList').style.display = interestSubAccOpen.purpose ? 'flex' : 'none';
+  document.getElementById('myPurposeSubAccArrow').classList.toggle('open', interestSubAccOpen.purpose);
+  document.getElementById('myPurposeTagList').innerHTML =
     `<span class="tag interest-select-tag ${!interests.purpose?'selected':''}" onclick="togglePurposeInterest(null)">선택 안 함</span>` +
     PURPOSE_OPTIONS.map(o=>
       `<span class="tag interest-select-tag ${interests.purpose===o.key?'selected':''}" onclick="togglePurposeInterest('${o.key}')">${o.label}</span>`
     ).join('');
 
-  document.getElementById('hobbyTagList').innerHTML =
+  document.getElementById('myHobbyTagList').innerHTML =
     `<span class="tag interest-select-tag ${!(interests.hobbies&&interests.hobbies.length)?'selected':''}" onclick="clearHobbyInterests()">선택 안 함</span>` +
     HOBBY_OPTIONS.map(o=>
       `<span class="tag interest-select-tag ${(interests.hobbies||[]).includes(o.key)?'selected':''}" onclick="toggleHobbyInterest('${o.key}')">${hobbyLabel(o,gender)}</span>`
     ).join('');
 }
-// 관심사는 다른 알림 키워드처럼 선택 즉시 서버에 저장됨(설정화면의 '저장' 버튼과 무관)
+// 관심사는 다른 알림 키워드처럼 선택 즉시 서버에 저장됨
 function saveInterestsField(next){
   socket.emit('profile:update', { interests: next }, (res)=>{
-    if (res && res.success){ currentUser = res.user; saveSession(); renderInterestSettingsUI(); }
+    if (res && res.success){ currentUser = res.user; saveSession(); renderMyInterestEditorUI(); }
   });
 }
 // MBTI/목적은 단일 선택 - 고르면 저장과 동시에 하위 아코디언이 자동으로 닫힘
@@ -4241,7 +4389,6 @@ function openSettingsScreen(){
   document.getElementById('fontFamilySelect').value = settingsDraft.fontFamily;
   document.getElementById('blockedCountLabel').textContent = (currentUser && currentUser.blockedUserIds ? currentUser.blockedUserIds.length : 0) + '명';
   renderKeywordTags();
-  renderInterestSettingsUI();
   document.getElementById('adminModeRow').style.display = (currentUser && currentUser.isAdmin) ? 'flex' : 'none';
   document.getElementById('toggleAdminMode').classList.remove('on');
   openFullScreen('settingsScreen');
@@ -4278,7 +4425,7 @@ function removeNotifyKeyword(encoded){
 }
 // 설정화면 섹션(알림/계정/화면/정보)을 아코디언으로 펼치고 접음. 누른 섹션만 펼쳐지고 나머지는 자동으로 접힘
 function toggleSettingsAccordion(id){
-  const allIds = ['acc-notify','acc-account','acc-display','acc-info','acc-interest'];
+  const allIds = ['acc-notify','acc-account','acc-display','acc-info'];
   const body = document.getElementById(id);
   const willOpen = body && !body.classList.contains('open');
   allIds.forEach(aid=>{
