@@ -143,6 +143,7 @@ body.dark-mode .search-matched-comment-line{color:var(--text-main);}
 .profile-photo-dots{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:center;gap:6px;}
 .profile-photo-dots span{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5);}
 .profile-photo-dots span.active{background:#fff;}
+.photo-like-btn{position:absolute;right:12px;bottom:14px;background:rgba(0,0,0,.45);color:#fff;border:none;border-radius:99px;padding:7px 12px;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer;}
 .profile-body{padding:16px;}
 .last-seen-text{font-size:11px;color:var(--text-muted);margin-bottom:6px;}
 .profile-name{font-size:20px;font-weight:800;}
@@ -559,6 +560,11 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
               <div class="photo-position-box" id="editPhotoPositionBox"><img id="editPhotoPositionImg" src="" alt=""></div>
               <div class="photo-position-hint">사진을 드래그해서 보여줄 위치를 맞춰주세요</div>
             </div>
+          </div>
+          <div class="form-group">
+            <label>추가 사진 <span style="font-weight:400;color:var(--text-muted);">(최대 4장, 사진마다 좋아요를 받을 수 있어요)</span></label>
+            <div class="photo-slots" id="editExtraPhotoSlots" style="flex-wrap:wrap;"></div>
+            <input type="file" id="editExtraPhotoInput" accept="image/*" class="hidden" onchange="handleEditExtraPhotoUpload(event)">
           </div>
           <form id="profileForm" onsubmit="return false;">
             <div class="form-group"><label>가입한 휴대폰 번호</label><input type="text" id="editPhoneReadonly" readonly disabled style="opacity:.7;"></div>
@@ -1627,6 +1633,12 @@ socket.on('connect', ()=>{
           showMiniAlert(`오늘의 접속 보상으로 쌀 ${res.dailyRewardNotify.amount}개가 지급되었습니다!`, [{label:'확인', primary:true}]);
         }
         if (res.warningNotify){ showWarningModal(res.warningNotify.message); }
+        if (res.repPhotoSuggestNotify){
+          showMiniAlert('다른 사진이 대표사진보다 좋아요를 더 많이 받았어요! 대표사진을 바꿔보시겠어요?', [
+            {label:'나중에', primary:false},
+            {label:'프로필 편집하기', primary:true, onClick:()=>{ openSettingsScreen(); loadProfileToForm(); }}
+          ]);
+        }
       } else {
         clearSession();
         resetToLandingScreen();
@@ -1650,6 +1662,14 @@ socket.on('reward:vote_winner', ({amount, points})=>{
 socket.on('account:warned', (data)=>{
   if (!currentUser) return;
   showWarningModal(data && data.message);
+});
+// 대표사진이 아닌 다른 사진이 좋아요를 더 많이 받았을 때 평생 1회만 뜨는 제안 알림
+socket.on('account:rep_photo_suggest', (data)=>{
+  if (!currentUser) return;
+  showMiniAlert('다른 사진이 대표사진보다 좋아요를 더 많이 받았어요! 대표사진을 바꿔보시겠어요?', [
+    {label:'나중에', primary:false},
+    {label:'프로필 편집하기', primary:true, onClick:()=>{ openSettingsScreen(); loadProfileToForm(); }}
+  ]);
 });
 socket.on('posts:updated', ()=>{
   loadCommunityPosts();
@@ -1730,6 +1750,12 @@ function startKakaoLogin(){
           showMiniAlert(`오늘의 접속 보상으로 쌀 ${res.dailyRewardNotify.amount}개가 지급되었습니다!`, [{label:'확인', primary:true}]);
         }
         if (res.warningNotify){ showWarningModal(res.warningNotify.message); }
+        if (res.repPhotoSuggestNotify){
+          showMiniAlert('다른 사진이 대표사진보다 좋아요를 더 많이 받았어요! 대표사진을 바꿔보시겠어요?', [
+            {label:'나중에', primary:false},
+            {label:'프로필 편집하기', primary:true, onClick:()=>{ openSettingsScreen(); loadProfileToForm(); }}
+          ]);
+        }
       } else if (res.needProfile){
         pendingKakaoToken = res.pendingToken;
         closeModal('landingScreen');
@@ -2701,11 +2727,25 @@ function refreshOpenProfileIfNeeded(){
   });
 }
 function closeProfileDetailScreen(){ closeFullScreen('profileDetailScreen'); }
+function changeProfilePhoto(i){ profilePhotoIndex = i; if (currentProfileUserCache) renderProfileDetail(currentProfileUserCache); }
+function toggleProfilePhotoLike(targetUserId, photoIndex){
+  socket.emit('photo:like', {targetUserId, photoIndex}, (res)=>{
+    if (!res || !res.success || !currentProfileUserCache) return;
+    if (!currentProfileUserCache.photoLikes) currentProfileUserCache.photoLikes = {};
+    if (!currentProfileUserCache.photoLikes[photoIndex]) currentProfileUserCache.photoLikes[photoIndex] = {};
+    if (res.liked) currentProfileUserCache.photoLikes[photoIndex][currentUser.id] = true;
+    else delete currentProfileUserCache.photoLikes[photoIndex][currentUser.id];
+    renderProfileDetail(currentProfileUserCache);
+  });
+}
 function renderProfileDetail(user){
   document.getElementById('profileDetailTitle').textContent = `${user.nickname}님의 프로필`;
   const hasPhotos = user.photos && user.photos.length;
   const photos = hasPhotos ? user.photos : [null];
-  const dots = photos.map((_,i)=>`<span class="${i===profilePhotoIndex?'active':''}"></span>`).join('');
+  const dots = photos.map((_,i)=>`<span class="${i===profilePhotoIndex?'active':''}" style="cursor:pointer;" onclick="changeProfilePhoto(${i})"></span>`).join('');
+  const myPhotoLikes = (user.photoLikes && user.photoLikes[profilePhotoIndex]) || {};
+  const photoLikeCount = Object.keys(myPhotoLikes).length;
+  const iLikedThisPhoto = currentUser && !!myPhotoLikes[currentUser.id];
   const isMe = currentUser && user.id===currentUser.id;
   const isFollowing = currentUser && (currentUser.followingIds||[]).includes(user.id);
   const followerCount = (user.followerIds||[]).length;
@@ -2717,6 +2757,7 @@ function renderProfileDetail(user){
     <div class="profile-photo-wrap" style="display:flex;align-items:center;justify-content:center;background:${user.gender==='female'?'var(--pink-light)':'var(--blue-light)'};">
       ${photoContent}
       ${photos.length>1?`<div class="profile-photo-dots">${dots}</div>`:''}
+      ${(!isMe && hasPhotos)?`<button class="photo-like-btn" onclick="toggleProfilePhotoLike('${user.id}', ${profilePhotoIndex})"><i class="fa-${iLikedThisPhoto?'solid':'regular'} fa-heart" style="color:${iLikedThisPhoto?'#ff4d6d':'#fff'};"></i> <span>${photoLikeCount}</span></button>`:''}
     </div>
     <div class="profile-body">
       <div class="last-seen-text">${formatLastSeen(user.lastSeen, user.isOnline)}</div>
@@ -3941,6 +3982,29 @@ function setupPhotoPositionDrag(){
   box.addEventListener('pointercancel', ()=>{ dragging=false; });
 }
 setupPhotoPositionDrag();
+const EXTRA_PHOTO_MAX = 4;
+let editExtraPhotos = [];
+function renderExtraPhotoSlots(){
+  const wrap = document.getElementById('editExtraPhotoSlots');
+  let html = editExtraPhotos.map((src,i)=>`
+    <div class="photo-slot" style="flex:0 0 68px;width:68px;height:68px;">
+      <img src="${src}" class="photo-preview">
+      <span onclick="event.stopPropagation();removeExtraPhoto(${i})" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.55);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;"><i class="fa-solid fa-xmark"></i></span>
+    </div>`).join('');
+  if (editExtraPhotos.length < EXTRA_PHOTO_MAX){
+    html += `<div class="photo-slot" style="flex:0 0 68px;width:68px;height:68px;" onclick="document.getElementById('editExtraPhotoInput').click()"><span><i class="fa-solid fa-plus"></i></span></div>`;
+  }
+  wrap.innerHTML = html;
+}
+function removeExtraPhoto(i){ editExtraPhotos.splice(i,1); renderExtraPhotoSlots(); }
+async function handleEditExtraPhotoUpload(e){
+  const file = e.target.files[0]; if (!file) return;
+  if (editExtraPhotos.length >= EXTRA_PHOTO_MAX) { e.target.value=''; return; }
+  const b64 = await compressImageFile(file);
+  editExtraPhotos.push(b64);
+  renderExtraPhotoSlots();
+  e.target.value = '';
+}
 function loadProfileToForm(){
   if (!currentUser) return;
   document.getElementById('editNickname').value = currentUser.nickname;
@@ -3961,6 +4025,8 @@ function loadProfileToForm(){
     preview.classList.add('hidden'); document.getElementById('editPhotoPlaceholder').classList.remove('hidden');
     document.getElementById('editPhotoPositionWrap').classList.add('hidden');
   }
+  editExtraPhotos = (currentUser.photos || []).slice(1);
+  renderExtraPhotoSlots();
 }
 document.getElementById('profileForm').onsubmit = ()=>{
   const nickname = document.getElementById('editNickname').value.trim();
@@ -3974,7 +4040,7 @@ function submitProfileUpdate(confirmed){
     gender: document.getElementById('editGender').value,
     age: parseInt(document.getElementById('editAge').value,10),
     bio: document.getElementById('editBio').value.trim(),
-    photos: editPhotoBase64 ? [editPhotoBase64] : [],
+    photos: editPhotoBase64 ? [editPhotoBase64, ...editExtraPhotos] : [],
     photoPosition: editPhotoBase64 ? editPhotoPosition : null,
     confirmed
   };

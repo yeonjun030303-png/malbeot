@@ -281,6 +281,18 @@ async function popPendingWarningNotify(user) {
   }
   return null;
 }
+// 대표사진이 아닌 다른 사진이 좋아요를 더 많이 받으면 "대표사진을 바꿔보세요"를 딱 1회(평생)만 알려주기 위해
+// 대기시켜둔 알림을 꺼내는 함수. popPendingWarningNotify와 완전히 동일한 패턴(접속 중이면 즉시 소켓으로 보여주고
+// notified:true 처리, 오프라인이면 다음 로그인 응답에 실어서 전달).
+async function popPendingRepPhotoSuggest(user) {
+  if (user.pendingRepPhotoSuggest && !user.pendingRepPhotoSuggest.notified) {
+    const info = { photoIndex: user.pendingRepPhotoSuggest.photoIndex };
+    user.pendingRepPhotoSuggest.notified = true;
+    await saveUser(user);
+    return info;
+  }
+  return null;
+}
 
 // data URL의 mime 타입을 보고 이미지/동영상을 구분 (video/* 이면 동영상)
 function detectMediaType(dataUrl) {
@@ -710,7 +722,8 @@ io.on('connection', (socket) => {
       const token = issueSessionToken(user.id);
       const rewardNotify = await popPendingRewardNotify(user);
       const warningNotify = await popPendingWarningNotify(user);
-      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify, warningNotify, dailyRewardNotify: dailyRewardAmount ? { amount: dailyRewardAmount } : null });
+      const repPhotoSuggestNotify = await popPendingRepPhotoSuggest(user);
+      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify, warningNotify, repPhotoSuggestNotify, dailyRewardNotify: dailyRewardAmount ? { amount: dailyRewardAmount } : null });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -735,7 +748,8 @@ io.on('connection', (socket) => {
       const token = issueSessionToken(user.id); // 갱신(연장)
       const rewardNotify = await popPendingRewardNotify(user);
       const warningNotify = await popPendingWarningNotify(user);
-      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify, warningNotify, dailyRewardNotify: dailyRewardAmount ? { amount: dailyRewardAmount } : null });
+      const repPhotoSuggestNotify = await popPendingRepPhotoSuggest(user);
+      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token, rewardNotify, warningNotify, repPhotoSuggestNotify, dailyRewardNotify: dailyRewardAmount ? { amount: dailyRewardAmount } : null });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -804,7 +818,8 @@ io.on('connection', (socket) => {
         const token = issueSessionToken(existing.id);
         const rewardNotify = await popPendingRewardNotify(existing);
         const warningNotify = await popPendingWarningNotify(existing);
-        cb({ success: true, user: { ...existing, isAdmin: isAdmin(existing) }, token, rewardNotify, warningNotify, dailyRewardNotify: dailyRewardAmount ? { amount: dailyRewardAmount } : null });
+        const repPhotoSuggestNotify = await popPendingRepPhotoSuggest(existing);
+        cb({ success: true, user: { ...existing, isAdmin: isAdmin(existing) }, token, rewardNotify, warningNotify, repPhotoSuggestNotify, dailyRewardNotify: dailyRewardAmount ? { amount: dailyRewardAmount } : null });
         broadcastUsers();
         return;
       }
@@ -880,16 +895,60 @@ io.on('connection', (socket) => {
         data.nicknameFiltered = containsBannedWord(data.nickname);
       }
 
-      if (data.photos && data.photos[0]) {
-        const nsfwResult = await checkImageNsfw(data.photos[0]);
-        if (nsfwResult.isNsfw) return cb({ success: false, message: '부적절한 프로필 사진으로 감지되어 변경할 수 없습니다.' });
+      // 대표사진뿐 아니라 추가 사진까지(최대 5장) 전부 검사
+      if (data.photos && data.photos.length) {
+        for (const photoData of data.photos) {
+          if (!photoData) continue;
+          const nsfwResult = await checkImageNsfw(photoData);
+          if (nsfwResult.isNsfw) return cb({ success: false, message: '부적절한 사진이 포함되어 있어 변경할 수 없습니다.' });
+        }
       }
 
+      // 사진 구성(순서/개수)이 바뀌면 인덱스 기반 사진별 좋아요가 엉뚱한 사진을 가리킬 수 있어
+      // 안전하게 초기화함(좋아요 자체가 사라지는 게 아니라 새 구성 기준으로 다시 쌓이는 것)
+      const photosChanged = data.photos && JSON.stringify(data.photos) !== JSON.stringify(user.photos || []);
+
       Object.assign(user, data, { profileUpdatedAt: Date.now() });
+      if (photosChanged) user.photoLikes = {};
       await saveUser(user);
       cb({ success: true, user: { ...user, isAdmin: isAdmin(user) } });
       broadcastUsers();
     } catch (e) { console.error(e); cb({ success: false }); }
+  });
+  // 프로필 사진별 개별 좋아요 토글 (본인 사진은 좋아요 불가)
+  socket.on('photo:like', async (data, cb) => {
+    try {
+      const myId = socketToUser[socket.id];
+      const targetId = data && data.targetUserId;
+      const photoIndex = data && typeof data.photoIndex === 'number' ? data.photoIndex : null;
+      if (!myId || !targetId || photoIndex === null || myId === targetId) return cb && cb({ success: false });
+      const target = await getUser(targetId);
+      if (!target || !target.photos || !target.photos[photoIndex]) return cb && cb({ success: false });
+      if (!target.photoLikes) target.photoLikes = {};
+      if (!target.photoLikes[photoIndex]) target.photoLikes[photoIndex] = {};
+      const alreadyLiked = !!target.photoLikes[photoIndex][myId];
+      if (alreadyLiked) delete target.photoLikes[photoIndex][myId];
+      else target.photoLikes[photoIndex][myId] = true;
+
+      // 대표사진(0번)이 아닌 사진이 새로 좋아요를 받아 대표사진보다 많아지면, 평생 1회만 대표사진 변경을 제안함
+      if (!alreadyLiked && photoIndex !== 0 && !target.repPhotoSuggestShown) {
+        const repCount = Object.keys(target.photoLikes[0] || {}).length;
+        const thisCount = Object.keys(target.photoLikes[photoIndex] || {}).length;
+        if (thisCount > repCount) {
+          target.repPhotoSuggestShown = true;
+          target.pendingRepPhotoSuggest = { photoIndex, at: Date.now(), notified: false };
+          const sId = userToSocket[targetId];
+          if (sId) {
+            io.to(sId).emit('account:rep_photo_suggest', { photoIndex });
+            target.pendingRepPhotoSuggest.notified = true;
+          }
+        }
+      }
+
+      await saveUser(target);
+      cb && cb({ success: true, liked: !alreadyLiked, likeCount: Object.keys(target.photoLikes[photoIndex] || {}).length });
+      broadcastUsers();
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 // 회원탈퇴: 게시글/스토리/릴스 전부 삭제, 채팅방은 남기되 시스템 메시지로 탈퇴 안내, 계정 삭제
   socket.on('account:withdraw', async (data, cb) => {
