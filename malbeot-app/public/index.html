@@ -1120,8 +1120,17 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeGroupChatModal()"><i class="fa-solid fa-arrow-left"></i></button>
       <div class="chat-header-nick" id="groupChatTitle" style="cursor:default;">단체채팅방</div>
       <div style="margin-left:auto;display:flex;gap:4px;">
+        <button class="icon-round-btn" onclick="openGroupChatSearchBar()"><i class="fa-solid fa-magnifying-glass"></i></button>
         <button class="icon-round-btn" onclick="openGroupInfoScreen()"><i class="fa-solid fa-bars"></i></button>
       </div>
+    </div>
+    <div id="groupChatSearchBar" class="chat-search-bar hidden">
+      <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);font-size:13px;"></i>
+      <input type="text" id="groupChatSearchInput" placeholder="대화 내용 검색" oninput="onGroupChatSearchInput()">
+      <span id="groupChatSearchCounter" class="chat-search-counter">0/0</span>
+      <button class="chat-search-nav-btn" onclick="navigateGroupChatSearch(1)"><i class="fa-solid fa-chevron-up"></i></button>
+      <button class="chat-search-nav-btn" onclick="navigateGroupChatSearch(-1)"><i class="fa-solid fa-chevron-down"></i></button>
+      <button class="chat-search-nav-btn" onclick="closeGroupChatSearchBar()"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div id="groupChatMessageArea" class="chat-messages-area"></div>
     <div id="groupChatReplyPreviewBar" class="chat-reply-preview-bar" style="display:none;">
@@ -3403,6 +3412,7 @@ function closeGroupChatModal(){
   closeFullScreen('groupChatModal');
   activeGroupRoomId = null;
   activeGroupRoomMeta = null;
+  closeGroupChatSearchBar();
   loadChatRoomList();
 }
 function memberNicknameOf(uid){
@@ -3608,6 +3618,88 @@ socket.on('group:kicked', (data)=>{
 socket.on('group:member_joined', ()=>{ if (activeGroupRoomId) socket.emit('group:info', {roomId:activeGroupRoomId}, (res)=>{ if (res && res.success){ activeGroupRoomMeta = res; if (document.getElementById('groupInfoScreen').classList.contains('active')) renderGroupInfoScreen(); } }); });
 socket.on('group:member_left', ()=>{ if (activeGroupRoomId) socket.emit('group:info', {roomId:activeGroupRoomId}, (res)=>{ if (res && res.success){ activeGroupRoomMeta = res; if (document.getElementById('groupInfoScreen').classList.contains('active')) renderGroupInfoScreen(); } }); });
 socket.on('group:subowner_changed', ()=>{ if (activeGroupRoomId) socket.emit('group:info', {roomId:activeGroupRoomId}, (res)=>{ if (res && res.success){ activeGroupRoomMeta = res; if (document.getElementById('groupInfoScreen').classList.contains('active')) renderGroupInfoScreen(); } }); });
+
+/* ===================== 단체채팅방 내 대화 검색 =====================
+   1:1 채팅 검색과 동일한 방식: 돋보기로 검색바를 열고, 최신 메시지부터 1/N 순번을 매김.
+   위쪽 화살표=더 과거 매치로, 아래쪽 화살표=더 최신 매치로 이동(끝에서 순환).
+   매치로 이동하면 해당 메시지 말풍선을 파란 박스(.search-hl)로 강조, X는 강조만 제거하고 스크롤 위치 유지 */
+let groupChatSearchQuery = '';
+let groupChatSearchMatches = [];
+let groupChatSearchIndex = -1;
+let groupChatSearchHighlightEl = null;
+let groupChatSearchHighlightOriginalHtml = null;
+function openGroupChatSearchBar(){
+  const bar = document.getElementById('groupChatSearchBar');
+  if (!bar) return;
+  bar.classList.remove('hidden');
+  const input = document.getElementById('groupChatSearchInput');
+  input.value = '';
+  input.focus();
+  groupChatSearchQuery = ''; groupChatSearchMatches = []; groupChatSearchIndex = -1;
+  document.getElementById('groupChatSearchCounter').textContent = '0/0';
+}
+function closeGroupChatSearchBar(){
+  const bar = document.getElementById('groupChatSearchBar');
+  if (bar) bar.classList.add('hidden');
+  restoreGroupChatSearchHighlight();
+  groupChatSearchQuery = ''; groupChatSearchMatches = []; groupChatSearchIndex = -1;
+  const input = document.getElementById('groupChatSearchInput');
+  if (input) input.value = '';
+  const counter = document.getElementById('groupChatSearchCounter');
+  if (counter) counter.textContent = '0/0';
+}
+function restoreGroupChatSearchHighlight(){
+  if (groupChatSearchHighlightEl && groupChatSearchHighlightOriginalHtml !== null){
+    groupChatSearchHighlightEl.innerHTML = groupChatSearchHighlightOriginalHtml;
+  }
+  groupChatSearchHighlightEl = null;
+  groupChatSearchHighlightOriginalHtml = null;
+}
+function onGroupChatSearchInput(){
+  const q = document.getElementById('groupChatSearchInput').value.trim();
+  groupChatSearchQuery = q;
+  restoreGroupChatSearchHighlight();
+  if (!q){
+    groupChatSearchMatches = []; groupChatSearchIndex = -1;
+    document.getElementById('groupChatSearchCounter').textContent = '0/0';
+    return;
+  }
+  const cached = findCachedGroupRoom(activeGroupRoomId);
+  const messages = (cached && cached.messages) || [];
+  // 오래된 순으로 저장돼있어서, 뒤집으면 배열 0번=가장 최신 매치가 됨(=1/N)
+  groupChatSearchMatches = messages
+    .filter(m => m.id && !m.deletedForEveryone && m.type!=='image' && m.text && m.text.includes(q))
+    .slice().reverse();
+  if (!groupChatSearchMatches.length){
+    groupChatSearchIndex = -1;
+    document.getElementById('groupChatSearchCounter').textContent = '0/0';
+    return;
+  }
+  groupChatSearchIndex = 0;
+  goToGroupChatSearchMatch();
+}
+// dir=1(위 화살표)=더 과거 매치로 다음칸 이동, dir=-1(아래 화살표)=더 최신 매치로 이동. 끝에서 순환됨
+function navigateGroupChatSearch(dir){
+  if (!groupChatSearchMatches.length) return;
+  groupChatSearchIndex = (groupChatSearchIndex + dir + groupChatSearchMatches.length) % groupChatSearchMatches.length;
+  goToGroupChatSearchMatch();
+}
+function goToGroupChatSearchMatch(){
+  restoreGroupChatSearchHighlight();
+  const m = groupChatSearchMatches[groupChatSearchIndex];
+  document.getElementById('groupChatSearchCounter').textContent = `${groupChatSearchIndex+1}/${groupChatSearchMatches.length}`;
+  if (!m) return;
+  const row = document.querySelector(`#groupChatMessageArea .msg-row[data-msgid="${m.id}"]`);
+  if (!row) return;
+  row.scrollIntoView({block:'center', behavior:'smooth'});
+  const bubble = row.querySelector('.msg-bubble');
+  if (bubble){
+    groupChatSearchHighlightEl = bubble;
+    groupChatSearchHighlightOriginalHtml = bubble.innerHTML;
+    const quoteHtml = m.replyTo ? `<div class="msg-reply-quote">${escapeHtml(m.replyTo.preview||'')}</div>` : '';
+    bubble.innerHTML = quoteHtml + highlightMatch(m.text, groupChatSearchQuery);
+  }
+}
 
 /* ===================== 단체채팅방 정보 화면 ===================== */
 function openGroupInfoScreen(){
