@@ -4813,8 +4813,10 @@ function showLockUpsellConfirm(){
 function renderLockTeaser(users){
   const list = (users || []).slice(0, 12);
   const rows = list.length ? list.map(function(u){
+    // 0-28: locked 상태에서는 서버가 마스킹된 닉네임만 내려주고 실제 사진 URL은 주지 않으므로,
+    // 항상 기본 실루엣 아이콘을 사용함(개발자도구로 봐도 실제 사진/닉네임이 노출되지 않도록)
     return '<div class="user-card">'
-      + avatarHtmlFor(u,'avatar')
+      + defaultAvatarHtml(u.gender,'avatar')
       + '<div style="flex:1;min-width:0;"><span class="user-nickname">' + escapeHtml(u.nickname) + '</span>'
       + '<div style="display:flex;gap:6px;margin-top:4px;"><span class="tag">' + (u.region||'') + '</span><span class="tag">' + (u.gender==='female'?'여성':'남성') + '</span><span class="tag">' + (u.age||'') + '세</span></div></div></div>';
   }).join('') : '<div class="user-card"><div style="width:44px;height:44px;border-radius:50%;background:var(--bg-subtle);"></div><div style="flex:1;"><span class="user-nickname">●●●</span></div></div>';

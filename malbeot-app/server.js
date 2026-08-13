@@ -289,6 +289,14 @@ function hasTierAtLeast(user, minTier) {
   if (!sub) return false;
   return (SUBSCRIPTION_TIER_RANK[sub.tier] || 0) >= (SUBSCRIPTION_TIER_RANK[minTier] || 0);
 }
+// 0-28: 방문자/좋아요 잠금화면(0-24)이 CSS 블러만으로 실제 데이터를 가려서, 개발자도구로 블러를 끄거나
+// 네트워크 응답만 봐도 닉네임/사진 원본이 그대로 노출되는 문제가 있었음 - locked 상태일 때는 서버에서부터
+// 닉네임은 마스킹하고 사진 원본 URL은 아예 내려보내지 않도록 함(클라이언트는 기본 실루엣 아이콘으로 대체)
+function maskUserForLockedTeaser(u) {
+  const nick = (u && u.nickname) || '';
+  const masked = nick.length <= 1 ? '○' : nick[0] + '○'.repeat(Math.min(nick.length - 1, 2));
+  return { id: u.id, nickname: masked, region: u.region, gender: u.gender, age: u.age };
+}
 // 요청의 실제 접속 IP를 추출 (Render 등 프록시 뒤에서는 x-forwarded-for 헤더 우선)
 function getClientIp(socket) {
   const xff = socket.handshake.headers['x-forwarded-for'];
@@ -1069,9 +1077,10 @@ io.on('connection', (socket) => {
       const likerIds = Object.keys((target.photoLikes && target.photoLikes[photoIndex]) || {});
       const me = await getUser(myId);
       const users = await getAllUsers();
-      const likers = likerIds.map(id => users[id]).filter(Boolean);
-      // 0-24: locked이어도 실제 likers를 같이 내려줌 - 클라이언트가 블러 처리된 실제 카드로 잠금화면을 보여주기 위함
+      const rawLikers = likerIds.map(id => users[id]).filter(Boolean);
       const locked = !hasTierAtLeast(me, 'gold');
+      // 0-28: locked이면 실제 닉네임/사진 대신 마스킹된 정보만 내려보냄(브라우저에서 실제 데이터 노출 방지)
+      const likers = locked ? rawLikers.map(maskUserForLockedTeaser) : rawLikers;
       cb && cb({ success: true, locked, count: likerIds.length, likers });
     } catch (e) { console.error(e); cb && cb({ success: false, count: 0, likers: [] }); }
   });
@@ -2144,9 +2153,10 @@ io.on('connection', (socket) => {
       const visitorIds = Object.keys(latestByVisitor).sort((a, b) => latestByVisitor[b] - latestByVisitor[a]);
       const me = await getUser(userId);
       const users = await getAllUsers();
-      const visitors = visitorIds.map(id => users[id]).filter(Boolean);
-      // 0-24: locked이어도 실제 visitors를 같이 내려줌 - 클라이언트가 블러 처리된 실제 카드로 잠금화면을 보여주기 위함
+      const rawVisitors = visitorIds.map(id => users[id]).filter(Boolean);
       const locked = !hasTierAtLeast(me, 'gold');
+      // 0-28: locked이면 실제 닉네임/사진 대신 마스킹된 정보만 내려보냄(브라우저에서 실제 데이터 노출 방지)
+      const visitors = locked ? rawVisitors.map(maskUserForLockedTeaser) : rawVisitors;
       cb && cb({ success: true, locked, count: visitorIds.length, visitors });
     } catch (e) { console.error(e); cb && cb({ success: false, count: 0, visitors: [] }); }
   });
