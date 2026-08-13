@@ -726,6 +726,19 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </div>
   </div>
 
+  <!-- 개인 전화번호 최초 등록창: 카카오 가입 후 최초 로그인시 반드시 입력해야 닫힘(취소/뒤로가기 없음) -->
+  <div id="phoneSetupModal" class="modal-overlay">
+    <div class="mini-alert-card">
+      <h3 style="margin-bottom:10px;"><i class="fa-solid fa-phone"></i> 전화번호 등록</h3>
+      <p style="font-size:13px;color:#495057;line-height:1.6;margin-bottom:12px;">서비스 이용을 위해 본인의 전화번호를 등록해주세요. 등록 후에는 직접 수정할 수 없고, 변경이 필요하면 고객센터로 문의해주세요.</p>
+      <input type="tel" id="phoneSetupInput" class="form-input" placeholder="010-0000-0000" maxlength="13">
+      <div id="phoneSetupError" style="font-size:12px;color:var(--danger);margin-top:6px;display:none;"></div>
+      <div style="display:flex;margin-top:14px;">
+        <button type="button" class="btn btn-primary" style="flex:1;" onclick="submitPhoneSetup()">등록하기</button>
+      </div>
+    </div>
+  </div>
+
   <div id="warningHistoryModal" class="modal-overlay" onclick="if(event.target===this) closeModal('warningHistoryModal')">
     <div class="modal-card" style="padding:0;max-height:66vh;display:flex;flex-direction:column;overflow:hidden;">
       <div style="position:relative;display:flex;align-items:center;justify-content:center;padding:14px 44px;border-bottom:1px solid var(--border-color);flex-shrink:0;">
@@ -994,6 +1007,13 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         </div>
         <div class="sli-right"><i class="fa-solid fa-chevron-right"></i></div>
       </div>
+      <div class="settings-list-item" onclick="requestPhoneChange()" style="border:1px solid var(--border-color);border-radius:12px;padding:16px;margin-top:12px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:40px;height:40px;border-radius:50%;background:var(--bg-subtle);display:flex;align-items:center;justify-content:center;font-size:18px;"><i class="fa-solid fa-phone"></i></div>
+          <div><div class="sli-label">전화번호 변경 요청</div><div class="sli-sub">관리자 승인 후 새 번호를 등록할 수 있어요</div></div>
+        </div>
+        <div class="sli-right"><i class="fa-solid fa-chevron-right"></i></div>
+      </div>
     </div>
   </div>
 
@@ -1015,6 +1035,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <button id="adminTabReportsBtn" class="btn btn-secondary" style="flex:1;" onclick="switchAdminTab('reports')">신고 관리</button>
         <button id="adminTabChatsBtn" class="btn btn-secondary" style="flex:1;" onclick="switchAdminTab('chats')">전체 채팅방</button>
         <button id="adminTabAbuseBtn" class="btn btn-secondary" style="flex:1;" onclick="switchAdminTab('abuse')">어뷰징 의심</button>
+        <button id="adminTabPhoneBtn" class="btn btn-secondary" style="flex:1;" onclick="switchAdminTab('phone')">번호변경</button>
       </div>
       <div id="adminReportsTab">
         <div style="display:flex;gap:8px;margin-bottom:16px;">
@@ -1043,6 +1064,9 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div id="adminAbuseTab" class="hidden">
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">같은 기기에서 가입한 계정이 2개 이상인 그룹만 표시됩니다.</div>
         <div id="adminAbuseList"></div>
+      </div>
+      <div id="adminPhoneTab" class="hidden">
+        <div id="adminPhoneRequestList"></div>
       </div>
     </div>
   </div>
@@ -1675,6 +1699,7 @@ socket.on('connect', ()=>{
             {label:'프로필 편집하기', primary:true, onClick:()=>{ openSettingsScreen(); loadProfileToForm(); }}
           ]);
         }
+        if (!currentUser.phone) openPhoneSetupModal();
       } else {
         clearSession();
         resetToLandingScreen();
@@ -1698,6 +1723,30 @@ socket.on('reward:vote_winner', ({amount, points})=>{
 socket.on('account:warned', (data)=>{
   if (!currentUser) return;
   showWarningModal(data && data.message);
+});
+function openPhoneSetupModal(){
+  document.getElementById('phoneSetupInput').value = '';
+  document.getElementById('phoneSetupError').style.display = 'none';
+  openModal('phoneSetupModal');
+}
+function submitPhoneSetup(){
+  const raw = document.getElementById('phoneSetupInput').value.replace(/[^0-9]/g, '');
+  const errEl = document.getElementById('phoneSetupError');
+  if (!/^01[0-9]{9}$/.test(raw)){ errEl.textContent = PHONE_FORMAT_MSG; errEl.style.display = 'block'; return; }
+  socket.emit('account:set_phone', {phone: raw}, (res)=>{
+    if (res && res.success){
+      currentUser.phone = res.phone; saveSession();
+      closeModal('phoneSetupModal');
+      if (currentProfileUserId === currentUser.id) refreshOpenProfileIfNeeded();
+    } else {
+      errEl.textContent = (res && res.message) || '등록에 실패했습니다.'; errEl.style.display = 'block';
+    }
+  });
+}
+// 관리자가 번호 변경 요청을 승인하면, 접속 중인 유저에게 즉시 재입력창을 다시 띄워줌
+socket.on('account:phone_change_approved', ()=>{
+  if (!currentUser) return;
+  showMiniAlert('전화번호 변경 요청이 승인되었습니다. 새 번호를 입력해주세요.', [{label:'확인', primary:true, onClick:()=>{ openPhoneSetupModal(); }}]);
 });
 // 대표사진이 아닌 다른 사진이 좋아요를 더 많이 받았을 때 평생 1회만 뜨는 제안 알림
 socket.on('account:rep_photo_suggest', (data)=>{
@@ -1798,6 +1847,7 @@ function startKakaoLogin(){
             {label:'프로필 편집하기', primary:true, onClick:()=>{ openSettingsScreen(); loadProfileToForm(); }}
           ]);
         }
+        if (!currentUser.phone) openPhoneSetupModal();
       } else if (res.needProfile){
         pendingKakaoToken = res.pendingToken;
         closeModal('landingScreen');
@@ -1860,6 +1910,7 @@ function submitKakaoSignup(confirmed, deviceConfirmed){
         {label:'계속 진행', primary:true, onClick:()=>submitKakaoSignup(confirmed, true)}
       ]);
     } else showMiniAlert(res.message || '가입 중 오류가 발생했습니다. 카카오 로그인을 다시 시도해주세요.', [{label:'확인', primary:true, onClick:()=>{ closeModal('authModal'); openModal('landingScreen'); }}]);
+    if (res.success && !currentUser.phone) openPhoneSetupModal();
   });
 }
 
@@ -2886,6 +2937,7 @@ function renderProfileDetail(user){
           <span style="font-size:12px;color:var(--text-main);cursor:pointer;font-weight:600;white-space:nowrap;" onclick="openFollowListModal('${user.id}','following')">팔로잉 <span style="color:var(--primary);">${followingCount}</span>명</span>
         </div>
       </div>
+      ${isMe?`<div style="font-size:12px;color:var(--text-muted);margin:2px 0 6px 0;"><i class="fa-solid fa-phone" style="margin-right:4px;"></i>${user.phone?formatPhoneDisplay(user.phone):'전화번호 미등록'}</div>`:''}
       <div class="profile-tags"><span class="tag">${user.region}</span><span class="tag">${user.gender==='female'?'여성':'남성'}</span><span class="tag">${user.age}세</span></div>
       ${buildInterestTagsHtml(user)}
       ${isMe ? buildMyInterestEditorHtml() : ''}
@@ -4627,18 +4679,42 @@ function switchAdminTab(tab){
   const rBtn = document.getElementById('adminTabReportsBtn');
   const cBtn = document.getElementById('adminTabChatsBtn');
   const aBtn = document.getElementById('adminTabAbuseBtn');
+  const pBtn = document.getElementById('adminTabPhoneBtn');
   rBtn.style.background = tab==='reports' ? 'var(--primary)' : '';
   rBtn.style.color = tab==='reports' ? '#fff' : '';
   cBtn.style.background = tab==='chats' ? 'var(--primary)' : '';
   cBtn.style.color = tab==='chats' ? '#fff' : '';
   aBtn.style.background = tab==='abuse' ? 'var(--primary)' : '';
   aBtn.style.color = tab==='abuse' ? '#fff' : '';
+  pBtn.style.background = tab==='phone' ? 'var(--primary)' : '';
+  pBtn.style.color = tab==='phone' ? '#fff' : '';
   document.getElementById('adminReportsTab').classList.toggle('hidden', tab!=='reports');
   document.getElementById('adminChatsTab').classList.toggle('hidden', tab!=='chats');
   document.getElementById('adminAbuseTab').classList.toggle('hidden', tab!=='abuse');
+  document.getElementById('adminPhoneTab').classList.toggle('hidden', tab!=='phone');
   if (tab==='reports') loadAdminReports();
   else if (tab==='chats') loadAdminChatRooms();
+  else if (tab==='phone') loadAdminPhoneRequests();
   else loadAdminAbuse();
+}
+function loadAdminPhoneRequests(){
+  socket.emit('admin:phone_requests:list', {}, (res)=>{
+    const box = document.getElementById('adminPhoneRequestList');
+    if (!res || !res.success){ box.innerHTML=''; return; }
+    if (!res.requests.length){ box.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">번호 변경 요청이 없습니다.</div>`; return; }
+    box.innerHTML = res.requests.map(r=>`
+      <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
+        <div style="display:flex;justify-content:space-between;"><b>${escapeHtml(r.nickname)}</b><span style="font-size:11px;color:var(--text-muted);">${r.status==='pending'?'미처리':'승인완료'}</span></div>
+        <div style="font-size:12px;color:var(--text-muted);margin:4px 0;">현재 번호: ${r.currentPhone?formatPhoneDisplay(r.currentPhone):'(미등록)'} · ${formatRelativeTime(r.requestedAt)}</div>
+        ${r.status==='pending'?`<button class="btn btn-secondary" onclick="approveAdminPhoneRequest('${r.id}')">승인</button>`:''}
+      </div>`).join('');
+  });
+}
+function approveAdminPhoneRequest(requestId){
+  socket.emit('admin:phone_requests:approve', {requestId}, (res)=>{
+    if (res && res.success) loadAdminPhoneRequests();
+    else showMiniAlert('처리 중 오류가 발생했습니다.', [{label:'확인', primary:true}]);
+  });
 }
 function loadAdminReports(){
   socket.emit('admin:reports:list', {}, (res)=>{
@@ -4781,6 +4857,17 @@ const SUPPORT_TOPICS = [
   { id:'etc', label:'기타 문의', answer:'그 밖의 문의사항은 1:1 메일 문의로 편하게 남겨주세요. 확인 후 답변드리겠습니다.' }
 ];
 function openCustomerServiceScreen(){ openFullScreen('customerServiceScreen'); }
+function requestPhoneChange(){
+  showMiniAlert('전화번호 변경을 요청하시겠습니까? 관리자 승인 후 새 번호를 등록할 수 있습니다.', [
+    {label:'취소', primary:false},
+    {label:'요청하기', primary:true, onClick:()=>{
+      socket.emit('account:request_phone_change', {}, (res)=>{
+        if (res && res.success) showMiniAlert('전화번호 변경 요청이 접수되었습니다. 승인되면 알려드릴게요.', [{label:'확인', primary:true}]);
+        else showMiniAlert('요청 중 오류가 발생했습니다.', [{label:'확인', primary:true}]);
+      });
+    }}
+  ]);
+}
 function openSupportMailCompose(subject){
   const s = encodeURIComponent(subject ? `[말벗 문의] ${subject}` : '[말벗 문의]');
   window.location.href = `mailto:kickoff030303@gmail.com?subject=${s}`;

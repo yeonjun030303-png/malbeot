@@ -2285,6 +2285,69 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
+  // ===================== 개인 전화번호 등록/변경 =====================
+  // 카카오 가입 후 최초 1회만 본인 전화번호를 직접 입력받아 저장(카카오 실제번호 대조는 카카오 비즈앱 심사 필요해 이번 범위 아님).
+  // 이미 번호가 등록돼 있으면 phoneChangeApproved(관리자 승인)가 true일 때만 재등록 가능하고, 성공하면 승인 플래그는 소모됨.
+  socket.on('account:set_phone', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const target = userId ? await getUser(userId) : null;
+      if (!target) return cb && cb({ success: false });
+      if (target.phone && !target.phoneChangeApproved) return cb && cb({ success: false, message: '이미 등록된 전화번호가 있습니다. 변경은 고객센터로 문의해주세요.' });
+      if (!/^01[0-9]{9}$/.test((data && data.phone) || '')) return cb && cb({ success: false, message: '휴대폰 번호를 정확히 입력해주세요. (예: 010-0000-0000)' });
+      target.phone = data.phone;
+      if (target.phoneChangeApproved) delete target.phoneChangeApproved;
+      await saveUser(target);
+      cb && cb({ success: true, phone: target.phone });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+  // 번호 변경 요청 접수(고객센터) - 관리자가 승인해야만 실제 변경(account:set_phone) 가능해짐
+  socket.on('account:request_phone_change', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const target = userId ? await getUser(userId) : null;
+      if (!target) return cb && cb({ success: false });
+      const ref = db.ref('phoneChangeRequests').push();
+      const request = { id: ref.key, userId: target.id, currentPhone: target.phone || '', status: 'pending', requestedAt: Date.now() };
+      await ref.set(request);
+      cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+  // 관리자: 번호 변경 요청 목록 조회
+  socket.on('admin:phone_requests:list', async (data, cb) => {
+    try {
+      const requester = await getUser(socketToUser[socket.id]);
+      if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
+      const snap = await db.ref('phoneChangeRequests').once('value');
+      const all = snap.val() || {};
+      const users = await getAllUsers();
+      const list = Object.values(all)
+        .map(r => ({ ...r, nickname: (users[r.userId] && users[r.userId].nickname) || '(탈퇴한 사용자)' }))
+        .sort((a, b) => (a.status === 'pending' ? 0 : 1) - (b.status === 'pending' ? 0 : 1) || (b.requestedAt || 0) - (a.requestedAt || 0));
+      cb && cb({ success: true, requests: list });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+  // 관리자: 번호 변경 요청 승인 -> 해당 유저가 새 번호를 1회 입력할 수 있게 열어줌
+  socket.on('admin:phone_requests:approve', async (data, cb) => {
+    try {
+      const requester = await getUser(socketToUser[socket.id]);
+      if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
+      const reqSnap = await db.ref(`phoneChangeRequests/${data && data.requestId}`).once('value');
+      const request = reqSnap.val();
+      if (!request) return cb && cb({ success: false });
+      const target = await getUser(request.userId);
+      if (target) {
+        target.phoneChangeApproved = true;
+        await saveUser(target);
+        const sId = userToSocket[target.id];
+        if (sId) io.to(sId).emit('account:phone_change_approved', {});
+        else sendWebPush(target.id, { title: '전화번호 변경 승인', body: '요청하신 전화번호 변경이 승인되었습니다. 앱에서 새 번호를 입력해주세요.', type: 'phone_change_approved' });
+      }
+      await db.ref(`phoneChangeRequests/${request.id}`).update({ status: 'approved', resolvedAt: Date.now() });
+      cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
   // 어뷰징 의심(동일 기기로 계정 2개 이상) 그룹 목록 - 관리자만
   socket.on('admin:abuse:list', async (data, cb) => {
     try {
