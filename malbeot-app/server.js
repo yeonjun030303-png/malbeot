@@ -224,6 +224,8 @@ const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 const ONE_DAY = 24 * 60 * 60 * 1000;
 const VOTE_MAX_OPTIONS = 6; // 투표(구 핫토픽/밸런스게임 통합) 항목 최대 개수
 const WARNING_MESSAGE = '다른 사용자와의 대화(게시물, 댓글) 등 신고를 접수받아 검토한 결과, 부적절한 단어나 상대방이 불쾌할 수 있는 언행을 하여 경고했습니다. 다음에는 주의해 주세요.';
+// 0-25: 관리자가 신고 처리 화면에서 수동으로 강제탈퇴시킬 때 쓰는 메시지(자동 임계값 처리는 하지 않음 - 관리자 판단으로만 실행)
+const FORCE_WITHDRAW_MESSAGE = '신고 접수 내용을 검토한 결과, 이용약관 위반으로 계정이 강제 탈퇴 처리되었습니다. 재가입은 가능하나, 반복될 경우 재가입이 제한될 수 있습니다.';
 const genId = (p) => `${p}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 const roomIdFor = (a, b) => [a, b].sort().join('_room_');
 
@@ -1074,6 +1076,28 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb && cb({ success: false, count: 0, likers: [] }); }
   });
 // 회원탈퇴: 게시글/스토리/릴스 전부 삭제, 채팅방은 남기되 시스템 메시지로 탈퇴 안내, 계정 삭제
+  // 0-25: 관리자 강제탈퇴용 - account:withdraw와 동일한 삭제 로직(게시글 삭제, 채팅방 탈퇴 표시, 계정 제거)을 재사용
+  async function forceWithdrawUserAccount(userId, systemMessageText) {
+    const postsSnap = await db.ref('posts').once('value');
+    const allPosts = postsSnap.val() || {};
+    for (const pid of Object.keys(allPosts)) {
+      if (allPosts[pid].authorId === userId) await deletePostDb(pid);
+    }
+    const chatsSnap = await db.ref('chats').once('value');
+    const allChats = chatsSnap.val() || {};
+    for (const roomId of Object.keys(allChats)) {
+      const room = allChats[roomId];
+      if (room.userIds && room.userIds.includes(userId)) {
+        await addMessage(roomId, { senderId: 'system', text: systemMessageText, timestamp: Date.now() });
+        await saveRoomMeta(roomId, { withdrawnAt: Date.now() });
+        const otherId = room.userIds.find(id => id !== userId);
+        const sId = userToSocket[otherId];
+        if (sId) io.to(sId).emit('chat:new_message', { roomId, message: { senderId: 'system', text: systemMessageText, timestamp: Date.now() } });
+      }
+    }
+    await db.ref(`users/${userId}`).remove();
+  }
+
   socket.on('account:withdraw', async (data, cb) => {
     try {
       const userId = socketToUser[socket.id];
@@ -2334,6 +2358,17 @@ io.on('connection', (socket) => {
           // 앱을 꺼놨거나 로그아웃 상태여도 확실히 알 수 있도록 웹푸시도 함께 발송(문자X, 인앱 알림창 성격의 푸시)
           else sendWebPush(target.id, { title: '경고 안내', body: WARNING_MESSAGE, type: 'warning' });
           await saveUser(target);
+        }
+      } else if (action === 'force_withdraw_user') {
+        // 0-25: 경고 누적 자동처리는 하지 않고, 관리자가 신고 화면에서 수동으로 강제탈퇴시킬 때만 실행됨
+        const accusedId = await getAccusedUserId(report);
+        if (accusedId) {
+          const sId = userToSocket[accusedId];
+          if (sId) { io.to(sId).emit('account:force_withdrawn', { message: FORCE_WITHDRAW_MESSAGE }); delete userToSocket[accusedId]; }
+          else sendWebPush(accusedId, { title: '계정 탈퇴 안내', body: FORCE_WITHDRAW_MESSAGE, type: 'force_withdrawn' });
+          await forceWithdrawUserAccount(accusedId, '이용약관 위반으로 강제 탈퇴 처리된 사용자입니다.');
+          broadcastUsers();
+          broadcastPosts();
         }
       }
 
