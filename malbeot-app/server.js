@@ -2462,6 +2462,52 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
+  // 0-22: 관리자 - 구독 등급(골드/플래티넘) 수동 지급/회수 (테스트·CS 대응용, 결제 없이 즉시 반영)
+  socket.on('admin:subscription:grant', async (data, cb) => {
+    try {
+      const requester = await getUser(socketToUser[socket.id]);
+      if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
+      const targetId = data && data.userId;
+      const tier = data && data.tier;
+      const days = Number(data && data.days);
+      if (!targetId || !SUBSCRIPTION_TIER_RANK[tier] || !days || days <= 0) {
+        return cb && cb({ success: false, message: '잘못된 요청입니다.' });
+      }
+      const target = await getUser(targetId);
+      if (!target) return cb && cb({ success: false, message: '유저를 찾을 수 없습니다.' });
+      target.subscription = {
+        tier,
+        expiresAt: Date.now() + days * 24 * 60 * 60 * 1000,
+        logoColorOn: (target.subscription && typeof target.subscription.logoColorOn === 'boolean') ? target.subscription.logoColorOn : true,
+        badgeOn: (target.subscription && typeof target.subscription.badgeOn === 'boolean') ? target.subscription.badgeOn : true
+      };
+      await saveUser(target);
+      console.log(`[관리자 구독 지급] ${requester.nickname}(이)가 ${target.nickname}에게 ${tier}(${days}일) 수동 지급`);
+      const sId = userToSocket[target.id];
+      if (sId) io.to(sId).emit('points:updated', { points: target.points, subscription: target.subscription });
+      broadcastUsers();
+      cb && cb({ success: true, subscription: target.subscription });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+  // 0-22: 관리자 - 구독 강제 해제
+  socket.on('admin:subscription:revoke', async (data, cb) => {
+    try {
+      const requester = await getUser(socketToUser[socket.id]);
+      if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
+      const targetId = data && data.userId;
+      if (!targetId) return cb && cb({ success: false });
+      const target = await getUser(targetId);
+      if (!target) return cb && cb({ success: false, message: '유저를 찾을 수 없습니다.' });
+      target.subscription = null;
+      await saveUser(target);
+      console.log(`[관리자 구독 해제] ${requester.nickname}(이)가 ${target.nickname}의 구독을 해제`);
+      const sId = userToSocket[target.id];
+      if (sId) io.to(sId).emit('points:updated', { points: target.points, subscription: null });
+      broadcastUsers();
+      cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
   // 어뷰징 의심(동일 기기로 계정 2개 이상) 그룹 목록 - 관리자만
   socket.on('admin:abuse:list', async (data, cb) => {
     try {
