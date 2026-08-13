@@ -568,6 +568,10 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
           <div><div class="sli-label"><i class="fa-solid fa-eye"></i> 오늘 내 프로필 방문자</div><div class="sli-sub">매일 자정에 초기화됩니다</div></div>
           <div class="sli-right"><span id="myPageVisitorCount" style="font-weight:700;margin-right:4px;">0명</span><i class="fa-solid fa-chevron-right"></i></div>
         </div>
+        <div class="settings-list-item" style="background:linear-gradient(135deg,#fff7e0,#fff1c9);border:1px solid #f0d98a;border-radius:16px;padding:14px 16px;" onclick="openSubscriptionScreen()">
+          <div><div class="sli-label"><i class="fa-solid fa-crown" style="color:#c9891a;"></i> 말벗 구독</div><div class="sli-sub" id="mypageSubStatusSub">골드/플래티넘 구독하고 더 많은 기능을 이용해보세요</div></div>
+          <div class="sli-right"><i class="fa-solid fa-chevron-right"></i></div>
+        </div>
         <div class="settings-card" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:16px;">
           <div style="margin-bottom:6px;">
             <h2 style="font-size:16px;margin:0;"><i class="fa-solid fa-id-card"></i> 내 프로필 편집</h2>
@@ -894,6 +898,24 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </div>
   </div>
 
+  <div id="subscriptionScreen" class="full-screen-overlay">
+    <div class="fs-header"><button class="back-btn" onclick="closeFullScreen('subscriptionScreen')"><i class="fa-solid fa-arrow-left"></i></button><div class="fs-title">말벗 구독</div></div>
+    <div class="fs-body" style="padding:20px 16px 40px;">
+      <div id="subscriptionCurrentStatus" style="text-align:center;margin-bottom:18px;font-size:13px;color:var(--text-muted);line-height:1.6;"></div>
+      <div id="subscriptionPackageGrid" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:18px;line-height:1.6;">
+        구독 상품은 자동 결제(정기결제)가 아닌 1회성 결제이며, 만료되면 자동으로 연장되지 않습니다.<br>
+        기존에 남은 기간이 있는 상태에서 다시 구매하면 남은 기간에 이어서 연장됩니다.<br>
+        결제는 Google Play / App Store 인앱결제로 안전하게 처리됩니다.
+      </p>
+    </div>
+  </div>
+
+  <div id="photoLikersScreen" class="full-screen-overlay">
+    <div class="fs-header"><button class="back-btn" onclick="closeFullScreen('photoLikersScreen')"><i class="fa-solid fa-arrow-left"></i></button><div class="fs-title">좋아요 누른 사람</div></div>
+    <div class="fs-body" id="photoLikersBody" style="padding:8px 16px;"></div>
+  </div>
+
   <div id="settingsScreen" class="full-screen-overlay">
     <div class="fs-header">
       <button class="back-btn" onclick="handleSettingsBack()"><i class="fa-solid fa-arrow-left"></i></button>
@@ -903,6 +925,22 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div class="settings-list-item" id="adminModeRow" style="display:none;">
         <div><div class="sli-label">관리자 모드</div><div class="sli-sub">본인 계정에만 표시됩니다</div></div>
         <div class="toggle-switch" id="toggleAdminMode" onclick="toggleAdminMode()"><div class="knob"></div></div>
+      </div>
+      <div class="settings-card" id="subStatusCard" style="display:none;background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:14px 16px;margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleSubStatusAccordion()">
+          <div><span id="subStatusTierLabel" style="font-weight:800;font-size:14px;"></span><div style="font-size:11px;color:var(--text-muted);margin-top:2px;" id="subStatusExpireLabel"></div></div>
+          <i class="fa-solid fa-chevron-down accordion-arrow" id="subStatusArrow"></i>
+        </div>
+        <div id="subStatusBody" style="display:none;margin-top:12px;">
+          <div class="settings-list-item">
+            <div><div class="sli-label">로고 색상 적용</div><div class="sli-sub">앱 전체에서 내 화면에만 말벗 로고가 등급 색상으로 표시돼요</div></div>
+            <div class="toggle-switch" id="toggleSubLogoColor" onclick="toggleSubLogoColor()"><div class="knob"></div></div>
+          </div>
+          <div class="settings-list-item">
+            <div><div class="sli-label">상대방에게 등급 표기</div><div class="sli-sub">내 별명 옆에 등급 뱃지가 다른 사람에게 보여요</div></div>
+            <div class="toggle-switch" id="toggleSubBadge" onclick="toggleSubBadge()"><div class="knob"></div></div>
+          </div>
+        </div>
       </div>
       <div class="settings-section-title settings-accordion-header open" id="accHeader-acc-notify" onclick="toggleSettingsAccordion('acc-notify')">
         <span>알림</span><i class="fa-solid fa-chevron-down accordion-arrow"></i>
@@ -1716,10 +1754,17 @@ socket.on('connect', ()=>{
 });
 socket.on('users:updated', ()=>{ loadHomeUserList(); if (currentProfileUserId) refreshOpenProfileIfNeeded(); });
 // 서버(RevenueCat 웹훅)가 인앱결제 완료를 확인하고 쌀을 지급하면, 접속 중인 클라이언트에 실시간으로 알려줌
-socket.on('points:updated', ({points})=>{
+// 0-20: 구독 상품 결제였다면 subscription 필드도 함께 실려오므로 같이 반영함
+socket.on('points:updated', ({points, subscription})=>{
   if (!currentUser) return;
-  currentUser.points = points; updateUserUI(); saveSession();
-  showMiniAlert(`쌀 충전이 완료되었습니다! (현재 쌀: ${points}개)`, [{label:'확인', primary:true}]);
+  currentUser.points = points;
+  if (typeof subscription !== 'undefined') currentUser.subscription = subscription;
+  updateUserUI(); saveSession();
+  if (subscription && subscription.tier && subscription.expiresAt > Date.now()){
+    showMiniAlert(`${subscription.tier==='platinum'?'플래티넘':'골드'} 구독이 적용되었습니다! (쌀 ${points}개)`, [{label:'확인', primary:true}]);
+  } else {
+    showMiniAlert(`쌀 충전이 완료되었습니다! (현재 쌀: ${points}개)`, [{label:'확인', primary:true}]);
+  }
 });
 // 접속해 있는 동안 오늘의 인기 투표 포인트가 지급되면 즉시 1회 안내
 socket.on('reward:vote_winner', ({amount, points})=>{
@@ -2025,6 +2070,8 @@ function updateUserUI(){
   document.getElementById('mypagePointCount').textContent = currentUser.points;
   const adminBtn = document.getElementById('headerAdminModeBtn');
   if (adminBtn) adminBtn.classList.toggle('hidden', !currentUser.isAdmin);
+  applySubscriptionLogoColor();
+  refreshMypageSubLabel();
 }
 function updateHeaderForTab(tab){
   const title = document.getElementById('headerTitle');
@@ -2056,7 +2103,7 @@ function switchTab(tab){
   if (tab==='tab-home') loadHomeUserList();
   if (tab==='tab-community') loadCommunityPosts();
   if (tab==='tab-chat') loadChatRoomList();
-  if (tab==='tab-mypage') { loadProfileToForm(); refreshMyPageVisitorCount(); }
+  if (tab==='tab-mypage') { loadProfileToForm(); refreshMyPageVisitorCount(); refreshMypageSubLabel(); }
 }
 document.querySelectorAll('.bottom-nav .nav-item').forEach(item=>item.addEventListener('click', ()=>switchTab(item.dataset.tab)));
 
@@ -2890,6 +2937,24 @@ function toggleProfilePhotoLike(targetUserId, photoIndex){
     renderProfileDetail(currentProfileUserCache);
   });
 }
+// 0-20: 사진에 좋아요 누른 사람 "목록" 열람 - 골드 이상 구독 중이어야 실제 목록이 보임(아니면 잠금 티저 표시)
+function openPhotoLikersScreen(targetUserId, photoIndex){
+  socket.emit('photo:get_likers', {targetUserId, photoIndex}, (res)=>{
+    const body = document.getElementById('photoLikersBody');
+    if (!res || !res.success) return;
+    if (res.locked){ body.innerHTML = renderLockTeaser(res.count, '이 사진에 좋아요 누른 사람을 확인할 수 있어요.'); openFullScreen('photoLikersScreen'); return; }
+    const likers = res.likers || [];
+    body.innerHTML = likers.length ? likers.map(u=>`
+      <div class="user-card" style="cursor:pointer;" onclick="closeFullScreen('photoLikersScreen');openProfileDetailScreen('${u.id}')">
+        ${avatarHtmlFor(u,'avatar')}
+        <div style="flex:1;min-width:0;">
+          <span class="user-nickname">${escapeHtml(u.nickname)}${subscriptionBadgeHtml(u)}</span>
+          <div style="display:flex;gap:6px;margin-top:4px;"><span class="tag">${u.region}</span><span class="tag">${u.gender==='female'?'여성':'남성'}</span><span class="tag">${u.age}세</span></div>
+        </div>
+      </div>`).join('') : `<div style="text-align:center;padding:40px;color:var(--text-muted);">아직 좋아요를 누른 사람이 없습니다.</div>`;
+    openFullScreen('photoLikersScreen');
+  });
+}
 // 프로필 대상자가 설정한 관심사(MBTI/목적/취미)만 태그로 만들어줌.
 // 보고 있는 사람(나)의 관심사와 겹치는 항목은 tag-match 클래스로 강조 표시함(본인 프로필에서는 강조 안 함)
 function buildInterestTagsHtml(user){
@@ -2937,12 +3002,12 @@ function renderProfileDetail(user){
     <div class="profile-photo-wrap" style="display:flex;align-items:center;justify-content:center;background:${user.gender==='female'?'var(--pink-light)':'var(--blue-light)'};">
       ${photoContent}
       ${photos.length>1?`<div class="profile-photo-dots">${dots}</div>`:''}
-      ${(!isMe && hasPhotos)?`<button class="photo-like-btn" onclick="toggleProfilePhotoLike('${user.id}', ${profilePhotoIndex})"><i class="fa-${iLikedThisPhoto?'solid':'regular'} fa-heart" style="color:${iLikedThisPhoto?'#ff4d6d':'#fff'};"></i> <span>${photoLikeCount}</span></button>`:''}
+      ${hasPhotos?`<div class="photo-like-btn" style="display:flex;align-items:center;gap:7px;">${isMe?'':`<span onclick="toggleProfilePhotoLike('${user.id}', ${profilePhotoIndex})" style="cursor:pointer;"><i class="fa-${iLikedThisPhoto?'solid':'regular'} fa-heart" style="color:${iLikedThisPhoto?'#ff4d6d':'#fff'};"></i></span>`}<span onclick="event.stopPropagation();openPhotoLikersScreen('${user.id}', ${profilePhotoIndex})" style="cursor:pointer;">${photoLikeCount}</span></div>`:''}
     </div>
     <div class="profile-body">
       <div class="last-seen-text">${formatLastSeen(user.lastSeen, user.isOnline)}</div>
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div class="profile-name">${escapeHtml(user.nickname)}</div>
+        <div class="profile-name">${escapeHtml(user.nickname)}${subscriptionBadgeHtml(user)}</div>
         <div style="display:flex;gap:14px;flex-shrink:0;">
           <span style="font-size:12px;color:var(--text-main);cursor:pointer;font-weight:600;white-space:nowrap;" onclick="openFollowListModal('${user.id}','followers')">팔로워 <span style="color:var(--primary);">${followerCount}</span>명</span>
           <span style="font-size:12px;color:var(--text-main);cursor:pointer;font-weight:600;white-space:nowrap;" onclick="openFollowListModal('${user.id}','following')">팔로잉 <span style="color:var(--primary);">${followingCount}</span>명</span>
@@ -4647,7 +4712,137 @@ function openSettingsScreen(){
   renderKeywordTags();
   document.getElementById('adminModeRow').style.display = (currentUser && currentUser.isAdmin) ? 'flex' : 'none';
   document.getElementById('toggleAdminMode').classList.remove('on');
+  renderSubStatusCard();
   openFullScreen('settingsScreen');
+}
+// 0-20: 설정화면 상단 구독 등급 카드 - 활성 구독 중일 때만 노출됨
+function renderSubStatusCard(){
+  const card = document.getElementById('subStatusCard');
+  if (!card) return;
+  const sub = currentUser && currentUser.subscription;
+  const active = sub && sub.tier && sub.expiresAt && sub.expiresAt > Date.now();
+  card.style.display = active ? 'block' : 'none';
+  if (!active) return;
+  document.getElementById('subStatusTierLabel').textContent = (sub.tier === 'platinum' ? '💎 플래티넘' : '🏅 골드') + ' 구독 중';
+  document.getElementById('subStatusExpireLabel').textContent = `${new Date(sub.expiresAt).toLocaleDateString('ko-KR')}까지`;
+  document.getElementById('toggleSubLogoColor').classList.toggle('on', sub.logoColorOn !== false);
+  document.getElementById('toggleSubBadge').classList.toggle('on', sub.badgeOn !== false);
+}
+function toggleSubStatusAccordion(){
+  const body = document.getElementById('subStatusBody');
+  const willOpen = body.style.display === 'none';
+  body.style.display = willOpen ? 'block' : 'none';
+  document.getElementById('subStatusArrow').classList.toggle('open', willOpen);
+}
+function toggleSubLogoColor(){
+  const sub = (currentUser && currentUser.subscription) || {};
+  const next = !(sub.logoColorOn !== false);
+  socket.emit('account:set_subscription_prefs', {logoColorOn: next}, (res)=>{
+    if (res && res.success){ currentUser.subscription = res.subscription; saveSession(); renderSubStatusCard(); applySubscriptionLogoColor(); }
+  });
+}
+function toggleSubBadge(){
+  const sub = (currentUser && currentUser.subscription) || {};
+  const next = !(sub.badgeOn !== false);
+  socket.emit('account:set_subscription_prefs', {badgeOn: next}, (res)=>{
+    if (res && res.success){ currentUser.subscription = res.subscription; saveSession(); renderSubStatusCard(); }
+  });
+}
+// 0-20: 마이페이지 "말벗 구독" 진입 카드의 부제목을 현재 구독 상태에 맞게 갱신
+function refreshMypageSubLabel(){
+  const el = document.getElementById('mypageSubStatusSub');
+  if (!el) return;
+  const sub = currentUser && currentUser.subscription;
+  const active = sub && sub.tier && sub.expiresAt && sub.expiresAt > Date.now();
+  el.textContent = active
+    ? `${sub.tier==='platinum'?'플래티넘':'골드'} 구독 중 · ${new Date(sub.expiresAt).toLocaleDateString('ko-KR')}까지`
+    : '골드/플래티넘 구독하고 더 많은 기능을 이용해보세요';
+}
+// 0-20: 나만의 페이지/방문자·좋아요 목록에서 별명 옆에 붙는 등급 뱃지 (활성 구독 + 뱃지 표시 옵션 켜져있을 때만)
+function subscriptionBadgeHtml(user){
+  const sub = user && user.subscription;
+  if (!sub || !sub.tier || !sub.expiresAt || sub.expiresAt <= Date.now() || sub.badgeOn === false) return '';
+  const isPlat = sub.tier === 'platinum';
+  const bg = isPlat ? 'linear-gradient(135deg,#34d399,#059669)' : 'linear-gradient(135deg,#f6c453,#c9891a)';
+  const label = isPlat ? '플래티넘' : '골드';
+  return `<span style="display:inline-flex;align-items:center;gap:3px;background:${bg};color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:99px;vertical-align:middle;margin-left:5px;"><i class="fa-solid fa-crown" style="font-size:8px;"></i>${label}</span>`;
+}
+// 0-20: 방문자/좋아요 목록 등에서 무료 유저에게 보여줄 잠금 티저 UI (블러 처리된 아바타 + 가운데 자물쇠 + 인원수(9+))
+function renderLockTeaser(count, ctaText){
+  const shown = Math.max(Math.min(count, 5), 1);
+  const displayCount = count > 9 ? '9+' : String(count);
+  let avatars = '';
+  for (let i=0;i<shown;i++){
+    avatars += `<div style="width:44px;height:44px;border-radius:50%;background:var(--bg-subtle);border:2px solid #fff;margin-left:${i===0?0:-14}px;filter:blur(3px);"></div>`;
+  }
+  return `
+    <div style="position:relative;text-align:center;padding:30px 16px 22px;background:var(--bg-subtle);border-radius:16px;">
+      <div style="display:flex;justify-content:center;">${avatars}</div>
+      <div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;"><i class="fa-solid fa-lock"></i></div>
+      <div style="font-size:15px;font-weight:800;margin-top:10px;">${displayCount}명</div>
+      <div style="font-size:12px;color:var(--text-muted);margin:6px 0 12px;">골드 이상 등급을 구독하면 ${ctaText}</div>
+      <button class="btn btn-primary btn-sm" onclick="openSubscriptionScreen()">구독하기</button>
+    </div>`;
+}
+// 0-20: 구독 상품 목록/구매/화면 - 기존 쌀 충전(RICE_PACKAGES/handleBuyRicePackage)과 동일한 방식으로 window.buyItem 재사용
+// 가격은 참고용 placeholder(실제 판매가는 RevenueCat/스토어 콘솔에서 확정, server.js의 SUBSCRIPTION_PRODUCTS와 상품ID가 반드시 같아야 함)
+const SUBSCRIPTION_PACKAGES = [
+  { id: 'sub_gold_14d',      tier: 'gold',     days: 14,  price: 11900,  label: '골드 14일권' },
+  { id: 'sub_platinum_14d',  tier: 'platinum', days: 14,  price: 26900,  label: '플래티넘 14일권' },
+  { id: 'sub_gold_365d',     tier: 'gold',     days: 365, price: 216000, label: '골드 1년권' },
+  { id: 'sub_platinum_365d', tier: 'platinum', days: 365, price: 489000, label: '플래티넘 1년권' }
+];
+function openSubscriptionScreen(){
+  renderSubscriptionPackages();
+  openFullScreen('subscriptionScreen');
+}
+function renderSubscriptionPackages(){
+  const statusEl = document.getElementById('subscriptionCurrentStatus');
+  const sub = currentUser && currentUser.subscription;
+  const active = sub && sub.tier && sub.expiresAt && sub.expiresAt > Date.now();
+  statusEl.innerHTML = active
+    ? `현재 <strong style="color:var(--primary);">${sub.tier==='platinum'?'플래티넘':'골드'}</strong> 구독 중 (${new Date(sub.expiresAt).toLocaleDateString('ko-KR')}까지)<br>지금 구매하면 남은 기간에 이어서 연장돼요.`
+    : `구독하면 쌀 지급 + 로고 색상 + 등급 뱃지 + 방문자/좋아요 전체 열람 혜택을 받아요.`;
+  const grid = document.getElementById('subscriptionPackageGrid');
+  grid.innerHTML = SUBSCRIPTION_PACKAGES.map(p=>{
+    const isPlat = p.tier === 'platinum';
+    const periodLabel = p.days >= 365 ? '1년권' : '14일권';
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;border:1px solid ${isPlat?'#059669':'#c9891a'};border-radius:14px;padding:14px;">
+        <div>
+          <div style="font-weight:800;font-size:14px;">${isPlat?'💎 플래티넘':'🏅 골드'} ${periodLabel}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">쌀 ${(isPlat?3000:1000).toLocaleString()}개 지급 · 등급뱃지 · 로고색상 · 방문자/좋아요 전체열람</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-weight:800;font-size:15px;margin-bottom:6px;">${p.price.toLocaleString()}원</div>
+          <button class="btn ${isPlat?'':'btn-secondary'} btn-sm" style="${isPlat?'background:#059669;border-color:#059669;color:#fff;':''}" onclick="handleBuySubscriptionPackage('${p.id}')">구독</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+function handleBuySubscriptionPackage(productId){
+  if (!window.buyItem){
+    showMiniAlert('결제 기능을 사용할 수 없는 환경입니다. 말벗 앱(스토어 설치 버전)에서 이용해주세요.', [{label:'확인', primary:true}]);
+    return;
+  }
+  window.buyItem(productId);
+  // 실제 등급 지급은 서버가 결제 완료를 확인한 뒤 'points:updated' 이벤트(subscription 포함)로 반영됨
+}
+// 0-20: 말벗 로고 색상 - 화면 어디서든 fill="url(#mbGrad1/2)"로 참조하는 공용 그라디언트의 stop-color를
+// 직접 바꿔서, 이 로그인 계정 화면에서만(다른 사람에게는 영향 없음) 로고가 즉시 등급 색상으로 보이게 함
+const LOGO_GRAD_DEFAULT = [['#5c7cfa','#4c6ef5'],['#91a7ff','#5c7cfa']];
+const LOGO_GRAD_GOLD = [['#f6c453','#c9891a'],['#ffe08a','#f0a93a']];
+const LOGO_GRAD_PLATINUM = [['#34d399','#059669'],['#6ee7b7','#10b981']];
+function applySubscriptionLogoColor(){
+  const sub = currentUser && currentUser.subscription;
+  const active = sub && sub.tier && sub.expiresAt && sub.expiresAt > Date.now() && sub.logoColorOn !== false;
+  const pair = !active ? LOGO_GRAD_DEFAULT : (sub.tier === 'platinum' ? LOGO_GRAD_PLATINUM : LOGO_GRAD_GOLD);
+  const g1 = document.querySelectorAll('#mbGrad1 stop');
+  const g2 = document.querySelectorAll('#mbGrad2 stop');
+  if (g1[0]) g1[0].setAttribute('stop-color', pair[0][0]);
+  if (g1[1]) g1[1].setAttribute('stop-color', pair[0][1]);
+  if (g2[0]) g2[0].setAttribute('stop-color', pair[1][0]);
+  if (g2[1]) g2[1].setAttribute('stop-color', pair[1][1]);
 }
 /* ===================== 키워드 알림 ===================== */
 // notifyKeywords는 서버(내 프로필)에 저장되어, 다른 사람이 글을 등록/수정할 때 서버가 비교해서 알림을 보내줌
@@ -4911,15 +5106,34 @@ function openProfileVisitorsScreen(){
     const body = document.getElementById('profileVisitorsBody');
     const visitors = (res && res.visitors) || [];
     document.getElementById('myPageVisitorCount').textContent = `${(res && res.count) || 0}명`;
-    body.innerHTML = visitors.length ? visitors.map(u=>`
+    body.innerHTML = `<div style="font-size:13px;font-weight:700;margin:2px 0 6px;">오늘 방문자</div>` + (visitors.length ? visitors.map(u=>`
       <div class="user-card" style="cursor:pointer;" onclick="openProfileDetailScreen('${u.id}')">
         ${avatarHtmlFor(u,'avatar')}
         <div style="flex:1;min-width:0;">
-          <span class="user-nickname">${escapeHtml(u.nickname)}</span>
+          <span class="user-nickname">${escapeHtml(u.nickname)}${subscriptionBadgeHtml(u)}</span>
           <div style="display:flex;gap:6px;margin-top:4px;"><span class="tag">${u.region}</span><span class="tag">${u.gender==='female'?'여성':'남성'}</span><span class="tag">${u.age}세</span></div>
         </div>
-      </div>`).join('') : `<div style="text-align:center;padding:40px;color:var(--text-muted);">오늘 방문한 사람이 아직 없습니다.</div>`;
+      </div>`).join('') : `<div style="text-align:center;padding:24px;color:var(--text-muted);">오늘 방문한 사람이 아직 없습니다.</div>`)
+      + `<div style="margin-top:20px;"><div style="font-size:13px;font-weight:700;margin:2px 0 6px;">전체 기간 방문자</div><div id="profileAllVisitorsBody"></div></div>`;
     openFullScreen('profileVisitorsScreen');
+    loadAllVisitorsSection();
+  });
+}
+// 0-20: 방문자 "전체 기간" 섹션 - 골드 이상 구독 중이면 실제 목록, 아니면 잠금 티저(9+ 인원수+자물쇠) 표시
+function loadAllVisitorsSection(){
+  socket.emit('profile:get_all_visitors', {}, (res)=>{
+    const wrap = document.getElementById('profileAllVisitorsBody');
+    if (!wrap || !res || !res.success) return;
+    if (res.locked){ wrap.innerHTML = renderLockTeaser(res.count, '구독 시작 이전 기록까지 포함한 전체 방문자를 확인할 수 있어요.'); return; }
+    const visitors = res.visitors || [];
+    wrap.innerHTML = visitors.length ? visitors.map(u=>`
+      <div class="user-card" style="cursor:pointer;" onclick="openProfileDetailScreen('${u.id}')">
+        ${avatarHtmlFor(u,'avatar')}
+        <div style="flex:1;min-width:0;">
+          <span class="user-nickname">${escapeHtml(u.nickname)}${subscriptionBadgeHtml(u)}</span>
+          <div style="display:flex;gap:6px;margin-top:4px;"><span class="tag">${u.region}</span><span class="tag">${u.gender==='female'?'여성':'남성'}</span><span class="tag">${u.age}세</span></div>
+        </div>
+      </div>`).join('') : `<div style="text-align:center;padding:24px;color:var(--text-muted);">아직 방문한 사람이 없습니다.</div>`;
   });
 }
 

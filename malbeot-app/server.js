@@ -122,6 +122,17 @@ const POINTS_BY_PRODUCT = {
   points_5000: 6750  // 5000 + 35% 보너스
 };
 
+// 0-20: 유료 구독제(골드/플래티넘) 상품 - 자동결제(정기구독)가 아닌 14일권/1년권 "1회성 구매" 상품임.
+// 상품ID/일수/등급/보너스쌀 값은 실제 Play 콘솔·App Store Connect·RevenueCat 대시보드에 등록한 상품과
+// 정확히 같아야 함(실제 상품 등록/가격 확정은 코드 범위 밖 - 기존 쌀 상품과 동일하게 사용자가 직접 진행).
+// 가격은 참고용 placeholder(1년권 = 14일권 26회분의 70%로 계산)이며 실제 판매가는 스토어 콘솔에서 확정함.
+const SUBSCRIPTION_PRODUCTS = {
+  sub_gold_14d:      { tier: 'gold',     days: 14,  points: 1000 },
+  sub_platinum_14d:  { tier: 'platinum', days: 14,  points: 3000 },
+  sub_gold_365d:     { tier: 'gold',     days: 365, points: 1000 },
+  sub_platinum_365d: { tier: 'platinum', days: 365, points: 3000 }
+};
+
 app.post('/api/revenuecat-webhook', async (req, res) => {
   try {
     const authHeader = req.headers['authorization'] || '';
@@ -151,7 +162,8 @@ app.post('/api/revenuecat-webhook', async (req, res) => {
 
     const userId = event.app_user_id;
     const productId = event.product_id;
-    const grantPoints = POINTS_BY_PRODUCT[productId];
+    const subProduct = SUBSCRIPTION_PRODUCTS[productId];
+    const grantPoints = subProduct ? subProduct.points : POINTS_BY_PRODUCT[productId];
 
     if (!userId || !grantPoints) {
       console.warn('[RevenueCat 웹훅] 알 수 없는 유저 또는 상품:', userId, productId);
@@ -165,14 +177,32 @@ app.post('/api/revenuecat-webhook', async (req, res) => {
     }
 
     user.points = (user.points || 0) + grantPoints;
+
+    // 0-20: 구독 상품이면 등급+만료일도 함께 갱신. 이미 활성 구독 중이면 남은 기간에 새로 산 기간을 이어붙임(연장).
+    // 등급이 다르면(예: 골드 구독 중 플래티넘 구매) 더 높은 등급으로 올리고 남은 기간은 그대로 이어붙임.
+    if (subProduct) {
+      const now = Date.now();
+      const prevSub = getActiveSubscription(user);
+      const base = prevSub ? prevSub.expiresAt : now;
+      const newTier = (prevSub && (SUBSCRIPTION_TIER_RANK[prevSub.tier] || 0) > (SUBSCRIPTION_TIER_RANK[subProduct.tier] || 0))
+        ? prevSub.tier : subProduct.tier;
+      user.subscription = {
+        tier: newTier,
+        expiresAt: base + subProduct.days * 24 * 60 * 60 * 1000,
+        logoColorOn: (user.subscription && typeof user.subscription.logoColorOn === 'boolean') ? user.subscription.logoColorOn : true,
+        badgeOn: (user.subscription && typeof user.subscription.badgeOn === 'boolean') ? user.subscription.badgeOn : true
+      };
+    }
+
     await saveUser(user);
     if (eventId) await db.ref(`processedPurchaseEvents/${eventId}`).set({ userId, productId, grantPoints, at: Date.now() });
 
-    console.log(`[RevenueCat 웹훅] ${userId} 유저에게 쌀 ${grantPoints}개 지급 완료 (상품: ${productId})`);
+    console.log(`[RevenueCat 웹훅] ${userId} 유저에게 쌀 ${grantPoints}개 지급 완료${subProduct ? ` + 구독(${subProduct.tier}, ${subProduct.days}일)` : ''} (상품: ${productId})`);
 
-    // 지금 접속 중인 유저라면 실시간으로 잔액을 갱신해줌 (접속 중이 아니면 다음 로그인 시 서버 데이터로 자동 반영됨)
+    // 지금 접속 중인 유저라면 실시간으로 잔액+구독 상태를 갱신해줌 (접속 중이 아니면 다음 로그인 시 서버 데이터로 자동 반영됨)
     const sId = userToSocket[userId];
-    if (sId) io.to(sId).emit('points:updated', { points: user.points });
+    if (sId) io.to(sId).emit('points:updated', { points: user.points, subscription: user.subscription || null });
+    broadcastUsers();
 
     res.status(200).send('ok');
   } catch (e) {
@@ -244,6 +274,18 @@ async function getUser(id) {
 }
 async function saveUser(user) {
   await db.ref(`users/${user.id}`).set(user);
+}
+// 0-20: 유료 구독(골드/플래티넘) 헬퍼 - expiresAt이 지나지 않았을 때만 "활성 구독"으로 인정함
+const SUBSCRIPTION_TIER_RANK = { gold: 1, platinum: 2 };
+function getActiveSubscription(user) {
+  const sub = user && user.subscription;
+  if (!sub || !sub.tier || !sub.expiresAt || sub.expiresAt <= Date.now()) return null;
+  return sub;
+}
+function hasTierAtLeast(user, minTier) {
+  const sub = getActiveSubscription(user);
+  if (!sub) return false;
+  return (SUBSCRIPTION_TIER_RANK[sub.tier] || 0) >= (SUBSCRIPTION_TIER_RANK[minTier] || 0);
 }
 // 요청의 실제 접속 IP를 추출 (Render 등 프록시 뒤에서는 x-forwarded-for 헤더 우선)
 function getClientIp(socket) {
@@ -1010,6 +1052,27 @@ io.on('connection', (socket) => {
       cb && cb({ success: true, liked: !alreadyLiked, likeCount: Object.keys(target.photoLikes[photoIndex] || {}).length });
       broadcastUsers();
     } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 0-20: 특정 사진에 좋아요 누른 사람 "목록" 조회 - 골드 이상 구독 중인 사람만 실제 목록 열람 가능
+  // (하트 개수 자체는 기존처럼 누구나 항상 전체 공개 - 이 핸들러와 무관하게 photoLikes 데이터로 이미 계산됨)
+  socket.on('photo:get_likers', async (data, cb) => {
+    try {
+      const myId = socketToUser[socket.id];
+      const targetId = data && data.targetUserId;
+      const photoIndex = data && typeof data.photoIndex === 'number' ? data.photoIndex : null;
+      if (!myId || !targetId || photoIndex === null) return cb && cb({ success: false, count: 0, likers: [] });
+      const target = await getUser(targetId);
+      if (!target) return cb && cb({ success: false, count: 0, likers: [] });
+      const likerIds = Object.keys((target.photoLikes && target.photoLikes[photoIndex]) || {});
+      const me = await getUser(myId);
+      if (!hasTierAtLeast(me, 'gold')) {
+        return cb && cb({ success: true, locked: true, count: likerIds.length, likers: [] });
+      }
+      const users = await getAllUsers();
+      const likers = likerIds.map(id => users[id]).filter(Boolean);
+      cb && cb({ success: true, locked: false, count: likerIds.length, likers });
+    } catch (e) { console.error(e); cb && cb({ success: false, count: 0, likers: [] }); }
   });
 // 회원탈퇴: 게시글/스토리/릴스 전부 삭제, 채팅방은 남기되 시스템 메시지로 탈퇴 안내, 계정 삭제
   socket.on('account:withdraw', async (data, cb) => {
@@ -2040,6 +2103,32 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb && cb({ success: false, count: 0, visitors: [] }); }
   });
 
+  // 0-20: 방문자 "전체 기간" 조회 - 골드 이상 구독 중인 본인만 실제 목록 열람 가능(오늘 방문자는 위 핸들러로 계속 무료 열람)
+  socket.on('profile:get_all_visitors', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      if (!userId) return cb && cb({ success: false, count: 0, visitors: [] });
+      const snap = await db.ref(`profileVisits/${userId}`).once('value');
+      const byDate = snap.val() || {};
+      const latestByVisitor = {};
+      Object.keys(byDate).forEach(date => {
+        const dayMap = byDate[date] || {};
+        Object.keys(dayMap).forEach(vId => {
+          const ts = dayMap[vId];
+          if (!latestByVisitor[vId] || ts > latestByVisitor[vId]) latestByVisitor[vId] = ts;
+        });
+      });
+      const visitorIds = Object.keys(latestByVisitor).sort((a, b) => latestByVisitor[b] - latestByVisitor[a]);
+      const me = await getUser(userId);
+      if (!hasTierAtLeast(me, 'gold')) {
+        return cb && cb({ success: true, locked: true, count: visitorIds.length, visitors: [] });
+      }
+      const users = await getAllUsers();
+      const visitors = visitorIds.map(id => users[id]).filter(Boolean);
+      cb && cb({ success: true, locked: false, count: visitorIds.length, visitors });
+    } catch (e) { console.error(e); cb && cb({ success: false, count: 0, visitors: [] }); }
+  });
+
   // 차단 해제
   socket.on('user:unblock', async (targetId, cb) => {
     try {
@@ -2291,6 +2380,22 @@ io.on('connection', (socket) => {
       const users = await getAllUsers();
       const messages = room.messages ? Object.values(room.messages) : [];
       cb && cb({ success: true, messages, users: (room.userIds || []).map(uid => ({ id: uid, nickname: (users[uid] && users[uid].nickname) || '(탈퇴한 사용자)' })) });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 0-20: 구독 등급 표시 옵션(로고 색상 적용 / 상대방에게 등급뱃지 노출) 온오프 - 활성 구독 중일 때만 저장 가능
+  socket.on('account:set_subscription_prefs', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const target = userId ? await getUser(userId) : null;
+      if (!target) return cb && cb({ success: false });
+      if (!hasTierAtLeast(target, 'gold')) return cb && cb({ success: false, message: '구독 중일 때만 설정할 수 있습니다.' });
+      target.subscription = target.subscription || {};
+      if (typeof (data && data.logoColorOn) === 'boolean') target.subscription.logoColorOn = data.logoColorOn;
+      if (typeof (data && data.badgeOn) === 'boolean') target.subscription.badgeOn = data.badgeOn;
+      await saveUser(target);
+      cb && cb({ success: true, subscription: target.subscription });
+      broadcastUsers();
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
