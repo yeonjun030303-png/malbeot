@@ -2265,12 +2265,19 @@ io.on('connection', (socket) => {
       if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
       const snap = await db.ref('reports').once('value');
       const all = snap.val() || {};
-      // 같은 대상(type::targetId)에 미처리 신고가 몇 건 쌓였는지 먼저 집계
-      const pendingCountByTarget = {};
+      // 0-29: 같은 대상(type::targetId)에 미처리 신고가 몇 건 쌓였는지 집계 - 신고 "건수"가 아니라
+      // 서로 다른 "신고자 수"로 세야 함(같은 사람이 여러 번 신고해서 3회를 채우는 방식으로
+      // 긴급 표시를 악용/조작하는 것을 막기 위함)
+      const pendingReportersByTarget = {};
       Object.values(all).forEach(r => {
         if (r.status !== 'pending') return;
         const key = `${r.type}::${r.targetId}`;
-        pendingCountByTarget[key] = (pendingCountByTarget[key] || 0) + 1;
+        if (!pendingReportersByTarget[key]) pendingReportersByTarget[key] = new Set();
+        pendingReportersByTarget[key].add(r.reporterUid || r.id);
+      });
+      const pendingCountByTarget = {};
+      Object.keys(pendingReportersByTarget).forEach(key => {
+        pendingCountByTarget[key] = pendingReportersByTarget[key].size;
       });
       // 누적 신고 많은 대상(내림차순) 우선, 그다음 최신순 정렬
       const list = Object.values(all).sort((a, b) => {
