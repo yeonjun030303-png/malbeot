@@ -114,7 +114,14 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 
 .full-screen-overlay{position:absolute;inset:0;background:#fff;z-index:150;display:none;flex-direction:column;}
 .full-screen-overlay.active{display:flex;}
-.full-screen-overlay.drawer-right{left:auto;width:82%;box-shadow:-6px 0 20px rgba(0,0,0,.18);}
+.full-screen-overlay.drawer-right{left:auto;width:50%;box-shadow:-6px 0 20px rgba(0,0,0,.18);}
+#groupInfoScreen .chat-row-nick{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#groupInfoScreen .chat-row-fg{padding:9px 2px;gap:8px;}
+#groupInfoScreen .avatar-sm{width:28px;height:28px;}
+#groupInfoScreen #groupInfoTitle{font-size:14px;}
+#groupInfoScreen #groupInfoIntro{font-size:11px;margin-bottom:12px;}
+#groupInfoScreen [style*="font-size:13px;font-weight:700"]{font-size:12px;}
+#groupInfoScreen #groupInfoMemberCount{font-size:11px;}
 #drawerBackdrop{display:none;position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:149;}
 #drawerBackdrop.active{display:block;}
 .fs-header{height:52px;flex-shrink:0;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--border-color);position:relative;}
@@ -1177,7 +1184,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeFullScreen('groupInfoScreen')"><i class="fa-solid fa-arrow-left"></i></button>
       <div class="chat-header-nick" style="cursor:default;">채팅방 정보</div>
     </div>
-    <div style="padding:16px;overflow-y:auto;flex:1;">
+    <div style="padding:10px;overflow-y:auto;flex:1;">
       <h3 id="groupInfoTitle" style="margin:0 0 4px;"></h3>
       <p id="groupInfoIntro" style="font-size:13px;color:var(--text-muted);margin:0 0 16px;"></p>
 
@@ -1776,7 +1783,6 @@ socket.on('chat:new_message', ({roomId, message, senderNickname})=>{
       // 스크롤을 올려 옛 메시지(검색결과 등)를 보고 있는 중에도 새 메시지 도착을 알 수 있게 하단에 알림 pill을 띄움
       document.getElementById('chatNewMsgPill').classList.remove('hidden');
     }
-    if (!isMine && message.senderId !== 'system') socket.emit('chat:mark_read', {roomId});
   } else if (message.senderId !== 'system' && !isMine && getEffectiveSettings().notifyChat && !mutedChatRoomIds.has(roomId)) {
     const preview = message.type === 'image' ? '(사진)' : (message.text || '');
     const room = currentChatRooms.find(r=>r.roomId===roomId);
@@ -1789,9 +1795,14 @@ socket.on('chat:new_message', ({roomId, message, senderNickname})=>{
   }
   loadChatRoomList();
 });
-socket.on('chat:read_receipt', ({roomId})=>{
+socket.on('chat:read_receipt', ({roomId, lastReadAt})=>{
   if (activeRoomId !== roomId) return;
-  document.querySelectorAll('#chatMessageArea .msg-row.mine .msg-status').forEach(el=>{ el.textContent = '읽음'; });
+  // 0-21: 실제로 상대가 본 시점(lastReadAt)까지의 내 메시지만 "1" 표시를 지움(카톡처럼 부분 읽음 반영)
+  (currentChatMessages||[]).forEach(m=>{ if (m.senderId===currentUser.id && !m.read && m.timestamp<=lastReadAt) m.read = true; });
+  document.querySelectorAll('#chatMessageArea .msg-row.mine').forEach(row=>{
+    const msg = (currentChatMessages||[]).find(x=>x.id===row.dataset.msgid);
+    if (msg && msg.read){ const st = row.querySelector('.msg-status'); if (st) st.remove(); }
+  });
 });
 socket.on('notify:new', (n)=>{
   const s = getEffectiveSettings();
@@ -3449,6 +3460,7 @@ function openGroupChatRoom(roomId){
   clearGroupReplyPreview();
   const cached = findCachedGroupRoom(roomId);
   activeGroupLastReadAt = (cached && cached.lastReadAt) || {};
+  groupMaxSeenTs = 0;
   document.getElementById('groupChatTitle').textContent = (cached && cached.meta && cached.meta.title) || '단체채팅방';
   const area = document.getElementById('groupChatMessageArea'); area.innerHTML=''; area.dataset.lastDate='';
   (cached && cached.messages || []).forEach(m=>appendGroupChatBubble(m));
@@ -3464,7 +3476,8 @@ function openGroupChatRoom(roomId){
       }
     }
   });
-  socket.emit('group:mark_read', {roomId});
+  // 0-21: 방을 여는 즉시 전체를 읽음 처리하지 않음. 지금 화면에 실제로 보이는 메시지는
+  // 위 appendGroupChatBubble에서 건 IntersectionObserver가 알아서 감지해 부분 읽음 처리함.
 }
 function closeGroupChatModal(){
   closeFullScreen('groupChatModal');
@@ -3472,6 +3485,8 @@ function closeGroupChatModal(){
   activeGroupRoomMeta = null;
   closeGroupChatSearchBar();
   loadChatRoomList();
+  clearTimeout(groupMarkReadTimer);
+  groupMaxSeenTs = 0;
 }
 function memberNicknameOf(uid){
   if (activeGroupRoomMeta && activeGroupRoomMeta.members){
@@ -3493,6 +3508,32 @@ function unreadCountFor(m){
 }
 function isGroupMemberBlocked(uid){
   return !!(activeGroupRoomMeta && activeGroupRoomMeta.blockedUserIds && activeGroupRoomMeta.blockedUserIds.includes(uid));
+}
+// 0-21: 단체채팅 - 메시지가 실제로 뷰포트에 보였을 때만 읽음 처리(방을 열자마자 전체를 읽음 처리하지 않음)
+let groupReadObserver = null;
+let groupMaxSeenTs = 0;
+let groupMarkReadTimer = null;
+function ensureGroupReadObserver(){
+  if (groupReadObserver) return groupReadObserver;
+  const root = document.getElementById('groupChatMessageArea');
+  groupReadObserver = new IntersectionObserver((entries)=>{
+    let changed = false;
+    entries.forEach(entry=>{
+      if (entry.isIntersecting && !document.hidden){
+        const ts = Number(entry.target.dataset.msgts || 0);
+        if (ts > groupMaxSeenTs) { groupMaxSeenTs = ts; changed = true; }
+        groupReadObserver.unobserve(entry.target);
+      }
+    });
+    if (changed) scheduleGroupMarkRead();
+  }, { root, threshold: 0.6 });
+  return groupReadObserver;
+}
+function scheduleGroupMarkRead(){
+  clearTimeout(groupMarkReadTimer);
+  groupMarkReadTimer = setTimeout(()=>{
+    if (activeGroupRoomId && groupMaxSeenTs > 0) socket.emit('group:mark_read', { roomId: activeGroupRoomId, upToTimestamp: groupMaxSeenTs });
+  }, 350);
 }
 function appendGroupChatBubble(m){
   const area = document.getElementById('groupChatMessageArea');
@@ -3530,6 +3571,8 @@ function appendGroupChatBubble(m){
   area.appendChild(row);
   area.scrollTop = area.scrollHeight;
   if (m.id) attachGroupMsgLongPress(bubble, m);
+  // 0-21: 다른 사람이 보낸 메시지가 실제로 화면에 스크롤되어 보였을 때만 읽음 처리 대상으로 관찰
+  if (!isMine && m.id && m.timestamp) { row.dataset.msgts = String(m.timestamp); ensureGroupReadObserver().observe(row); }
 }
 let pendingGroupReplyTo = null;
 function attachGroupMsgLongPress(bubbleEl, m){
@@ -3954,6 +3997,7 @@ function openChatModal(roomId, target, messages){
     avatarDefaultEl.innerHTML = `<i class="fa-solid ${isFemale ? 'fa-person-dress' : 'fa-person'}" style="font-size:14px;"></i>`;
   }
   document.getElementById('chatTargetName').textContent = target.nickname || '';
+  chatMaxSeenTs = 0;
   const area = document.getElementById('chatMessageArea'); area.innerHTML=''; area.dataset.lastDate='';
   let lastDate = null;
   (messages||[]).forEach(m=>{
@@ -3965,7 +4009,8 @@ function openChatModal(roomId, target, messages){
   });
   area.scrollTop = area.scrollHeight;
   openModal('chatModal');
-  socket.emit('chat:mark_read', {roomId});
+  // 0-21: 방을 여는 즉시 전체를 읽음 처리하지 않음. 지금 화면에 실제로 보이는 메시지는
+  // 위 appendChatBubble에서 건 IntersectionObserver가 알아서 감지해 부분 읽음 처리함.
 }
 // 채팅방을 나갈 때는 반드시 이 함수를 사용해야 함.
 // activeRoomId를 초기화하지 않으면 홈 등 다른 화면에 있어도 해당 방의 새 메시지가
@@ -3975,6 +4020,8 @@ function closeChatModal(){
   activeRoomId = null;
   activeChatTargetId = null;
   closeChatSearchBar();
+  clearTimeout(chatMarkReadTimer);
+  chatMaxSeenTs = 0;
 }
 function openProfileFromChatHeader(){
   if (!activeChatTargetId) return;
@@ -4077,6 +4124,32 @@ function goToChatSearchMatch(){
     bubble.innerHTML = quoteHtml + (m.forwarded?'<div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">전달된 메시지</div>':'') + highlightMatch(m.text, chatSearchQuery);
   }
 }
+// 0-21: 1:1 채팅 - 메시지가 실제로 뷰포트에 보였을 때만 읽음 처리(방을 열자마자 전체를 읽음 처리하지 않음)
+let chatReadObserver = null;
+let chatMaxSeenTs = 0;
+let chatMarkReadTimer = null;
+function ensureChatReadObserver(){
+  if (chatReadObserver) return chatReadObserver;
+  const root = document.getElementById('chatMessageArea');
+  chatReadObserver = new IntersectionObserver((entries)=>{
+    let changed = false;
+    entries.forEach(entry=>{
+      if (entry.isIntersecting && !document.hidden){
+        const ts = Number(entry.target.dataset.msgts || 0);
+        if (ts > chatMaxSeenTs) { chatMaxSeenTs = ts; changed = true; }
+        chatReadObserver.unobserve(entry.target);
+      }
+    });
+    if (changed) scheduleChatMarkRead();
+  }, { root, threshold: 0.6 });
+  return chatReadObserver;
+}
+function scheduleChatMarkRead(){
+  clearTimeout(chatMarkReadTimer);
+  chatMarkReadTimer = setTimeout(()=>{
+    if (activeRoomId && chatMaxSeenTs > 0) socket.emit('chat:mark_read', { roomId: activeRoomId, upToTimestamp: chatMaxSeenTs });
+  }, 350);
+}
 function appendChatBubble(m, checkDate=true){
   const area = document.getElementById('chatMessageArea');
   const wasNearBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 120;
@@ -4101,12 +4174,14 @@ function appendChatBubble(m, checkDate=true){
   row.appendChild(bubble);
   const timeRow = document.createElement('div'); timeRow.className='msg-time-row';
   if (m.timestamp){ const t=document.createElement('span'); t.className='msg-time'; t.textContent=formatClockTime(m.timestamp); timeRow.appendChild(t); }
-  if (isMine){ const st=document.createElement('span'); st.className='msg-status'; st.textContent = m.read?'읽음':'전송됨'; timeRow.appendChild(st); }
+  if (isMine && !m.read){ const st=document.createElement('span'); st.className='msg-status'; st.textContent = '1'; timeRow.appendChild(st); }
   row.appendChild(timeRow);
   area.appendChild(row);
   // 스크롤을 올려 옛 메시지를 보고 있을 때는 화면을 강제로 내리지 않음(대신 새 메시지 pill로 알림). 하단 근처거나 내가 보낸 메시지면 그대로 따라 내려감
   if (wasNearBottom || isMine){ area.scrollTop = area.scrollHeight; }
   if (m.id && !m.deletedForEveryone) attachMsgLongPress(bubble, m);
+  // 0-21: 상대가 보낸 메시지가 실제로 화면에 스크롤되어 보였을 때만 읽음 처리 대상으로 관찰
+  if (!isMine && m.id && m.timestamp) { row.dataset.msgts = String(m.timestamp); ensureChatReadObserver().observe(row); }
 }
 
 /* ===================== 채팅 메시지 롱프레스 메뉴 (복사/답장/전달/삭제/신고) ===================== */

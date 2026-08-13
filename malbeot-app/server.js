@@ -1606,26 +1606,30 @@ io.on('connection', (socket) => {
   });
 
   // 채팅방을 열람하면(=내 채팅창에 들어오면) 상대가 보낸 안읽은 메시지를 모두 읽음 처리
+  // 0-21: upToTimestamp가 오면(=실제로 화면에 보인 마지막 메시지 시각) 그 시점까지 온 메시지만 읽음 처리.
+  // 값이 없으면 기존 방식대로 현재 시점 기준 전체 읽음 처리(하위호환용 폴백).
   socket.on('chat:mark_read', async (data) => {
     try {
       const userId = socketToUser[socket.id];
       const room = await getRoom(data.roomId);
       if (!room || !room.userIds || !room.userIds.includes(userId)) return;
+      const upToTimestamp = data && data.upToTimestamp;
       const messages = room.messages || {};
       const updates = {};
       Object.keys(messages).forEach(mid => {
         const m = messages[mid];
-        if (m && m.senderId !== userId && m.senderId !== 'system' && !m.read) {
-          updates[`chats/${data.roomId}/messages/${mid}/read`] = true;
-        }
+        if (!m || m.senderId === userId || m.senderId === 'system' || m.read) return;
+        if (upToTimestamp && m.timestamp > upToTimestamp) return;
+        updates[`chats/${data.roomId}/messages/${mid}/read`] = true;
       });
-      // 메시지별 read 플래그 대신, 카톡처럼 "안읽은 인원 수"를 계산하기 위한 lastReadAt(마지막으로 읽은 시각)도 함께 기록
+      const prevLastReadAt = (room.lastReadAt && room.lastReadAt[userId]) || 0;
       const now = Date.now();
-      updates[`chats/${data.roomId}/lastReadAt/${userId}`] = now;
+      const newLastReadAt = upToTimestamp ? Math.max(prevLastReadAt, upToTimestamp) : now;
+      updates[`chats/${data.roomId}/lastReadAt/${userId}`] = newLastReadAt;
       await db.ref().update(updates);
       const otherId = room.userIds.find(id => id !== userId);
       const sId = userToSocket[otherId];
-      if (sId) io.to(sId).emit('chat:read_receipt', { roomId: data.roomId, userId, lastReadAt: now });
+      if (sId) io.to(sId).emit('chat:read_receipt', { roomId: data.roomId, userId, lastReadAt: newLastReadAt });
     } catch (e) { console.error(e); }
   });
 
@@ -1864,14 +1868,19 @@ io.on('connection', (socket) => {
   });
 
   // 읽음 처리: lastReadAt 갱신 후 다른 멤버들에게 실시간 전파 (말풍선 옆 "안읽은 인원 수" 계산용)
+  // 0-21: upToTimestamp가 오면(=실제로 화면에 보인 마지막 메시지 시각) 그 시점까지만 읽은 것으로 기록.
+  // 값이 없으면 기존 방식대로 현재 시점 기준 전체 읽음 처리(하위호환용 폴백).
   socket.on('group:mark_read', async (data) => {
     try {
       const userId = socketToUser[socket.id];
       const room = await getGroupRoom(data.roomId);
       if (!room || !room.meta || !(room.meta.memberIds || []).includes(userId)) return;
+      const upToTimestamp = data && data.upToTimestamp;
+      const prevLastReadAt = (room.lastReadAt && room.lastReadAt[userId]) || 0;
       const now = Date.now();
-      await db.ref(`groupChats/${data.roomId}/lastReadAt/${userId}`).set(now);
-      emitToGroupMembers((room.meta.memberIds || []).filter(id => id !== userId), 'group:read_receipt', { roomId: data.roomId, userId, lastReadAt: now });
+      const newLastReadAt = upToTimestamp ? Math.max(prevLastReadAt, upToTimestamp) : now;
+      await db.ref(`groupChats/${data.roomId}/lastReadAt/${userId}`).set(newLastReadAt);
+      emitToGroupMembers((room.meta.memberIds || []).filter(id => id !== userId), 'group:read_receipt', { roomId: data.roomId, userId, lastReadAt: newLastReadAt });
     } catch (e) { console.error(e); }
   });
 
