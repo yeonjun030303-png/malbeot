@@ -1066,12 +1066,11 @@ io.on('connection', (socket) => {
       if (!target) return cb && cb({ success: false, count: 0, likers: [] });
       const likerIds = Object.keys((target.photoLikes && target.photoLikes[photoIndex]) || {});
       const me = await getUser(myId);
-      if (!hasTierAtLeast(me, 'gold')) {
-        return cb && cb({ success: true, locked: true, count: likerIds.length, likers: [] });
-      }
       const users = await getAllUsers();
       const likers = likerIds.map(id => users[id]).filter(Boolean);
-      cb && cb({ success: true, locked: false, count: likerIds.length, likers });
+      // 0-24: locked이어도 실제 likers를 같이 내려줌 - 클라이언트가 블러 처리된 실제 카드로 잠금화면을 보여주기 위함
+      const locked = !hasTierAtLeast(me, 'gold');
+      cb && cb({ success: true, locked, count: likerIds.length, likers });
     } catch (e) { console.error(e); cb && cb({ success: false, count: 0, likers: [] }); }
   });
 // 회원탈퇴: 게시글/스토리/릴스 전부 삭제, 채팅방은 남기되 시스템 메시지로 탈퇴 안내, 계정 삭제
@@ -2120,12 +2119,11 @@ io.on('connection', (socket) => {
       });
       const visitorIds = Object.keys(latestByVisitor).sort((a, b) => latestByVisitor[b] - latestByVisitor[a]);
       const me = await getUser(userId);
-      if (!hasTierAtLeast(me, 'gold')) {
-        return cb && cb({ success: true, locked: true, count: visitorIds.length, visitors: [] });
-      }
       const users = await getAllUsers();
       const visitors = visitorIds.map(id => users[id]).filter(Boolean);
-      cb && cb({ success: true, locked: false, count: visitorIds.length, visitors });
+      // 0-24: locked이어도 실제 visitors를 같이 내려줌 - 클라이언트가 블러 처리된 실제 카드로 잠금화면을 보여주기 위함
+      const locked = !hasTierAtLeast(me, 'gold');
+      cb && cb({ success: true, locked, count: visitorIds.length, visitors });
     } catch (e) { console.error(e); cb && cb({ success: false, count: 0, visitors: [] }); }
   });
 

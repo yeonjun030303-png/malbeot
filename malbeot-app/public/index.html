@@ -726,6 +726,19 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </div>
   </div>
 
+  <!-- 0-24: 골드 이상 전용 목록(방문자/좋아요) 잠금화면 - 탭하면 결제창 이동 여부를 물어보는 확인창 -->
+  <div id="lockUpsellModal" class="modal-overlay">
+    <div class="mini-alert-card" style="text-align:center;">
+      <div style="width:48px;height:48px;border-radius:50%;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;margin:0 auto 14px;"><i class="fa-solid fa-lock"></i></div>
+      <p style="font-size:14px;font-weight:800;margin-bottom:6px;">골드 이상 등급부터 확인 가능합니다</p>
+      <p style="font-size:13px;color:#495057;margin-bottom:4px;">결제창으로 이동하시겠습니까?</p>
+      <div style="display:flex;gap:8px;margin-top:18px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="closeModal('lockUpsellModal')">취소</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="closeModal('lockUpsellModal');openSubscriptionScreen()">확인</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 경고 알림창: "확인했습니다" 버튼 하나만 있고, 취소/뒤로가기 없이 반드시 눌러야 닫힘 -->
   <div id="warningModal" class="modal-overlay">
     <div class="mini-alert-card">
@@ -2951,7 +2964,7 @@ function openPhotoLikersScreen(targetUserId, photoIndex){
   socket.emit('photo:get_likers', {targetUserId, photoIndex}, (res)=>{
     const body = document.getElementById('photoLikersBody');
     if (!res || !res.success) return;
-    if (res.locked){ body.innerHTML = renderLockTeaser(res.count, '이 사진에 좋아요 누른 사람을 확인할 수 있어요.'); openFullScreen('photoLikersScreen'); return; }
+    if (res.locked){ body.innerHTML = renderLockTeaser(res.likers); openFullScreen('photoLikersScreen'); return; }
     const likers = res.likers || [];
     body.innerHTML = likers.length ? likers.map(u=>`
       <div class="user-card" style="cursor:pointer;" onclick="closeFullScreen('photoLikersScreen');openProfileDetailScreen('${u.id}')">
@@ -4776,22 +4789,23 @@ function subscriptionBadgeHtml(user){
   const label = isPlat ? '플래티넘' : '골드';
   return `<span style="display:inline-flex;align-items:center;gap:3px;background:${bg};color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:99px;vertical-align:middle;margin-left:5px;"><i class="fa-solid fa-crown" style="font-size:8px;"></i>${label}</span>`;
 }
-// 0-20: 방문자/좋아요 목록 등에서 무료 유저에게 보여줄 잠금 티저 UI (블러 처리된 아바타 + 가운데 자물쇠 + 인원수(9+))
-function renderLockTeaser(count, ctaText){
-  const shown = Math.max(Math.min(count, 5), 1);
-  const displayCount = count > 9 ? '9+' : String(count);
-  let avatars = '';
-  for (let i=0;i<shown;i++){
-    avatars += `<div style="width:44px;height:44px;border-radius:50%;background:var(--bg-subtle);border:2px solid #fff;margin-left:${i===0?0:-14}px;filter:blur(3px);"></div>`;
-  }
-  return `
-    <div style="position:relative;text-align:center;padding:30px 16px 22px;background:var(--bg-subtle);border-radius:16px;">
-      <div style="display:flex;justify-content:center;">${avatars}</div>
-      <div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;"><i class="fa-solid fa-lock"></i></div>
-      <div style="font-size:15px;font-weight:800;margin-top:10px;">${displayCount}명</div>
-      <div style="font-size:12px;color:var(--text-muted);margin:6px 0 12px;">골드 이상 등급을 구독하면 ${ctaText}</div>
-      <button class="btn btn-primary btn-sm" onclick="openSubscriptionScreen()">구독하기</button>
-    </div>`;
+// 0-24: 방문자/좋아요 목록 등에서 무료 유저에게 보여줄 잠금화면 - 실제 목록(프로필사진+별명) 그대로 두되 블러 처리,
+// 탭하면 lockUpsellModal(골드 이상 등급부터 확인 가능 + 결제창 이동 확인)을 띄움
+function showLockUpsellConfirm(){
+  openModal('lockUpsellModal');
+}
+function renderLockTeaser(users){
+  const list = (users || []).slice(0, 12);
+  const rows = list.length ? list.map(function(u){
+    return '<div class="user-card">'
+      + avatarHtmlFor(u,'avatar')
+      + '<div style="flex:1;min-width:0;"><span class="user-nickname">' + escapeHtml(u.nickname) + '</span>'
+      + '<div style="display:flex;gap:6px;margin-top:4px;"><span class="tag">' + (u.region||'') + '</span><span class="tag">' + (u.gender==='female'?'여성':'남성') + '</span><span class="tag">' + (u.age||'') + '세</span></div></div></div>';
+  }).join('') : '<div class="user-card"><div style="width:44px;height:44px;border-radius:50%;background:var(--bg-subtle);"></div><div style="flex:1;"><span class="user-nickname">●●●</span></div></div>';
+  return '<div style="position:relative;cursor:pointer;" onclick="showLockUpsellConfirm()">'
+    + '<div style="filter:blur(5px);pointer-events:none;user-select:none;">' + rows + '</div>'
+    + '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.3);border-radius:12px;">'
+    + '<div style="width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;"><i class="fa-solid fa-lock"></i></div></div></div>';
 }
 // 0-20: 구독 상품 목록/구매/화면 - 기존 쌀 충전(RICE_PACKAGES/handleBuyRicePackage)과 동일한 방식으로 window.buyItem 재사용
 // 가격은 참고용 placeholder(실제 판매가는 RevenueCat/스토어 콘솔에서 확정, server.js의 SUBSCRIPTION_PRODUCTS와 상품ID가 반드시 같아야 함)
@@ -5187,7 +5201,7 @@ function loadAllVisitorsSection(){
   socket.emit('profile:get_all_visitors', {}, (res)=>{
     const wrap = document.getElementById('profileAllVisitorsBody');
     if (!wrap || !res || !res.success) return;
-    if (res.locked){ wrap.innerHTML = renderLockTeaser(res.count, '구독 시작 이전 기록까지 포함한 전체 방문자를 확인할 수 있어요.'); return; }
+    if (res.locked){ wrap.innerHTML = renderLockTeaser(res.visitors); return; }
     const visitors = res.visitors || [];
     wrap.innerHTML = visitors.length ? visitors.map(u=>`
       <div class="user-card" style="cursor:pointer;" onclick="openProfileDetailScreen('${u.id}')">
