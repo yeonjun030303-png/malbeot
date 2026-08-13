@@ -1291,7 +1291,12 @@ let currentUser = JSON.parse(sessionStorage.getItem('malbeot_session')) || null;
 // 단체채팅방 초대링크(/join/코드)로 들어온 경우, 로그인 완료 후 initApp()에서 자동 입장 처리
 let pendingInviteCode = (function(){
   const m = location.pathname.match(/^\/join\/([A-Za-z0-9]+)/);
-  return m ? m[1] : null;
+  if (m) return m[1];
+  // 카카오 로그인은 페이지를 완전히 이동했다 돌아오는 방식이라 위 location.pathname이 사라짐 ->
+  // startKakaoLogin()에서 미리 저장해둔 값을 여기서 복원함(1회용, 바로 제거)
+  const saved = sessionStorage.getItem('malbeot_pending_invite_code');
+  if (saved) sessionStorage.removeItem('malbeot_pending_invite_code');
+  return saved || null;
 })();
 let sessionToken = sessionStorage.getItem('malbeot_token') || null;
 let currentChatRooms = [];
@@ -1903,6 +1908,10 @@ function startKakaoLogin(){
     showMiniAlert('카카오 로그인이 아직 설정되지 않았습니다. (KAKAO_REST_API_KEY 미설정)', [{label:'확인', primary:true}]);
     return;
   }
+  // 0-27: 초대링크(/join/코드)로 들어온 상태에서 카카오 로그인을 누르면 브라우저가 카카오로 완전히 이동했다가
+  // redirect_uri(origin+'/')로 돌아오기 때문에 pendingInviteCode 값이 사라짐 -> sessionStorage에 잠깐 저장해뒀다가
+  // 위쪽 pendingInviteCode 초기화 로직에서 복원함
+  if (pendingInviteCode) sessionStorage.setItem('malbeot_pending_invite_code', pendingInviteCode);
   const redirectUri = window.location.origin + '/';
   const url = `https://kauth.kakao.com/oauth/authorize?client_id=${encodeURIComponent(KAKAO_REST_API_KEY)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
   window.location.href = url;
