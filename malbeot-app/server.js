@@ -2126,6 +2126,8 @@ io.on('connection', (socket) => {
   });
 
   // ===================== 관리자 대시보드 =====================
+  // 같은 대상(type+targetId)에 대해 미처리 신고가 이 횟수 이상 누적되면 관리자 목록 최상단에 강조 노출함
+  const URGENT_REPORT_THRESHOLD = 3;
   // 신고 목록 조회(게시글/프로필/채팅 전체) + 종류별 미처리(pending) 개수 집계
   socket.on('admin:reports:list', async (data, cb) => {
     try {
@@ -2133,7 +2135,20 @@ io.on('connection', (socket) => {
       if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
       const snap = await db.ref('reports').once('value');
       const all = snap.val() || {};
-      const list = Object.values(all).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      // 같은 대상(type::targetId)에 미처리 신고가 몇 건 쌓였는지 먼저 집계
+      const pendingCountByTarget = {};
+      Object.values(all).forEach(r => {
+        if (r.status !== 'pending') return;
+        const key = `${r.type}::${r.targetId}`;
+        pendingCountByTarget[key] = (pendingCountByTarget[key] || 0) + 1;
+      });
+      // 누적 신고 많은 대상(내림차순) 우선, 그다음 최신순 정렬
+      const list = Object.values(all).sort((a, b) => {
+        const ac = pendingCountByTarget[`${a.type}::${a.targetId}`] || 0;
+        const bc = pendingCountByTarget[`${b.type}::${b.targetId}`] || 0;
+        if (bc !== ac) return bc - ac;
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      });
       const users = await getAllUsers();
       const enriched = await Promise.all(list.map(async r => {
         let targetLabel = '';
@@ -2159,7 +2174,8 @@ io.on('connection', (socket) => {
           accusedNickname = c && users[c.authorId] ? users[c.authorId].nickname : '(탈퇴한 사용자)';
         }
         const reporter = users[r.reporterUid];
-        return { ...r, targetLabel, accusedNickname, reporterNickname: reporter ? reporter.nickname : '(알 수 없음)' };
+        const sameTargetPendingCount = pendingCountByTarget[`${r.type}::${r.targetId}`] || 0;
+        return { ...r, targetLabel, accusedNickname, reporterNickname: reporter ? reporter.nickname : '(알 수 없음)', sameTargetPendingCount, isUrgent: sameTargetPendingCount >= URGENT_REPORT_THRESHOLD };
       }));
       const counts = { post: 0, user: 0, chat: 0, comment: 0 };
       enriched.forEach(r => { if (r.status === 'pending' && counts[r.type] !== undefined) counts[r.type]++; });
@@ -2219,6 +2235,8 @@ io.on('connection', (socket) => {
           target.pendingWarningNotify = { at: Date.now(), notified: false };
           const sId = userToSocket[target.id];
           if (sId) { io.to(sId).emit('account:warned', { message: WARNING_MESSAGE }); target.pendingWarningNotify.notified = true; }
+          // 앱을 꺼놨거나 로그아웃 상태여도 확실히 알 수 있도록 웹푸시도 함께 발송(문자X, 인앱 알림창 성격의 푸시)
+          else sendWebPush(target.id, { title: '경고 안내', body: WARNING_MESSAGE, type: 'warning' });
           await saveUser(target);
         }
       }
