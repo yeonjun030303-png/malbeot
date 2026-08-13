@@ -1115,7 +1115,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <div id="adminPhoneRequestList"></div>
       </div>
       <div id="adminSubTab" class="hidden">
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">닉네임으로 유저를 검색해 골드/플래티넘을 결제 없이 즉시 지급하거나 회수할 수 있어요(테스트·CS 대응용).</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">닉네임으로 유저를 검색해 기본/골드/플래티넘 등급을 결제 없이 바로 설정할 수 있어요(테스트·CS 대응용).</div>
         <div style="display:flex;gap:8px;margin-bottom:14px;">
           <input id="adminSubSearchInput" type="text" placeholder="닉네임 검색" style="flex:1;padding:10px 12px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-input);color:var(--text-main);" onkeydown="if(event.key==='Enter') searchAdminSubscriptionUsers()">
           <button class="btn btn-secondary" onclick="searchAdminSubscriptionUsers()">검색</button>
@@ -4994,9 +4994,13 @@ function searchAdminSubscriptionUsers(){
     box.innerHTML = res.users.map(u=>{
       const sub = u.subscription;
       const active = sub && sub.tier && sub.expiresAt && sub.expiresAt > Date.now();
+      const curTier = active ? sub.tier : 'basic';
       const statusText = active
         ? `${sub.tier==='platinum'?'플래티넘':'골드'} 구독 중 · ${new Date(sub.expiresAt).toLocaleDateString('ko-KR')}까지`
-        : '구독 없음';
+        : '기본(구독 없음)';
+      const btnStyle = (on)=> on
+        ? 'background:var(--primary);color:#fff;border-color:var(--primary);'
+        : 'background:var(--bg-input);color:var(--text-main);';
       return `
       <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -5004,11 +5008,11 @@ function searchAdminSubscriptionUsers(){
           <span style="font-size:11px;color:${active?'var(--primary)':'var(--text-muted)'};">${statusText}</span>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
-          <button class="btn btn-secondary btn-sm" onclick="grantAdminSubscription('${u.id}','gold',14)">골드 14일</button>
+          <button class="btn btn-sm" style="${btnStyle(curTier==='basic')}" onclick="revokeAdminSubscription('${u.id}')">기본</button>
+          <button class="btn btn-sm" style="${btnStyle(curTier==='gold')}" onclick="grantAdminSubscription('${u.id}','gold',14)">골드 14일</button>
           <button class="btn btn-secondary btn-sm" onclick="grantAdminSubscription('${u.id}','gold',365)">골드 1년</button>
-          <button class="btn btn-secondary btn-sm" onclick="grantAdminSubscription('${u.id}','platinum',14)">플래 14일</button>
+          <button class="btn btn-sm" style="${btnStyle(curTier==='platinum')}" onclick="grantAdminSubscription('${u.id}','platinum',14)">플래 14일</button>
           <button class="btn btn-secondary btn-sm" onclick="grantAdminSubscription('${u.id}','platinum',365)">플래 1년</button>
-          ${active?`<button class="btn btn-sm" style="background:var(--danger,#ef4444);color:#fff;" onclick="revokeAdminSubscription('${u.id}')">회수</button>`:''}
         </div>
       </div>`;
     }).join('');
