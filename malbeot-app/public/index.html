@@ -3368,6 +3368,11 @@ function handleBuyRicePackage(productId){
 
 /* ===================== 차단 / 신고 ===================== */
 function openBlockReportModal(type, id, authorId){ blockReportContext = {type, id: id||currentProfileUserId, authorId}; openModal('blockReportModal'); }
+// 0-37: 채팅 메시지 롱프레스 신고 - 방 전체가 아니라 메시지 1개(messageId)를 신고 대상으로 지정 (기존엔 이 함수가 정의돼있지 않아 신고 자체가 에러로 안 되던 버그였음)
+function reportMessage(roomId, messageId, otherUserId, previewText){
+  blockReportContext = { type:'chat', id: roomId, authorId: otherUserId, messageId, messagePreview: (previewText||'').slice(0,60) };
+  openReportCategoryModal();
+}
 function handleBlockAction(){
   closeModal('blockReportModal');
   if (!confirm('이 사용자를 차단하시겠습니까? 차단하면 서로 연락을 주고받을 수 없습니다.')) return;
@@ -5180,13 +5185,16 @@ function renderAdminReports(){
       } else if (r.type==='user'){
         actions = `<button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','ban_user')">계정 정지</button><button class="btn btn-secondary" style="flex:1;color:var(--danger);" onclick="resolveAdminReport('${r.id}','warn_user')">경고</button><button class="btn btn-secondary" style="flex:1;color:#fff;background:var(--danger,#ef4444);" onclick="confirmForceWithdraw('${r.id}')">강제탈퇴</button><button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','complete_only')">처리완료 표시만</button>`;
       } else if (r.type==='chat'){
-        actions = `<button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','delete_room')">채팅방 삭제</button><button class="btn btn-secondary" style="flex:1;color:var(--danger);" onclick="resolveAdminReport('${r.id}','warn_user')">경고</button><button class="btn btn-secondary" style="flex:1;color:#fff;background:var(--danger,#ef4444);" onclick="confirmForceWithdraw('${r.id}')">강제탈퇴</button><button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','complete_only')">처리완료 표시만</button>`;
+        const chatDelBtn = r.messageId
+          ? `<button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','delete_message')">메시지 삭제</button>`
+          : `<button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','delete_room')">채팅방 삭제</button>`;
+        actions = `${chatDelBtn}<button class="btn btn-secondary" style="flex:1;color:var(--danger);" onclick="resolveAdminReport('${r.id}','warn_user')">경고</button><button class="btn btn-secondary" style="flex:1;color:#fff;background:var(--danger,#ef4444);" onclick="confirmForceWithdraw('${r.id}')">강제탈퇴</button><button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','complete_only')">처리완료 표시만</button>`;
       } else if (r.type==='comment'){
         actions = `<button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','delete_comment')">댓글 삭제</button><button class="btn btn-secondary" style="flex:1;color:var(--danger);" onclick="resolveAdminReport('${r.id}','warn_user')">경고</button><button class="btn btn-secondary" style="flex:1;color:#fff;background:var(--danger,#ef4444);" onclick="confirmForceWithdraw('${r.id}')">강제탈퇴</button><button class="btn btn-secondary" style="flex:1;" onclick="resolveAdminReport('${r.id}','complete_only')">처리완료 표시만</button>`;
       }
     }
     return `<div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;${r.isUrgent?'border:1.5px solid var(--danger);background:rgba(220,53,69,0.06);':''}">
-      <div style="display:flex;justify-content:space-between;"><b>${escapeHtml(ADMIN_REPORT_TYPE_LABEL[r.type]||r.type)} · ${escapeHtml(r.category||'')}</b><span style="font-size:11px;color:var(--text-muted);">${r.status==='pending'?'미처리':(r.status==='resolved'?'처리완료':r.status)}</span></div>
+      <div style="display:flex;justify-content:space-between;"><b>${escapeHtml((ADMIN_REPORT_TYPE_LABEL[r.type]||r.type) + (r.type==='chat' && r.messageId ? '(메시지)' : ''))} · ${escapeHtml(r.category||'')}</b><span style="font-size:11px;color:var(--text-muted);">${r.status==='pending'?'미처리':(r.status==='resolved'?'처리완료':r.status)}</span></div>
       ${r.isUrgent?`<div style="font-size:11px;color:var(--danger);font-weight:700;margin-top:2px;"><i class="fa-solid fa-triangle-exclamation"></i> 같은 대상 신고 ${r.sameTargetPendingCount}건 누적</div>`:''}
       <div style="font-size:13px;color:var(--text-muted);margin:4px 0;">대상: ${escapeHtml(r.targetLabel||'')}${r.accusedNickname?` · <b>${escapeHtml(r.accusedNickname)}</b>(피신고자)`:''}</div>
       <div style="font-size:12px;color:var(--text-muted);">신고자: <b>${escapeHtml(r.reporterNickname||'')}</b>(신고자) · ${formatRelativeTime(r.createdAt)}</div>

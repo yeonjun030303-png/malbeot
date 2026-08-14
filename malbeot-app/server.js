@@ -2298,6 +2298,11 @@ io.on('connection', (socket) => {
         status: 'pending',
         createdAt: Date.now()
       };
+      // 0-37: 채팅 메시지 롱프레스 신고는 messageId를 함께 보내 메시지 단위로 특정함
+      if (targetContext.messageId) {
+        report.messageId = targetContext.messageId;
+        if (targetContext.messagePreview) report.messagePreview = targetContext.messagePreview;
+      }
       await ref.set(report);
       cb && cb({ success: true });
     } catch (e) { console.error(e); cb && cb({ success: false }); }
@@ -2347,10 +2352,18 @@ io.on('connection', (socket) => {
           targetLabel = u ? u.nickname : '(탈퇴한 사용자)';
           accusedNickname = targetLabel;
         } else if (r.type === 'chat') {
-          targetLabel = `채팅방 ${r.targetId}`;
           const room = await getRoom(r.targetId);
           const otherId = room && room.userIds ? room.userIds.find(uid => uid !== r.reporterUid) : null;
           accusedNickname = otherId && users[otherId] ? users[otherId].nickname : '(알 수 없음)';
+          if (r.messageId) {
+            // 0-37: 메시지 단위 신고는 방 이름 대신 신고된 메시지 내용을 미리보기로 보여줌
+            const msg = room && room.messages && room.messages[r.messageId];
+            targetLabel = msg
+              ? (msg.deletedForEveryone ? '(이미 삭제된 메시지)' : (msg.type === 'image' ? '(이미지)' : (msg.text || '').slice(0, 40)))
+              : (r.messagePreview || '(삭제된 메시지)');
+          } else {
+            targetLabel = `채팅방 ${r.targetId}`;
+          }
         } else if (r.type === 'comment') {
           const [postId, commentId] = (r.targetId || '').split('::');
           const p = postId ? await getPost(postId) : null;
@@ -2368,8 +2381,8 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
-  // 신고 처리: action은 'delete_post'|'ban_user'|'delete_room'|'complete_only' 중 하나
-  // (채팅 메시지 1개 단위 삭제는 롱프레스 신고 기능(messageId 확보) 구현 후 추가 예정 — 현재는 방 단위만 가능)
+  // 신고 처리: action은 'delete_post'|'ban_user'|'delete_room'|'delete_message'|'complete_only' 중 하나
+  // 0-37: 채팅 메시지 1개 단위 삭제 구현 완료(messageId가 있는 신고는 방 전체가 아니라 해당 메시지만 삭제 가능)
   socket.on('admin:reports:resolve', async (data, cb) => {
     try {
       const requester = await getUser(socketToUser[socket.id]);
@@ -2400,6 +2413,16 @@ io.on('connection', (socket) => {
         }
       } else if (action === 'delete_room' && report.type === 'chat') {
         await deleteRoom(report.targetId);
+      } else if (action === 'delete_message' && report.type === 'chat' && report.messageId) {
+        // 0-37: 방 전체가 아니라 신고된 메시지 1개만 삭제(기존 '나에게만/모두에게 삭제'와 동일한 소프트 삭제 방식 재사용)
+        await db.ref(`chats/${report.targetId}/messages/${report.messageId}`).update({ deletedForEveryone: true, text: '', data: null });
+        const msgRoom = await getRoom(report.targetId);
+        if (msgRoom && msgRoom.userIds) {
+          msgRoom.userIds.forEach(uid => {
+            const sId = userToSocket[uid];
+            if (sId) io.to(sId).emit('chat:message_deleted', { roomId: report.targetId, messageId: report.messageId, mode: 'everyone' });
+          });
+        }
       } else if (action === 'delete_comment' && report.type === 'comment') {
         const [postId, commentId] = (report.targetId || '').split('::');
         const post = postId ? await getPost(postId) : null;
