@@ -2614,12 +2614,15 @@ io.on('connection', (socket) => {
         logoColorOn: (target.subscription && typeof target.subscription.logoColorOn === 'boolean') ? target.subscription.logoColorOn : true,
         badgeOn: (target.subscription && typeof target.subscription.badgeOn === 'boolean') ? target.subscription.badgeOn : true
       };
+      // 실구매(RevenueCat 웹훅)와 동일하게 등급별 보너스 쌀도 즉시 지급 (골드 1000 / 플래티넘 3000)
+      const bonusPoints = tier === 'platinum' ? 3000 : 1000;
+      target.points = (target.points || 0) + bonusPoints;
       await saveUser(target);
-      console.log(`[관리자 구독 지급] ${requester.nickname}(이)가 ${target.nickname}에게 ${tier}(${days}일) 수동 지급`);
+      console.log(`[관리자 구독 지급] ${requester.nickname}(이)가 ${target.nickname}에게 ${tier}(${days}일) + 쌀 ${bonusPoints} 수동 지급`);
       const sId = userToSocket[target.id];
       if (sId) io.to(sId).emit('points:updated', { points: target.points, subscription: target.subscription });
       broadcastUsers();
-      cb && cb({ success: true, subscription: target.subscription });
+      cb && cb({ success: true, subscription: target.subscription, points: target.points });
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
   // 0-22: 관리자 - 구독 강제 해제
@@ -2639,6 +2642,26 @@ io.on('connection', (socket) => {
       broadcastUsers();
       cb && cb({ success: true });
     } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 0-38: 관리자 구독관리 - 검색 없이도 우선순위 목록을 바로 보여줌
+  // 우선순위: 1) 구독 중인데 곧 만료되는 유저(임박순) 2) 최근 접속한 유저 순
+  socket.on('admin:subscription:list', async (data, cb) => {
+    try {
+      const requester = await getUser(socketToUser[socket.id]);
+      if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
+      const allUsers = Object.values(await getAllUsers());
+      const now = Date.now();
+      const activeSubUsers = allUsers
+        .filter(u => u.subscription && u.subscription.tier && u.subscription.expiresAt && u.subscription.expiresAt > now)
+        .sort((a, b) => a.subscription.expiresAt - b.subscription.expiresAt);
+      const activeIds = new Set(activeSubUsers.map(u => u.id));
+      const recentUsers = allUsers
+        .filter(u => !activeIds.has(u.id))
+        .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0))
+        .slice(0, 30);
+      cb && cb({ success: true, users: [...activeSubUsers, ...recentUsers] });
+    } catch (e) { console.error(e); cb && cb({ success: false, users: [] }); }
   });
 
   // 어뷰징 의심(동일 기기로 계정 2개 이상) 그룹 목록 - 관리자만

@@ -1140,7 +1140,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <div id="adminPhoneRequestList"></div>
       </div>
       <div id="adminSubTab" class="hidden">
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">닉네임으로 유저를 검색해 기본/골드/플래티넘 등급을 결제 없이 바로 설정할 수 있어요(테스트·CS 대응용).</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">구독 만료 임박 유저와 최근 접속 유저가 검색 없이 아래에 바로 표시돼요. 다른 유저는 닉네임으로 검색하세요(테스트·CS 대응용).</div>
         <div style="display:flex;gap:8px;margin-bottom:14px;">
           <input id="adminSubSearchInput" type="text" placeholder="닉네임 검색" style="flex:1;padding:10px 12px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-input);color:var(--text-main);" onkeydown="if(event.key==='Enter') searchAdminSubscriptionUsers()">
           <button class="btn btn-secondary" onclick="searchAdminSubscriptionUsers()">검색</button>
@@ -3829,10 +3829,21 @@ document.getElementById('groupChatInputText').addEventListener('keydown', (e)=>{
 function triggerGroupChatImageInput(){ document.getElementById('groupChatImageInput').click(); }
 async function handleGroupChatImageUpload(e){
   const file = e.target.files[0]; if(!file || !activeGroupRoomId) return;
-  const image = await compressImageFile(file);
+  let image;
+  try {
+    image = await compressImageFile(file);
+  } catch (err) {
+    console.error('사진 처리 실패:', err);
+    showMiniAlert('이 사진은 불러올 수 없어요. 다른 사진으로 다시 시도해주세요.', [{label:'확인', primary:true}]);
+    e.target.value = '';
+    return;
+  }
   socket.emit('group:send_image', {roomId:activeGroupRoomId, image}, (res)=>{
-    if (res && res.blocked) showMiniAlert(res.message || '부적절한 사진으로 감지되어 전송할 수 없습니다.', [{label:'확인', primary:true}]);
+    if (!res) { showMiniAlert('사진 전송에 실패했어요. 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]); return; }
+    if (res.blocked) showMiniAlert(res.message || '부적절한 사진으로 감지되어 전송할 수 없습니다.', [{label:'확인', primary:true}]);
+    else if (!res.success) showMiniAlert(res.message || '사진 전송에 실패했어요. 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]);
   });
+  e.target.value = '';
 }
 socket.on('group:new_message', (data)=>{
   const cached = findCachedGroupRoom(data.roomId);
@@ -4518,10 +4529,21 @@ document.getElementById('chatInputText').addEventListener('keydown', (e)=>{
 function triggerChatImageInput(){ document.getElementById('chatImageInput').click(); }
 async function handleChatImageUpload(e){
   const file = e.target.files[0]; if(!file || !activeRoomId) return;
-  const image = await compressImageFile(file);
+  let image;
+  try {
+    image = await compressImageFile(file);
+  } catch (err) {
+    console.error('사진 처리 실패:', err);
+    showMiniAlert('이 사진은 불러올 수 없어요. 다른 사진으로 다시 시도해주세요.', [{label:'확인', primary:true}]);
+    e.target.value = '';
+    return;
+  }
   socket.emit('chat:send_image', {roomId:activeRoomId, image}, (res)=>{
-    if (res && res.blocked) showMiniAlert(res.message || '부적절한 사진으로 감지되어 전송할 수 없습니다.', [{label:'확인', primary:true}]);
+    if (!res) { showMiniAlert('사진 전송에 실패했어요. 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]); return; }
+    if (res.blocked) showMiniAlert(res.message || '부적절한 사진으로 감지되어 전송할 수 없습니다.', [{label:'확인', primary:true}]);
+    else if (!res.success) showMiniAlert(res.message || '사진 전송에 실패했어요. 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]);
   });
+  e.target.value = '';
 }
 function triggerExitChat(){
   showMiniAlert('정말로 대화를 종료하시겠어요?', [
@@ -5050,55 +5072,71 @@ function switchAdminTab(tab){
   if (tab==='reports') loadAdminReports();
   else if (tab==='chats') loadAdminChatRooms();
   else if (tab==='phone') loadAdminPhoneRequests();
-  else if (tab==='sub') { /* 검색 후 로드되므로 초기엔 아무것도 안 함 */ }
+  else if (tab==='sub') { loadAdminSubscriptionDefaultList(); }
   else loadAdminAbuse();
 }
-// 0-22: 관리자 구독관리 탭 - 닉네임 검색 + 지급/회수
+// 0-22/0-38: 관리자 구독관리 탭 - 닉네임 검색 + 지급/회수 (0-38: 검색 없이도 우선순위 기본목록 표시)
+function renderAdminSubUserList(users, emptyText){
+  const box = document.getElementById('adminSubSearchResults');
+  if (!users || !users.length){
+    box.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">${emptyText}</div>`;
+    return;
+  }
+  box.innerHTML = users.map(u=>{
+    const sub = u.subscription;
+    const active = sub && sub.tier && sub.expiresAt && sub.expiresAt > Date.now();
+    const curTier = active ? sub.tier : 'basic';
+    const statusText = active
+      ? `${sub.tier==='platinum'?'플래티넘':'골드'} 구독 중 · ${new Date(sub.expiresAt).toLocaleDateString('ko-KR')}까지`
+      : '기본(구독 없음)';
+    const btnStyle = (on)=> on
+      ? 'background:var(--primary);color:#fff;border-color:var(--primary);'
+      : 'background:var(--bg-input);color:var(--text-main);';
+    return `
+    <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <b>${escapeHtml(u.nickname)}</b>
+        <span style="font-size:11px;color:${active?'var(--primary)':'var(--text-muted)'};">${statusText}</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+        <button class="btn btn-sm" style="${btnStyle(curTier==='basic')}" onclick="revokeAdminSubscription('${u.id}')">기본</button>
+        <button class="btn btn-sm" style="${btnStyle(curTier==='gold')}" onclick="grantAdminSubscription('${u.id}','gold',14)">골드 14일</button>
+        <button class="btn btn-secondary btn-sm" onclick="grantAdminSubscription('${u.id}','gold',365)">골드 1년</button>
+        <button class="btn btn-sm" style="${btnStyle(curTier==='platinum')}" onclick="grantAdminSubscription('${u.id}','platinum',14)">플래 14일</button>
+        <button class="btn btn-secondary btn-sm" onclick="grantAdminSubscription('${u.id}','platinum',365)">플래 1년</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function loadAdminSubscriptionDefaultList(){
+  const box = document.getElementById('adminSubSearchResults');
+  box.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">불러오는 중...</div>`;
+  socket.emit('admin:subscription:list', {}, (res)=>{
+    if (!res || !res.success){ box.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">목록을 불러오지 못했습니다.</div>`; return; }
+    renderAdminSubUserList(res.users, '표시할 유저가 없습니다.');
+  });
+}
 function searchAdminSubscriptionUsers(){
   const q = (document.getElementById('adminSubSearchInput').value || '').trim();
-  const box = document.getElementById('adminSubSearchResults');
-  if (!q){ box.innerHTML = ''; return; }
+  if (!q){ loadAdminSubscriptionDefaultList(); return; }
   socket.emit('users:search', {query:q}, (res)=>{
-    if (!res || !res.success || !res.users.length){
-      box.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">검색 결과가 없습니다.</div>`;
-      return;
-    }
-    box.innerHTML = res.users.map(u=>{
-      const sub = u.subscription;
-      const active = sub && sub.tier && sub.expiresAt && sub.expiresAt > Date.now();
-      const curTier = active ? sub.tier : 'basic';
-      const statusText = active
-        ? `${sub.tier==='platinum'?'플래티넘':'골드'} 구독 중 · ${new Date(sub.expiresAt).toLocaleDateString('ko-KR')}까지`
-        : '기본(구독 없음)';
-      const btnStyle = (on)=> on
-        ? 'background:var(--primary);color:#fff;border-color:var(--primary);'
-        : 'background:var(--bg-input);color:var(--text-main);';
-      return `
-      <div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <b>${escapeHtml(u.nickname)}</b>
-          <span style="font-size:11px;color:${active?'var(--primary)':'var(--text-muted)'};">${statusText}</span>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
-          <button class="btn btn-sm" style="${btnStyle(curTier==='basic')}" onclick="revokeAdminSubscription('${u.id}')">기본</button>
-          <button class="btn btn-sm" style="${btnStyle(curTier==='gold')}" onclick="grantAdminSubscription('${u.id}','gold',14)">골드 14일</button>
-          <button class="btn btn-secondary btn-sm" onclick="grantAdminSubscription('${u.id}','gold',365)">골드 1년</button>
-          <button class="btn btn-sm" style="${btnStyle(curTier==='platinum')}" onclick="grantAdminSubscription('${u.id}','platinum',14)">플래 14일</button>
-          <button class="btn btn-secondary btn-sm" onclick="grantAdminSubscription('${u.id}','platinum',365)">플래 1년</button>
-        </div>
-      </div>`;
-    }).join('');
+    if (!res || !res.success){ renderAdminSubUserList([], '검색 결과가 없습니다.'); return; }
+    renderAdminSubUserList(res.users, '검색 결과가 없습니다.');
   });
+}
+function refreshAdminSubList(){
+  const q = (document.getElementById('adminSubSearchInput').value || '').trim();
+  if (q) searchAdminSubscriptionUsers(); else loadAdminSubscriptionDefaultList();
 }
 function grantAdminSubscription(userId, tier, days){
   socket.emit('admin:subscription:grant', {userId, tier, days}, (res)=>{
-    if (res && res.success) searchAdminSubscriptionUsers();
+    if (res && res.success) refreshAdminSubList();
     else showMiniAlert((res && res.message) || '지급 중 오류가 발생했습니다.', [{label:'확인', primary:true}]);
   });
 }
 function revokeAdminSubscription(userId){
   socket.emit('admin:subscription:revoke', {userId}, (res)=>{
-    if (res && res.success) searchAdminSubscriptionUsers();
+    if (res && res.success) refreshAdminSubList();
     else showMiniAlert((res && res.message) || '회수 중 오류가 발생했습니다.', [{label:'확인', primary:true}]);
   });
 }
