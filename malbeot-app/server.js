@@ -681,6 +681,34 @@ async function purgeExpiredFilteredPosts() {
 setInterval(purgeExpiredFilteredPosts, 60 * 60 * 1000);
 
 /* =====================================================================
+   0-31: 구독(골드/플래티넘) 만료 임박 알림
+   - 활성 구독의 만료(expiresAt)까지 24시간 이내로 남은 유저에게 1회만 알림(재알림 방지용
+     subscription.expiryNotifiedAt 플래그를 저장) - 접속 중이면 인앱 미니알림, 아니면 웹푸시
+===================================================================== */
+async function notifySubscriptionsExpiringSoon() {
+  try {
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    const allUsers = await getAllUsers();
+    for (const user of Object.values(allUsers)) {
+      const sub = user.subscription;
+      if (!sub || !sub.tier || !sub.expiresAt) continue;
+      const remaining = sub.expiresAt - now;
+      if (remaining <= 0 || remaining > oneDay) continue;
+      if (sub.expiryNotifiedAt) continue; // 이미 알림 보냄
+      const tierLabel = sub.tier === 'platinum' ? '플래티넘' : '골드';
+      const msg = `${tierLabel} 구독이 곧 만료돼요. 계속 이용하시려면 다시 구독해주세요.`;
+      const sId = userToSocket[user.id];
+      if (sId) io.to(sId).emit('subscription:expiring_soon_notify', { message: msg, tier: sub.tier });
+      else sendWebPush(user.id, { title: '구독 만료 임박', body: msg, type: 'subscription_expiring' });
+      user.subscription.expiryNotifiedAt = now;
+      await saveUser(user);
+    }
+  } catch (e) { console.error('[구독 만료임박 알림 오류]', e); }
+}
+setInterval(notifySubscriptionsExpiringSoon, 60 * 60 * 1000);
+
+/* =====================================================================
    오늘의 인기 투표 자동 선정 + 포인트 100 지급
    - 매일 00시(KST) 기준으로, "어제" 하루 동안 올라온 투표(category:'vote', 구 hottopic/balance 포함)
      게시글 중 공감(likes)이 가장 많은 글의 작성자 1명에게 포인트 100개를 지급함
