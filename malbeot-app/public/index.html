@@ -1097,6 +1097,14 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <button id="adminTabSubBtn" class="btn btn-secondary" style="flex:0 0 auto;white-space:nowrap;" onclick="switchAdminTab('sub')">구독관리</button>
       </div>
       <div id="adminReportsTab">
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <select id="adminReportStatusSelect" class="form-input" style="flex:0 0 110px;" onchange="onAdminReportStatusChange(this.value)">
+            <option value="all">전체 상태</option>
+            <option value="pending">미처리만</option>
+            <option value="resolved">처리완료만</option>
+          </select>
+          <input id="adminReportSearchInput" class="form-input" style="flex:1;" placeholder="신고자/피신고자 닉네임 검색" oninput="onAdminReportSearchInput(this.value)">
+        </div>
         <div style="display:flex;gap:8px;margin-bottom:16px;">
           <div style="flex:1;text-align:center;padding:14px 0;border:1px solid var(--border-color);border-radius:10px;cursor:pointer;" onclick="filterAdminReports('post')">
             <div id="adminTallyPost" style="font-size:22px;font-weight:700;">0</div>
@@ -4978,6 +4986,8 @@ function handleSettingsBack(){
 /* ===================== 관리자 모드 ===================== */
 let adminReportsData = [];
 let adminReportFilter = 'post';
+let adminReportStatusFilter = 'all'; // 0-32: 전체/pending/resolved
+let adminReportSearchKeyword = ''; // 0-32: 신고자/피신고자 닉네임 검색
 let adminModeActive = false;
 function toggleAdminMode(){
   document.getElementById('toggleAdminMode').classList.add('on');
@@ -5109,9 +5119,25 @@ function filterAdminReports(type){
   adminReportFilter = type;
   renderAdminReports();
 }
+// 0-32: 상태 필터/닉네임 검색 변경 핸들러
+function onAdminReportStatusChange(value){
+  adminReportStatusFilter = value;
+  renderAdminReports();
+}
+function onAdminReportSearchInput(value){
+  adminReportSearchKeyword = (value || '').trim();
+  renderAdminReports();
+}
 const ADMIN_REPORT_TYPE_LABEL = { post:'게시글', user:'프로필', chat:'채팅', comment:'댓글' };
 function renderAdminReports(){
-  const list = adminReportsData.filter(r=>r.type===adminReportFilter);
+  // 0-32: 종류 필터에 상태 필터 + 닉네임(신고자/피신고자) 검색까지 함께 적용
+  const kw = adminReportSearchKeyword.toLowerCase();
+  const list = adminReportsData.filter(r=>{
+    if (r.type !== adminReportFilter) return false;
+    if (adminReportStatusFilter !== 'all' && r.status !== adminReportStatusFilter) return false;
+    if (kw && !((r.reporterNickname||'').toLowerCase().includes(kw) || (r.accusedNickname||'').toLowerCase().includes(kw))) return false;
+    return true;
+  });
   const box = document.getElementById('adminReportList');
   if (!list.length){ box.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">신고 내역이 없습니다.</div>`; return; }
   box.innerHTML = list.map(r=>{
