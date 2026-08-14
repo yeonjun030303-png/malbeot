@@ -48,6 +48,9 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 .user-points-badge{background:var(--primary-light);color:var(--primary);padding:5px 12px;border-radius:var(--radius-full);font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px;}
 .icon-round-btn{width:34px;height:34px;border-radius:50%;background:var(--bg-subtle);display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:15px;cursor:pointer;border:none;}
 .icon-round-btn.active{background:var(--primary);color:#fff;}
+.photo-tool-btn{background:none;border:none;color:#fff;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;cursor:pointer;padding:7px 12px;border-radius:10px;}
+.photo-tool-btn.active{color:var(--primary);background:rgba(255,255,255,.14);}
+#photoPreviewCanvas,#photoEditCanvas{max-width:100%;max-height:100%;touch-action:none;}
 
 .sub-category-bar{background:#fff;border-bottom:1px solid var(--border-color);display:flex;padding:8px 14px;gap:8px;flex-shrink:0;}
 .filter-item select,.filter-item button{font-size:12px;padding:7px 10px;border:1px solid var(--border-color);border-radius:var(--radius-sm);outline:none;background:var(--bg-subtle);color:var(--text-main);font-weight:600;width:100%;}
@@ -993,6 +996,10 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <button type="button" class="btn btn-secondary btn-block" style="color:var(--danger);" onclick="triggerLogout()"><i class="fa-solid fa-right-from-bracket"></i> 로그아웃</button>
         <button type="button" class="btn btn-secondary btn-block" style="color:var(--danger);" onclick="triggerWithdraw()"><i class="fa-solid fa-user-slash"></i> 회원탈퇴</button>
       </div>
+      <div class="settings-list-item" style="cursor:default;">
+        <div class="sli-label">전화번호</div>
+        <div class="sli-right" id="settingsPhoneLabel"></div>
+      </div>
       <div class="settings-list-item" onclick="openWarningHistoryModal()">
         <div class="sli-label">경고 내역</div>
         <div class="sli-right"><i class="fa-solid fa-chevron-right"></i></div>
@@ -1258,7 +1265,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </div>
   </div>
 
-  <div id="drawerBackdrop" onclick="closeFullScreen('groupInfoScreen')"></div>
+  <div id="drawerBackdrop" onclick="closeAnyDrawer()"></div>
   <div id="groupInfoScreen" class="full-screen-overlay drawer-right">
     <div class="chat-header-row">
       <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeFullScreen('groupInfoScreen')"><i class="fa-solid fa-arrow-left"></i></button>
@@ -1273,7 +1280,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
           <div style="font-size:13px;font-weight:700;">사진/동영상</div>
           <span id="groupGalleryMoreBtn" style="font-size:12px;color:var(--text-muted);cursor:pointer;display:none;" onclick="openGroupGalleryScreen()">더보기 ></span>
         </div>
-        <div id="groupInfoGallery" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>
+        <div id="groupInfoGallery" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;"></div>
       </div>
 
       <div style="margin-bottom:18px;">
@@ -1289,16 +1296,56 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </div>
   </div>
 
-  <div id="groupGalleryScreen" class="full-screen-overlay">
+  <div id="groupGalleryScreen" class="full-screen-overlay drawer-right">
     <div class="chat-header-row">
       <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeFullScreen('groupGalleryScreen')"><i class="fa-solid fa-arrow-left"></i></button>
       <div class="chat-header-nick" style="cursor:default;">사진/동영상</div>
     </div>
-    <div id="groupGalleryFullGrid" style="padding:10px;overflow-y:auto;flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>
+    <div id="groupGalleryFullGrid" style="padding:10px;overflow-y:auto;flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;"></div>
   </div>
 
   <div id="imageLightboxOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;align-items:center;justify-content:center;" onclick="closeImageLightbox()">
     <img id="imageLightboxImg" src="" style="max-width:94%;max-height:88%;object-fit:contain;">
+  </div>
+
+  <!-- 0-40: 채팅 사진 전송 전 미리보기 + 편집(회전/블러/펜/지우개) 화면 -->
+  <div id="photoPreviewScreen" class="full-screen-overlay" style="background:#000;z-index:300;">
+    <div class="chat-header-row" style="background:#000;border:none;">
+      <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;color:#fff;" onclick="closePhotoPreview()"><i class="fa-solid fa-arrow-left"></i></button>
+      <div style="margin-left:auto;">
+        <button class="btn btn-primary btn-sm" onclick="sendPreviewedPhoto()">전송</button>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;">
+      <canvas id="photoPreviewCanvas"></canvas>
+    </div>
+    <div style="display:flex;justify-content:center;padding:14px;">
+      <button type="button" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:20px;padding:9px 20px;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;" onclick="enterPhotoEditMode()"><i class="fa-solid fa-pen"></i> 편집</button>
+    </div>
+
+    <div id="photoEditBar" class="hidden" style="position:absolute;inset:0;background:#000;display:flex;flex-direction:column;z-index:2;">
+      <div class="chat-header-row" style="background:#000;border:none;">
+        <button class="back-btn" style="background:none;border:none;font-size:14px;cursor:pointer;color:#fff;" onclick="cancelPhotoEdit()">취소</button>
+        <div style="margin-left:auto;">
+          <button class="btn btn-primary btn-sm" onclick="savePhotoEdit()">저장</button>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;">
+        <canvas id="photoEditCanvas"></canvas>
+      </div>
+      <div style="padding:8px 10px 14px;background:#111;">
+        <div id="photoEditThicknessRow" style="display:flex;align-items:center;gap:8px;padding:0 6px 10px;">
+          <span style="color:#fff;font-size:12px;flex-shrink:0;">굵기</span>
+          <input type="range" id="photoEditThickness" min="4" max="40" value="14" oninput="onThicknessChange()" style="flex:1;">
+        </div>
+        <div style="display:flex;justify-content:space-around;">
+          <button type="button" class="photo-tool-btn" data-tool="rotate" onclick="rotatePhotoEdit()"><i class="fa-solid fa-rotate-right"></i><span>회전</span></button>
+          <button type="button" class="photo-tool-btn" data-tool="pen" onclick="selectPhotoTool('pen')"><i class="fa-solid fa-pencil"></i><span>펜</span></button>
+          <button type="button" class="photo-tool-btn" data-tool="blur" onclick="selectPhotoTool('blur')"><i class="fa-solid fa-droplet"></i><span>블러</span></button>
+          <button type="button" class="photo-tool-btn" data-tool="eraser" onclick="selectPhotoTool('eraser')"><i class="fa-solid fa-eraser"></i><span>지우개</span></button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="scrollTopBtn" onclick="scrollActiveContainerToTop()"><i class="fa-solid fa-arrow-up"></i></div>
@@ -1486,6 +1533,11 @@ function closeFullScreen(id){
     if (backdrop) backdrop.classList.remove('active');
   }
 }
+// 0-39: drawer-right 형태 화면이 여러 개(채팅방 정보/사진갤러리)로 늘어나면서, 뒷배경(drawerBackdrop) 클릭 시
+// 특정 화면만 닫도록 고정되어 있던 걸 "현재 열려있는 drawer를 전부 닫기"로 일반화함
+function closeAnyDrawer(){
+  document.querySelectorAll('.full-screen-overlay.drawer-right.active').forEach(el=> closeFullScreen(el.id));
+}
 
 /* ===================== 상단 알림 배너 ===================== */
 let notifyBannerTimer = null;
@@ -1619,6 +1671,233 @@ function compressImageFile(file, maxDim = 1080, quality = 0.72){
     };
     reader.readAsDataURL(file);
   });
+}
+
+/* ===================== 0-40: 채팅 사진 전송 전 미리보기 + 편집 ===================== */
+let photoPreviewMeta = null; // {isGroup, roomId, currentDataUrl}
+let previewCanvas = null, previewCtx = null;
+let peCanvas = null, peCtx = null;
+let peOrigImg = null;       // 편집 중인 기준 이미지(회전 시 갱신됨)
+let peStrokes = [];         // {tool:'pen'|'blur', thickness, color?, points:[{x,y}]}
+let peTool = 'pen';
+let peThickness = 14;
+let peDrawing = false;
+let peCurrentStroke = null;
+let peBlurCanvas = null;    // 전체 블러 처리된 사본(블러 브러시가 여기서 페인트해옴)
+let peDirty = false;
+
+function openPhotoPreview(dataUrl, isGroup, roomId){
+  photoPreviewMeta = {isGroup, roomId, currentDataUrl: dataUrl};
+  const img = new Image();
+  img.onload = ()=>{
+    previewCanvas = document.getElementById('photoPreviewCanvas');
+    const maxW = Math.min(window.innerWidth, 520), maxH = window.innerHeight * 0.62;
+    const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+    previewCanvas.width = Math.round(img.width * scale);
+    previewCanvas.height = Math.round(img.height * scale);
+    previewCtx = previewCanvas.getContext('2d');
+    previewCtx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+  };
+  img.src = dataUrl;
+  document.getElementById('photoEditBar').classList.add('hidden');
+  openFullScreen('photoPreviewScreen');
+}
+function closePhotoPreview(){
+  closeFullScreen('photoPreviewScreen');
+  photoPreviewMeta = null;
+}
+function sendPreviewedPhoto(){
+  if (!photoPreviewMeta) return;
+  const meta = photoPreviewMeta;
+  closeFullScreen('photoPreviewScreen');
+  photoPreviewMeta = null;
+  const onResult = (res)=>{
+    if (!res) { showMiniAlert('사진 전송에 실패했어요. 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]); return; }
+    if (res.blocked) showMiniAlert(res.message || '부적절한 사진으로 감지되어 전송할 수 없습니다.', [{label:'확인', primary:true}]);
+    else if (!res.success) showMiniAlert(res.message || '사진 전송에 실패했어요. 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]);
+  };
+  if (meta.isGroup) socket.emit('group:send_image', {roomId: meta.roomId, image: meta.currentDataUrl}, onResult);
+  else socket.emit('chat:send_image', {roomId: meta.roomId, image: meta.currentDataUrl}, onResult);
+}
+
+/* ---- 편집 모드 ---- */
+function enterPhotoEditMode(){
+  if (!photoPreviewMeta) return;
+  const img = new Image();
+  img.onload = ()=>{
+    peOrigImg = img;
+    peStrokes = [];
+    peBlurCanvas = null;
+    peDirty = false;
+    peThickness = Number(document.getElementById('photoEditThickness').value) || 14;
+    setupPeCanvasSize(img.width, img.height);
+    renderPhotoEdit();
+    document.getElementById('photoEditBar').classList.remove('hidden');
+    selectPhotoTool('pen');
+  };
+  img.src = photoPreviewMeta.currentDataUrl;
+}
+function setupPeCanvasSize(w, h){
+  const maxW = Math.min(window.innerWidth, 520), maxH = window.innerHeight * 0.55;
+  const scale = Math.min(maxW / w, maxH / h, 1);
+  const cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+  peCanvas = document.getElementById('photoEditCanvas');
+  peCanvas.width = cw; peCanvas.height = ch;
+  peCtx = peCanvas.getContext('2d');
+  if (!peCanvas.dataset.bound){
+    peCanvas.addEventListener('mousedown', peDown);
+    peCanvas.addEventListener('mousemove', peMove);
+    window.addEventListener('mouseup', peUp);
+    peCanvas.addEventListener('touchstart', peDown, {passive:false});
+    peCanvas.addEventListener('touchmove', peMove, {passive:false});
+    peCanvas.addEventListener('touchend', peUp);
+    peCanvas.dataset.bound = '1';
+  }
+}
+function selectPhotoTool(tool){
+  peTool = tool;
+  document.querySelectorAll('.photo-tool-btn').forEach(b=> b.classList.toggle('active', b.dataset.tool===tool));
+  document.getElementById('photoEditThicknessRow').style.visibility = (tool==='rotate') ? 'hidden' : 'visible';
+}
+function onThicknessChange(){ peThickness = Number(document.getElementById('photoEditThickness').value) || 14; }
+
+function getPeCanvasPoint(evt){
+  const rect = peCanvas.getBoundingClientRect();
+  const t = evt.touches && evt.touches[0];
+  const clientX = t ? t.clientX : evt.clientX;
+  const clientY = t ? t.clientY : evt.clientY;
+  return {
+    x: (clientX - rect.left) * (peCanvas.width / rect.width),
+    y: (clientY - rect.top) * (peCanvas.height / rect.height)
+  };
+}
+function peDown(evt){
+  if (!peCtx || peTool === 'rotate') return;
+  evt.preventDefault();
+  peDrawing = true;
+  const p = getPeCanvasPoint(evt);
+  if (peTool === 'eraser'){ eraseAtPoint(p); return; }
+  peCurrentStroke = { tool: peTool, thickness: peThickness, color: peTool==='pen' ? '#ff3040' : undefined, points: [p] };
+  peStrokes.push(peCurrentStroke);
+  peDirty = true;
+  renderPhotoEdit();
+}
+function peMove(evt){
+  if (!peDrawing) return;
+  evt.preventDefault();
+  const p = getPeCanvasPoint(evt);
+  if (peTool === 'eraser'){ eraseAtPoint(p); return; }
+  if (peCurrentStroke){ peCurrentStroke.points.push(p); renderPhotoEdit(); }
+}
+function peUp(){ peDrawing = false; peCurrentStroke = null; }
+
+function eraseAtPoint(p){
+  const r = Math.max(peThickness, 14);
+  let changed = false;
+  const newStrokes = [];
+  peStrokes.forEach(s=>{
+    let current = [];
+    s.points.forEach(pt=>{
+      const d = Math.hypot(pt.x - p.x, pt.y - p.y);
+      if (d <= r){
+        changed = true;
+        if (current.length > 1) newStrokes.push({tool:s.tool, thickness:s.thickness, color:s.color, points: current});
+        current = [];
+      } else {
+        current.push(pt);
+      }
+    });
+    if (current.length > 1) newStrokes.push({tool:s.tool, thickness:s.thickness, color:s.color, points: current});
+  });
+  if (changed){ peStrokes = newStrokes; peDirty = true; renderPhotoEdit(); }
+}
+
+function rotatePhotoEdit(){
+  if (!peOrigImg) return;
+  const oldW = peCanvas.width, oldH = peCanvas.height;
+  // 회전 시 기존에 그려둔 펜/블러 좌표도 새 방향에 맞게 함께 회전시킴(90도 시계방향)
+  peStrokes.forEach(s=>{ s.points = s.points.map(pt=>({ x: oldH - pt.y, y: pt.x })); });
+  const off = document.createElement('canvas');
+  off.width = oldH; off.height = oldW;
+  const octx = off.getContext('2d');
+  octx.translate(oldH, 0);
+  octx.rotate(Math.PI / 2);
+  octx.drawImage(peOrigImg, 0, 0, oldW, oldH);
+  const rotatedImg = new Image();
+  rotatedImg.onload = ()=>{
+    peOrigImg = rotatedImg;
+    peCanvas.width = oldH; peCanvas.height = oldW;
+    peBlurCanvas = null;
+    peDirty = true;
+    renderPhotoEdit();
+  };
+  rotatedImg.src = off.toDataURL('image/png');
+}
+
+function renderPhotoEdit(){
+  if (!peCtx || !peOrigImg) return;
+  peCtx.clearRect(0, 0, peCanvas.width, peCanvas.height);
+  peCtx.drawImage(peOrigImg, 0, 0, peCanvas.width, peCanvas.height);
+  if (peStrokes.some(s=>s.tool==='blur') && !peBlurCanvas){
+    peBlurCanvas = document.createElement('canvas');
+    peBlurCanvas.width = peCanvas.width; peBlurCanvas.height = peCanvas.height;
+    const bctx = peBlurCanvas.getContext('2d');
+    bctx.filter = 'blur(10px)';
+    bctx.drawImage(peOrigImg, 0, 0, peCanvas.width, peCanvas.height);
+  }
+  peStrokes.forEach(s=>{
+    if (!s.points.length) return;
+    if (s.tool === 'blur') paintPeBlurStroke(s); else paintPePenStroke(s);
+  });
+}
+function strokePathOn(ctx, points){
+  ctx.beginPath();
+  points.forEach((p,i)=> i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+  if (points.length === 1){ ctx.moveTo(points[0].x - 0.01, points[0].y); ctx.lineTo(points[0].x + 0.01, points[0].y); }
+  ctx.stroke();
+}
+function paintPePenStroke(s){
+  peCtx.save();
+  peCtx.lineCap = 'round'; peCtx.lineJoin = 'round';
+  peCtx.strokeStyle = s.color || '#ff3040';
+  peCtx.lineWidth = s.thickness;
+  strokePathOn(peCtx, s.points);
+  peCtx.restore();
+}
+function paintPeBlurStroke(s){
+  if (!peBlurCanvas) return;
+  const temp = document.createElement('canvas');
+  temp.width = peCanvas.width; temp.height = peCanvas.height;
+  const tctx = temp.getContext('2d');
+  tctx.drawImage(peBlurCanvas, 0, 0);
+  tctx.globalCompositeOperation = 'destination-in';
+  tctx.lineCap = 'round'; tctx.lineJoin = 'round';
+  tctx.lineWidth = s.thickness;
+  tctx.strokeStyle = '#000';
+  strokePathOn(tctx, s.points);
+  peCtx.drawImage(temp, 0, 0);
+}
+
+function savePhotoEdit(){
+  if (!peCanvas || !photoPreviewMeta) return;
+  photoPreviewMeta.currentDataUrl = peCanvas.toDataURL('image/jpeg', 0.85);
+  document.getElementById('photoEditBar').classList.add('hidden');
+  const img = new Image();
+  img.onload = ()=>{
+    previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+    previewCtx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+  };
+  img.src = photoPreviewMeta.currentDataUrl;
+}
+function cancelPhotoEdit(){
+  if (peDirty){
+    showMiniAlert('편집한 내용을 저장하시겠습니까?', [
+      {label:'아니오', primary:false, onClick:()=>{ document.getElementById('photoEditBar').classList.add('hidden'); }},
+      {label:'예', primary:true, onClick:()=> savePhotoEdit()}
+    ]);
+  } else {
+    document.getElementById('photoEditBar').classList.add('hidden');
+  }
 }
 
 function showMiniAlert(text, buttons){
@@ -3084,7 +3363,6 @@ function renderProfileDetail(user){
           <span style="font-size:12px;color:var(--text-main);cursor:pointer;font-weight:600;white-space:nowrap;" onclick="openFollowListModal('${user.id}','following')">팔로잉 <span style="color:var(--primary);">${followingCount}</span>명</span>
         </div>
       </div>
-      ${isMe?`<div style="font-size:12px;color:var(--text-muted);margin:2px 0 6px 0;"><i class="fa-solid fa-phone" style="margin-right:4px;"></i>${user.phone?formatPhoneDisplay(user.phone):'전화번호 미등록'}</div>`:''}
       <div class="profile-tags"><span class="tag">${user.region}</span><span class="tag">${user.gender==='female'?'여성':'남성'}</span><span class="tag">${user.age}세</span></div>
       ${buildInterestTagsHtml(user)}
       ${isMe ? buildMyInterestEditorHtml() : ''}
@@ -3838,12 +4116,8 @@ async function handleGroupChatImageUpload(e){
     e.target.value = '';
     return;
   }
-  socket.emit('group:send_image', {roomId:activeGroupRoomId, image}, (res)=>{
-    if (!res) { showMiniAlert('사진 전송에 실패했어요. 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]); return; }
-    if (res.blocked) showMiniAlert(res.message || '부적절한 사진으로 감지되어 전송할 수 없습니다.', [{label:'확인', primary:true}]);
-    else if (!res.success) showMiniAlert(res.message || '사진 전송에 실패했어요. 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]);
-  });
   e.target.value = '';
+  openPhotoPreview(image, true, activeGroupRoomId);
 }
 socket.on('group:new_message', (data)=>{
   const cached = findCachedGroupRoom(data.roomId);
@@ -3973,8 +4247,8 @@ function renderGroupInfoScreen(){
   const muteIcon = document.getElementById('groupMuteIcon');
   if (muteIcon) muteIcon.className = res.muted ? 'fa-solid fa-bell-slash' : 'fa-solid fa-bell';
   const gallery = document.getElementById('groupInfoGallery');
-  gallery.innerHTML = (res.gallery||[]).slice(0,6).map(g=>`<div style="aspect-ratio:1;border-radius:8px;overflow:hidden;background:#eee;cursor:pointer;" onclick="openImageLightbox('${g.data}')"><img src="${g.data}" style="width:100%;height:100%;object-fit:cover;"></div>`).join('') || `<div style="grid-column:1/-1;color:var(--text-muted);font-size:12px;text-align:center;padding:10px 0;">등록된 사진/동영상이 없습니다.</div>`;
-  document.getElementById('groupGalleryMoreBtn').style.display = (res.gallery||[]).length > 6 ? 'block' : 'none';
+  gallery.innerHTML = (res.gallery||[]).slice(0,5).map(g=>`<div style="aspect-ratio:1;border-radius:8px;overflow:hidden;background:#eee;cursor:pointer;" onclick="openImageLightbox('${g.data}')"><img src="${g.data}" style="width:100%;height:100%;object-fit:cover;"></div>`).join('') || `<div style="grid-column:1/-1;color:var(--text-muted);font-size:12px;text-align:center;padding:10px 0;">등록된 사진/동영상이 없습니다.</div>`;
+  document.getElementById('groupGalleryMoreBtn').style.display = (res.gallery||[]).length > 5 ? 'block' : 'none';
   const list = document.getElementById('groupInfoMemberList');
   const isOwner = res.myRole === 'owner';
   const blockedIds = res.blockedUserIds || [];
@@ -4538,12 +4812,8 @@ async function handleChatImageUpload(e){
     e.target.value = '';
     return;
   }
-  socket.emit('chat:send_image', {roomId:activeRoomId, image}, (res)=>{
-    if (!res) { showMiniAlert('사진 전송에 실패했어요. 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]); return; }
-    if (res.blocked) showMiniAlert(res.message || '부적절한 사진으로 감지되어 전송할 수 없습니다.', [{label:'확인', primary:true}]);
-    else if (!res.success) showMiniAlert(res.message || '사진 전송에 실패했어요. 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]);
-  });
   e.target.value = '';
+  openPhotoPreview(image, false, activeRoomId);
 }
 function triggerExitChat(){
   showMiniAlert('정말로 대화를 종료하시겠어요?', [
@@ -4807,6 +5077,7 @@ function openSettingsScreen(){
   document.getElementById('fontSizeInput').value = settingsDraft.fontSize;
   document.getElementById('fontFamilySelect').value = settingsDraft.fontFamily;
   document.getElementById('blockedCountLabel').textContent = (currentUser && currentUser.blockedUserIds ? currentUser.blockedUserIds.length : 0) + '명';
+  document.getElementById('settingsPhoneLabel').textContent = (currentUser && currentUser.phone) ? formatPhoneDisplay(currentUser.phone) : '미등록';
   renderKeywordTags();
   document.getElementById('adminModeRow').style.display = (currentUser && currentUser.isAdmin) ? 'flex' : 'none';
   document.getElementById('toggleAdminMode').classList.remove('on');
