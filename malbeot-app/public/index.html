@@ -1803,6 +1803,11 @@ socket.on('account:warned', (data)=>{
   if (!currentUser) return;
   showWarningModal(data && data.message);
 });
+// 0-30: 내가 넣은 신고가 처리되면 결과를 미니알림으로 알려줌
+socket.on('report:resolved_notify', (data)=>{
+  if (!currentUser) return;
+  showMiniAlert((data && data.message) || '신고하신 내용의 처리가 완료되었습니다.', [{label:'확인', primary:true}]);
+});
 // 0-25: 관리자가 신고 처리에서 강제탈퇴시켰을 때 - 확인 누르면 세션 정리 후 로그인 화면으로 리로드
 socket.on('account:force_withdrawn', (data)=>{
   document.getElementById('warningModalText').textContent = (data && data.message) || '이용약관 위반으로 계정이 강제 탈퇴 처리되었습니다.';

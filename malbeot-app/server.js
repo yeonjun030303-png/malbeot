@@ -2390,6 +2390,18 @@ io.on('connection', (socket) => {
       }
 
       await db.ref(`reports/${reportId}`).update({ status: 'resolved', resolveAction: action, resolvedAt: Date.now() });
+
+      // 0-30: 신고 처리 결과를 신고자에게 알려줌(실제 조치가 있었는지 여부만 구분, 상대방 신상정보는 노출 안 함)
+      if (report.reporterUid) {
+        const tookAction = action !== 'complete_only';
+        const resultMessage = tookAction
+          ? '신고해주신 내용을 확인해 조치를 완료했습니다. 소중한 제보 감사해요.'
+          : '신고해주신 내용을 검토했지만, 이번 건은 별도 조치 없이 종료됐어요.';
+        const sId = userToSocket[report.reporterUid];
+        if (sId) io.to(sId).emit('report:resolved_notify', { message: resultMessage });
+        else sendWebPush(report.reporterUid, { title: '신고 처리 결과', body: resultMessage, type: 'report_resolved' });
+      }
+
       cb && cb({ success: true });
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
