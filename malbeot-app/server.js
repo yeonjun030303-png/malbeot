@@ -196,6 +196,14 @@ app.post('/api/revenuecat-webhook', async (req, res) => {
 
     await saveUser(user);
     if (eventId) await db.ref(`processedPurchaseEvents/${eventId}`).set({ userId, productId, grantPoints, at: Date.now() });
+    // 0-33: 유저가 나중에 "결제 내역" 화면에서 조회할 수 있도록 기록해둠(관리자가 테스트로 지급한 구독은 여기 안 남음 - 실제 결제 건만)
+    await db.ref(`purchaseHistory/${userId}`).push({
+      productId,
+      points: grantPoints,
+      subscriptionTier: subProduct ? subProduct.tier : null,
+      subscriptionDays: subProduct ? subProduct.days : null,
+      at: Date.now()
+    });
 
     console.log(`[RevenueCat 웹훅] ${userId} 유저에게 쌀 ${grantPoints}개 지급 완료${subProduct ? ` + 구독(${subProduct.tier}, ${subProduct.days}일)` : ''} (상품: ${productId})`);
 
@@ -1090,6 +1098,18 @@ io.on('connection', (socket) => {
       cb && cb({ success: true, liked: !alreadyLiked, likeCount: Object.keys(target.photoLikes[photoIndex] || {}).length });
       broadcastUsers();
     } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 0-33: 본인의 결제 내역(쌀 충전/구독) 조회
+  socket.on('points:get_purchase_history', async (data, cb) => {
+    try {
+      const myId = socketToUser[socket.id];
+      if (!myId) return cb && cb({ success: false, history: [] });
+      const snap = await db.ref(`purchaseHistory/${myId}`).once('value');
+      const all = snap.val() || {};
+      const history = Object.values(all).sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 100);
+      cb && cb({ success: true, history });
+    } catch (e) { console.error(e); cb && cb({ success: false, history: [] }); }
   });
 
   // 0-20: 특정 사진에 좋아요 누른 사람 "목록" 조회 - 골드 이상 구독 중인 사람만 실제 목록 열람 가능

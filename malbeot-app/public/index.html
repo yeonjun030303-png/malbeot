@@ -1001,6 +1001,10 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <div class="sli-label">차단한 회원</div>
         <div class="sli-right"><span id="blockedCountLabel"></span><i class="fa-solid fa-chevron-right"></i></div>
       </div>
+      <div class="settings-list-item" onclick="openPurchaseHistoryScreen()">
+        <div class="sli-label">결제 내역</div>
+        <div class="sli-right"><i class="fa-solid fa-chevron-right"></i></div>
+      </div>
       </div>
 
       <div class="settings-section-title settings-accordion-header" id="accHeader-acc-display" onclick="toggleSettingsAccordion('acc-display')">
@@ -1152,6 +1156,14 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div class="fs-title">차단한 회원</div>
     </div>
     <div class="fs-body" id="blockedListBody" style="padding:8px 16px;"></div>
+  </div>
+
+  <div id="purchaseHistoryScreen" class="full-screen-overlay">
+    <div class="fs-header">
+      <button class="back-btn" onclick="closeFullScreen('purchaseHistoryScreen')"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="fs-title">결제 내역</div>
+    </div>
+    <div class="fs-body" id="purchaseHistoryBody" style="padding:8px 16px;"></div>
   </div>
 
   <div id="profileVisitorsScreen" class="full-screen-overlay">
@@ -5102,6 +5114,26 @@ function approveAdminPhoneRequest(requestId){
   socket.emit('admin:phone_requests:approve', {requestId}, (res)=>{
     if (res && res.success) loadAdminPhoneRequests();
     else showMiniAlert('처리 중 오류가 발생했습니다.', [{label:'확인', primary:true}]);
+  });
+}
+const PURCHASE_PRODUCT_LABEL = {
+  points_1000: '쌀 1000개 충전', points_3000: '쌀 3000개 충전', points_5000: '쌀 5000개 충전',
+  sub_gold_14d: '골드 구독 14일권', sub_platinum_14d: '플래티넘 구독 14일권',
+  sub_gold_365d: '골드 구독 1년권', sub_platinum_365d: '플래티넘 구독 1년권'
+};
+function openPurchaseHistoryScreen(){
+  const body = document.getElementById('purchaseHistoryBody');
+  body.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">불러오는 중...</div>`;
+  openFullScreen('purchaseHistoryScreen');
+  socket.emit('points:get_purchase_history', {}, (res)=>{
+    if (!res || !res.success || !res.history.length){ body.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);">결제 내역이 없습니다.</div>`; return; }
+    body.innerHTML = res.history.map(function(hst){
+      const label = PURCHASE_PRODUCT_LABEL[hst.productId] || hst.productId;
+      return '<div class="settings-list-item" style="flex-direction:column;align-items:stretch;cursor:default;">'
+        + '<div style="display:flex;justify-content:space-between;"><b>' + escapeHtml(label) + '</b><span style="font-size:12px;color:var(--text-muted);">' + formatRelativeTime(hst.at) + '</span></div>'
+        + '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">쌀 +' + hst.points + '개' + (hst.subscriptionTier ? (' · ' + (hst.subscriptionTier==='platinum'?'플래티넘':'골드') + ' ' + hst.subscriptionDays + '일') : '') + '</div>'
+        + '</div>';
+    }).join('');
   });
 }
 function loadAdminReports(){
