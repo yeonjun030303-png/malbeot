@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.onrender.malbeot_1.twa",
+        "sha256_cert_fingerprints": ["C5:1A:99:62:A6:A5:A7:42:6E:DB:38:2E:20:6F:EA:D8:08:D4:C6:F5:04:90:A7:EF:1B:43:A3:47:A2:B7:B9:00"]
+      }
+    }]
