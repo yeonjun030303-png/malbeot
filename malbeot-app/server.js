@@ -61,7 +61,7 @@ if (!process.env.ALLOWED_ORIGIN) {
 }
 const io = new Server(server, { cors: { origin: ALLOWED_ORIGIN }, maxHttpBufferSize: 1.5e7 });
 app.use(express.json()); // /api/reports 같은 REST 라우트가 req.body를 읽으려면 필요함 (신고 시스템 추가하며 필요해짐)
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'allow' }));
 
 // 신고 시스템 (메시지 신고 접수 + 관리자 조회/처리)
 const reportsRouter = require('./reports');
