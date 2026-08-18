@@ -2054,33 +2054,52 @@ window.addEventListener('load', ()=>{
    - 소켓이 처음 연결되거나 네트워크 문제로 재연결될 때마다 호출됨.
    - 토큰이 유효하면 비밀번호 재입력 없이 자동 로그인되고, 서버가 토큰을 새로 발급(연장)해줌.
    - 토큰이 없거나(최초 방문) 7일이 지나 만료됐으면 로그인 화면으로 돌아가 비밀번호를 다시 입력해야 함. */
-socket.on('connect', ()=>{
-  if (currentUser && sessionToken){
-    socket.emit('auth:session_resume', {token: sessionToken}, (res)=>{
-      if (res.success){
-        currentUser = res.user; saveSession(res.token);
-        closeModal('landingScreen'); closeModal('authModal');
-        initApp();
-        if (res.rewardNotify){
-          showMiniAlert(`어제의 인기 투표로 선정되셔서 포인트 ${res.rewardNotify.amount}개를 지급했어요!`, [{label:'확인', primary:true}]);
-        }
-        if (res.dailyRewardNotify){
-          showMiniAlert(`오늘의 접속 보상으로 쌀 ${res.dailyRewardNotify.amount}개가 지급되었습니다!`, [{label:'확인', primary:true}]);
-        }
-        if (res.warningNotify){ showWarningModal(res.warningNotify.message); }
-        if (res.repPhotoSuggestNotify){
-          showMiniAlert('다른 사진이 대표사진보다 좋아요를 더 많이 받았어요! 대표사진을 바꿔보시겠어요?', [
-            {label:'나중에', primary:false},
-            {label:'프로필 편집하기', primary:true, onClick:()=>{ openSettingsScreen(); loadProfileToForm(); }}
-          ]);
-        }
-        if (!currentUser.phone) openPhoneSetupModal();
+// 0-41: 세션 복구 실패시 무조건 로그아웃하던 버그 수정.
+// 진짜 로그인 만료(expired)/계정정지(banned)일 때만 로그아웃하고,
+// 그 외(서버 일시적 불안정 등)는 세션을 유지한 채 잠시 후 자동 재시도함(최대 3회).
+let sessionResumeRetryCount = 0;
+function attemptSessionResume(){
+  if (!(currentUser && sessionToken)) return;
+  socket.emit('auth:session_resume', {token: sessionToken}, (res)=>{
+    if (res.success){
+      sessionResumeRetryCount = 0;
+      currentUser = res.user; saveSession(res.token);
+      closeModal('landingScreen'); closeModal('authModal');
+      initApp();
+      if (res.rewardNotify){
+        showMiniAlert(`어제의 인기 투표로 선정되셔서 포인트 ${res.rewardNotify.amount}개를 지급했어요!`, [{label:'확인', primary:true}]);
+      }
+      if (res.dailyRewardNotify){
+        showMiniAlert(`오늘의 접속 보상으로 쌀 ${res.dailyRewardNotify.amount}개가 지급되었습니다!`, [{label:'확인', primary:true}]);
+      }
+      if (res.warningNotify){ showWarningModal(res.warningNotify.message); }
+      if (res.repPhotoSuggestNotify){
+        showMiniAlert('다른 사진이 대표사진보다 좋아요를 더 많이 받았어요! 대표사진을 바꿔보시겠어요?', [
+          {label:'나중에', primary:false},
+          {label:'프로필 편집하기', primary:true, onClick:()=>{ openSettingsScreen(); loadProfileToForm(); }}
+        ]);
+      }
+      if (!currentUser.phone) openPhoneSetupModal();
+    } else if (res.expired || res.banned){
+      sessionResumeRetryCount = 0;
+      clearSession();
+      resetToLandingScreen();
+      if (res.banned) showWarningModal(res.message || '이용이 제한된 계정입니다.');
+    } else {
+      // 일시적 오류(서버 재시작 등으로 추정) - 로그아웃시키지 않고 잠시 후 재시도
+      sessionResumeRetryCount++;
+      if (sessionResumeRetryCount <= 3){
+        setTimeout(attemptSessionResume, 2000);
       } else {
+        sessionResumeRetryCount = 0;
         clearSession();
         resetToLandingScreen();
       }
-    });
-  }
+    }
+  });
+}
+socket.on('connect', ()=>{
+  attemptSessionResume();
 });
 socket.on('users:updated', ()=>{ loadHomeUserList(); if (currentProfileUserId) refreshOpenProfileIfNeeded(); });
 // 서버(RevenueCat 웹훅)가 인앱결제 완료를 확인하고 쌀을 지급하면, 접속 중인 클라이언트에 실시간으로 알려줌
