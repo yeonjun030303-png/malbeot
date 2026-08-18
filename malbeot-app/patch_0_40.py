@@ -25,25 +25,22 @@ c = must_replace(
     "탭 제목 채팅으로 변경"
 )
 
-# ===== 0-40-B: 설정 화면 좌측에 새로고침 버튼 추가 =====
+# ===== 0-40-B: 설정 화면 우측 상단에 새로고침 버튼 추가 =====
 old_settings_header = """  <div id="settingsScreen" class="full-screen-overlay">
     <div class="fs-header">
       <button class="back-btn" onclick="handleSettingsBack()"><i class="fa-solid fa-arrow-left"></i></button>
       <div class="fs-title">설정</div>
     </div>"""
-
 new_settings_header = """  <div id="settingsScreen" class="full-screen-overlay">
     <div class="fs-header">
       <button class="back-btn" onclick="handleSettingsBack()"><i class="fa-solid fa-arrow-left"></i></button>
       <div class="fs-title">설정</div>
       <button class="back-btn" style="margin-left:auto;" onclick="refreshAppData()" title="새로고침"><i class="fa-solid fa-rotate-right"></i></button>
     </div>"""
-
 c = must_replace(c, old_settings_header, new_settings_header, "설정화면 헤더에 새로고침 버튼 추가")
 
-# refreshAppData 함수 신규 추가 (렉/데이터 꼬임 발생시 전체 새로고침)
 old_toggle_admin_fn = "function toggleAdminMode(){"
-new_toggle_admin_fn = """// 0-40: 설정 화면 새로고침 버튼 - 렉/데이터 꼬임 발생시 전체 페이지 새로고침
+new_toggle_admin_fn = """// 0-40: 설정 화면 새로고침 버튼 - 데이터 꼬임 발생시 전체 페이지 새로고침
 function refreshAppData(){
   location.reload();
 }
@@ -56,7 +53,7 @@ new_lock_confirm_btn = '<button class="btn btn-primary" style="flex:1;" onclick=
 c = must_replace(c, old_lock_confirm_btn, new_lock_confirm_btn, "잠금화면 결제이동 버튼 - 뒤에 남은 화면 먼저 닫기")
 
 write(CLIENT, c)
-print("✅ 0-40 패치 적용 완료")
+print("0-40 패치 적용 완료")
 print("  A) 채팅 탭 제목: 나의 대화목록 -> 채팅")
 print("  B) 설정 화면 우측 상단(헤더 우측 끝)에 새로고침 버튼 추가")
 print("  C) 방문자/좋아요 잠금화면 확인버튼 - 결제화면으로 정상 이동하도록 수정")

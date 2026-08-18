@@ -740,7 +740,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <p style="font-size:13px;color:#495057;margin-bottom:4px;">결제창으로 이동하시겠습니까?</p>
       <div style="display:flex;gap:8px;margin-top:18px;">
         <button class="btn btn-secondary" style="flex:1;" onclick="closeModal('lockUpsellModal')">취소</button>
-        <button class="btn btn-primary" style="flex:1;" onclick="closeModal('lockUpsellModal');openSubscriptionScreen()">확인</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="closeModal('lockUpsellModal');closeFullScreen('photoLikersScreen');closeFullScreen('profileVisitorsScreen');openSubscriptionScreen()">확인</button>
       </div>
     </div>
   </div>
@@ -939,6 +939,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     <div class="fs-header">
       <button class="back-btn" onclick="handleSettingsBack()"><i class="fa-solid fa-arrow-left"></i></button>
       <div class="fs-title">설정</div>
+      <button class="back-btn" style="margin-left:auto;" onclick="refreshAppData()" title="새로고침"><i class="fa-solid fa-rotate-right"></i></button>
     </div>
     <div class="fs-body" style="padding:6px 18px 100px 18px;">
       <div class="settings-list-item" id="adminModeRow" style="display:none;">
@@ -2439,7 +2440,7 @@ function updateHeaderForTab(tab){
   document.getElementById('homeSearchDropdown').classList.add('hidden');
   if (tab==='tab-home'){ title.textContent='실시간 친구들'; ptsWrap.classList.remove('hidden'); homeSearchWrap.classList.remove('hidden'); homeAdBannerRow.classList.remove('hidden'); }
   else if (tab==='tab-community'){ title.textContent='일상 이야기'; writeBtn.classList.remove('hidden'); ptsWrap.classList.remove('hidden'); communitySearchRow.classList.remove('hidden'); }
-  else if (tab==='tab-chat'){ title.textContent='나의 대화목록'; filterBar.classList.add('hidden'); }
+  else if (tab==='tab-chat'){ title.textContent='채팅'; filterBar.classList.add('hidden'); }
   else { title.textContent='설정'; filterBar.classList.add('hidden'); }
 }
 function switchTab(tab){
@@ -5350,6 +5351,10 @@ let adminReportFilter = 'post';
 let adminReportStatusFilter = 'all'; // 0-32: 전체/pending/resolved
 let adminReportSearchKeyword = ''; // 0-32: 신고자/피신고자 닉네임 검색
 let adminModeActive = false;
+// 0-40: 설정 화면 새로고침 버튼 - 데이터 꼬임 발생시 전체 페이지 새로고침
+function refreshAppData(){
+  location.reload();
+}
 function toggleAdminMode(){
   document.getElementById('toggleAdminMode').classList.add('on');
   closeFullScreen('settingsScreen');
