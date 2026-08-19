@@ -588,6 +588,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
             <div class="photo-slots"><div class="photo-slot" onclick="triggerEditPhotoInput()">
               <img id="editPhotoPreview" class="photo-preview hidden" alt="수정 사진">
               <span id="editPhotoPlaceholder"><i class="fa-solid fa-plus"></i></span>
+              <span id="editPhotoBadgeMain" class="hidden" style="position:absolute;top:2px;left:2px;background:var(--primary);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;">1</span>
             </div></div>
             <input type="file" id="editPhotoInput" accept="image/*" class="hidden" onchange="handleEditPhotoUpload(event)">
             <div id="editPhotoPositionWrap" class="hidden">
@@ -677,7 +678,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </div>
   </div>
 
-  <div id="reportCategoryModal" class="modal-overlay">
+  <div id="reportCategoryModal" class="modal-overlay" onclick="if(event.target===this) closeModal('reportCategoryModal')">
     <div class="modal-card">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
         <button type="button" id="reportBackBtn" class="icon-round-btn" style="width:28px;height:28px;font-size:13px;" onclick="reportGoBack()"><i class="fa-solid fa-arrow-left"></i></button>
@@ -780,7 +781,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </div>
   </div>
 
-  <div id="blockReportModal" class="modal-overlay">
+  <div id="blockReportModal" class="modal-overlay" onclick="if(event.target===this) closeModal('blockReportModal')">
     <div class="modal-card">
       <h3 style="margin-bottom:8px;">설정</h3>
       <div class="category-list">
@@ -1633,16 +1634,9 @@ document.addEventListener('keydown', (e)=>{
   if (e.key !== 'Escape') return;
   closeTopmostScreen();
 });
-/* 백스페이스 키로 뒤로가기: 입력창/텍스트영역에 포커스가 있을 땐 원래 백스페이스 동작(글자 지우기)을 그대로 두고,
-   그 외의 경우엔 현재 열려있는 화면/모달을 하나씩 닫음(뒤로가기 버튼을 누른 것과 동일하게 동작) */
-document.addEventListener('keydown', (e)=>{
-  if (e.key !== 'Backspace') return;
-  const active = document.activeElement;
-  const tag = active && active.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || (active && active.isContentEditable)) return;
-  e.preventDefault();
-  closeTopmostScreen();
-});
+/* 0-49: 백스페이스 뒤로가기 리스너가 파일 아래쪽(히스토리 기반 uiBackStack 리스너)과 중복 등록되어 있어서,
+   백스페이스 한 번에 화면이 2단계씩(예: 설정→계정→차단목록에서 누르면 설정 화면까지) 닫히던 버그가 있었음.
+   아래쪽의 히스토리 기반 리스너가 이 역할을 이미 대신하므로 여기 있던 중복 리스너는 제거함. */
 
 /* 모바일: 화면 왼쪽 가장자리에서 시작해 오른쪽으로 미는 스와이프(엣지 스와이프) 시 뒤로가기 버튼을 누른 것처럼 현재 화면을 닫음 */
 (function initEdgeSwipeBack(){
@@ -2396,12 +2390,18 @@ const uiOverlayObserver = new MutationObserver(muts=>{
       history.pushState({ uiOverlay: uiBackStack.length }, '');
     } else if (!isActive && idx !== -1){
       uiBackStack.splice(idx, 1);
-      if (!uiPopping){ try{ history.back(); }catch(e){} }
+      // 0-47: 프로그램이 스스로 닫을 때(closeModal 등)도 히스토리 동기화를 위해 history.back()을 호출하는데,
+      // 이 back()이 나중에 popstate로 돌아왔을 때 "사용자가 진짜로 뒤로가기를 누른 것"으로 오인해서
+      // 그 아래 화면까지 한 번 더 닫아버리던 게 진짜 원인이었음. uiPopping을 여기서 미리 true로 세팅해서
+      // 그 되돌아온 popstate가 무시되도록 함(진짜 뒤로가기와 구분).
+      if (!uiPopping){ uiPopping = true; try{ history.back(); }catch(e){} }
     }
   });
 });
 document.querySelectorAll('.full-screen-overlay, .modal-overlay').forEach(el=> uiOverlayObserver.observe(el, {attributes:true}));
 window.addEventListener('popstate', ()=>{
+  // 0-47: 위에서 프로그램이 스스로 유발한 back()으로 인한 popstate면(uiPopping===true) 여기선 아무것도 안 하고 소비만 함
+  if (uiPopping){ uiPopping = false; return; }
   if (uiBackStack.length > 0){
     uiPopping = true;
     const el = uiBackStack[uiBackStack.length - 1];
@@ -3738,15 +3738,20 @@ function reportMessage(roomId, messageId, otherUserId, previewText){
   openReportCategoryModal();
 }
 function handleBlockAction(){
-  closeModal('blockReportModal');
-  if (!confirm('이 사용자를 차단하시겠습니까? 차단하면 서로 연락을 주고받을 수 없습니다.')) return;
-  let targetId = blockReportContext.id;
-  if (blockReportContext.type==='post' && currentPostCache) targetId = currentPostCache.authorId;
-  if (blockReportContext.type==='comment' && blockReportContext.authorId) targetId = blockReportContext.authorId;
-  socket.emit('user:block', targetId, ()=>{
-    if (blockReportContext.type==='chat'){ closeChatModal(); loadChatRoomList(); }
-    showMiniAlert('해당 사용자를 차단했습니다.', [{label:'확인', primary:true}]);
-  });
+  // 0-47: 네이티브 confirm() 대신 앱 자체 확인창 사용 + 취소 시엔 blockReportModal을 닫지 않고 그대로 유지
+  showMiniAlert('이 사용자를 차단하시겠습니까? 차단하면 서로 연락을 주고받을 수 없습니다.', [
+    {label:'취소'},
+    {label:'차단', danger:true, onClick:()=>{
+      closeModal('blockReportModal');
+      let targetId = blockReportContext.id;
+      if (blockReportContext.type==='post' && currentPostCache) targetId = currentPostCache.authorId;
+      if (blockReportContext.type==='comment' && blockReportContext.authorId) targetId = blockReportContext.authorId;
+      socket.emit('user:block', targetId, ()=>{
+        if (blockReportContext.type==='chat'){ closeChatModal(); loadChatRoomList(); }
+        showMiniAlert('해당 사용자를 차단했습니다.', [{label:'확인', primary:true}]);
+      });
+    }}
+  ]);
 }
 function openReportCategoryModal(){
   closeModal('blockReportModal');
@@ -4913,7 +4918,7 @@ function triggerEditPhotoInput(){ document.getElementById('editPhotoInput').clic
 async function handleEditPhotoUpload(e){
   const file=e.target.files[0]; if(!file) return;
   editPhotoBase64 = await compressImageFile(file);
-  const p=document.getElementById('editPhotoPreview'); p.src=editPhotoBase64; p.classList.remove('hidden'); document.getElementById('editPhotoPlaceholder').classList.add('hidden');
+  const p=document.getElementById('editPhotoPreview'); p.src=editPhotoBase64; p.classList.remove('hidden'); document.getElementById('editPhotoPlaceholder').classList.add('hidden'); document.getElementById('editPhotoBadgeMain').classList.remove('hidden');
   editPhotoPosition = {x:50, y:50};
   const posImg = document.getElementById('editPhotoPositionImg');
   posImg.src = editPhotoBase64; posImg.style.objectPosition = '50% 50%';
@@ -4939,11 +4944,18 @@ function setupPhotoPositionDrag(){
 setupPhotoPositionDrag();
 const EXTRA_PHOTO_MAX = 4;
 let editExtraPhotos = [];
+// 0-48: 사진 위 숫자 배지를 누르면 그 사진이 추가사진 목록 맨 뒤로 이동(=번호가 마지막으로 밀림), 나머지는 한 칸씩 앞으로 당겨짐
+function reorderExtraPhoto(i){
+  const item = editExtraPhotos.splice(i,1)[0];
+  editExtraPhotos.push(item);
+  renderExtraPhotoSlots();
+}
 function renderExtraPhotoSlots(){
   const wrap = document.getElementById('editExtraPhotoSlots');
   let html = editExtraPhotos.map((src,i)=>`
     <div class="photo-slot" style="flex:0 0 68px;width:68px;height:68px;">
       <img src="${src}" class="photo-preview">
+      <span onclick="event.stopPropagation();reorderExtraPhoto(${i})" title="누르면 순서를 맨 뒤로 보냅니다" style="position:absolute;top:2px;left:2px;background:var(--primary);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;cursor:pointer;">${i+2}</span>
       <span onclick="event.stopPropagation();removeExtraPhoto(${i})" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.55);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;"><i class="fa-solid fa-xmark"></i></span>
     </div>`).join('');
   if (editExtraPhotos.length < EXTRA_PHOTO_MAX){
@@ -4971,13 +4983,13 @@ function loadProfileToForm(){
   const preview = document.getElementById('editPhotoPreview');
   editPhotoPosition = currentUser.photoPosition || {x:50, y:50};
   if (currentUser.photos && currentUser.photos.length){
-    editPhotoBase64=currentUser.photos[0]; preview.src=editPhotoBase64; preview.classList.remove('hidden'); document.getElementById('editPhotoPlaceholder').classList.add('hidden');
+    editPhotoBase64=currentUser.photos[0]; preview.src=editPhotoBase64; preview.classList.remove('hidden'); document.getElementById('editPhotoPlaceholder').classList.add('hidden'); document.getElementById('editPhotoBadgeMain').classList.remove('hidden');
     const posImg = document.getElementById('editPhotoPositionImg');
     posImg.src = editPhotoBase64; posImg.style.objectPosition = `${editPhotoPosition.x}% ${editPhotoPosition.y}%`;
     document.getElementById('editPhotoPositionWrap').classList.remove('hidden');
   } else {
     editPhotoBase64 = '';
-    preview.classList.add('hidden'); document.getElementById('editPhotoPlaceholder').classList.remove('hidden');
+    preview.classList.add('hidden'); document.getElementById('editPhotoPlaceholder').classList.remove('hidden'); document.getElementById('editPhotoBadgeMain').classList.add('hidden');
     document.getElementById('editPhotoPositionWrap').classList.add('hidden');
   }
   editExtraPhotos = (currentUser.photos || []).slice(1);
