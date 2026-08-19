@@ -3424,7 +3424,7 @@ function renderProfileDetail(user){
         </div>
       </div>`:''}
       ${isMe?'':`<button class="btn ${isFollowing?'btn-secondary':'btn-primary'} btn-block" style="margin-bottom:8px;${isFollowing?'color:var(--primary);':''}" onclick="toggleFollowUser('${user.id}')"><i class="fa-solid fa-user${isFollowing?'-check':'-plus'}"></i> ${isFollowing?'팔로잉':'팔로우'}</button>`}
-      ${isMe?'':'<button class="btn btn-primary btn-block" onclick="openMessageComposeScreen()"><i class="fa-solid fa-comments"></i> 메시지 보내기</button>'}
+      ${isMe?'':'<button class="btn btn-primary btn-block" onclick="handleSendMessageClick()"><i class="fa-solid fa-comments"></i> 메시지 보내기</button>'}
       <div class="profile-posts-title profile-section-header" id="profilePostsScrollHeader" onclick="toggleProfileMiniList('profilePostsScroll')">
         <span>작성한 글 <span class="profile-count" id="profilePostsScrollCount">(0개)</span></span>
         <i class="fa-solid fa-chevron-down accordion-arrow" id="profilePostsScrollArrow" style="display:none;"></i>
@@ -3624,6 +3624,23 @@ function loadProfilePostsSection(userId){
 }
 
 /* ===================== 메시지 작성 화면 ===================== */
+// 이미 채팅방이 있는 상대면 작성화면을 건너뛰고 바로 채팅창으로 이동, 없으면 기존처럼 작성화면(쌀 50개 안내) 표시
+function handleSendMessageClick(){
+  const targetId = currentProfileUserId; if (!targetId) return;
+  socket.emit('chat:get_list', (res)=>{
+    if (res && res.success){
+      currentChatRooms = res.rooms;
+      const existing = currentChatRooms.find(r=>r.targetUser && r.targetUser.id===targetId);
+      if (existing){
+        closeProfileDetailScreen();
+        switchTab('tab-chat');
+        openChatRoomById(existing.roomId);
+        return;
+      }
+    }
+    openMessageComposeScreen();
+  });
+}
 function openMessageComposeScreen(){
   const user = currentProfileUserCache; if (!user) return;
   document.getElementById('msgComposeBody').innerHTML = `
