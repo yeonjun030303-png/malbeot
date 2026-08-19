@@ -586,9 +586,9 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
           <div class="form-group">
             <label>내 대표 사진 <span style="font-weight:400;color:var(--text-muted);">(클릭 후 드래그로 노출 위치 조절)</span></label>
             <div class="photo-slots"><div class="photo-slot" onclick="triggerEditPhotoInput()">
-              <img id="editPhotoPreview" class="photo-preview hidden" alt="수정 사진">
+              <img id="editPhotoPreview" class="photo-preview hidden" alt="수정 사진" onclick="event.stopPropagation();reeditMainPhoto()">
               <span id="editPhotoPlaceholder"><i class="fa-solid fa-plus"></i></span>
-              <span id="editPhotoBadgeMain" class="hidden" style="position:absolute;top:2px;left:2px;background:var(--primary);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;">1</span>
+              <span id="editPhotoBadgeMain" class="hidden" style="position:absolute;top:-7px;left:-7px;background:var(--primary);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.35);border:2px solid var(--bg-card);">1</span>
             </div></div>
             <input type="file" id="editPhotoInput" accept="image/*" class="hidden" onchange="handleEditPhotoUpload(event)">
             <div id="editPhotoPositionWrap" class="hidden">
@@ -1315,16 +1315,28 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
   </div>
 
   <!-- 0-40: 채팅 사진 전송 전 미리보기 + 편집(회전/블러/펜/지우개) 화면 -->
+  <!-- 0-52: 프로필 사진 등록시에도 동일 화면 재사용(mode=profile) -->
   <div id="photoPreviewScreen" class="full-screen-overlay" style="background:#000;z-index:300;">
     <div class="chat-header-row" style="background:#000;border:none;">
       <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;color:#fff;" onclick="closePhotoPreview()"><i class="fa-solid fa-arrow-left"></i></button>
       <div style="margin-left:auto;">
-        <button class="btn btn-primary btn-sm" onclick="sendPreviewedPhoto()">전송</button>
+        <button id="photoPreviewSendBtn" class="btn btn-primary btn-sm" onclick="sendPreviewedPhoto()">전송</button>
       </div>
+    </div>
+    <div id="profilePreviewMetaBar" class="hidden" style="display:none;align-items:center;justify-content:space-between;padding:6px 16px 10px;">
+      <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+        <div style="width:38px;height:38px;border-radius:50%;overflow:hidden;background:#333;flex-shrink:0;border:1px solid rgba(255,255,255,.25);"><img id="profilePreviewAvatarImg" src="" style="width:100%;height:100%;object-fit:cover;"></div>
+        <div style="min-width:0;">
+          <div id="profilePreviewNickname" style="font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+          <div style="font-size:10.5px;color:rgba(255,255,255,.55);">실제 프로필에 이렇게 표시돼요</div>
+        </div>
+      </div>
+      <div id="photoPreviewCounter" style="font-size:11px;color:rgba(255,255,255,.85);background:rgba(255,255,255,.14);padding:3px 10px;border-radius:12px;flex-shrink:0;margin-left:8px;"></div>
     </div>
     <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;">
       <canvas id="photoPreviewCanvas"></canvas>
     </div>
+    <div id="profilePreviewThumbStrip" class="hidden" style="display:none;gap:7px;padding:0 14px 10px;overflow-x:auto;"></div>
     <div style="display:flex;justify-content:center;padding:14px;">
       <button type="button" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:20px;padding:9px 20px;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;" onclick="enterPhotoEditMode()"><i class="fa-solid fa-pen"></i> 편집</button>
     </div>
@@ -1700,8 +1712,7 @@ let peCurrentStroke = null;
 let peBlurCanvas = null;    // 전체 블러 처리된 사본(블러 브러시가 여기서 페인트해옴)
 let peDirty = false;
 
-function openPhotoPreview(dataUrl, isGroup, roomId){
-  photoPreviewMeta = {isGroup, roomId, currentDataUrl: dataUrl};
+function loadPreviewImageToCanvas(dataUrl){
   const img = new Image();
   img.onload = ()=>{
     previewCanvas = document.getElementById('photoPreviewCanvas');
@@ -1713,8 +1724,96 @@ function openPhotoPreview(dataUrl, isGroup, roomId){
     previewCtx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
   };
   img.src = dataUrl;
+}
+function openPhotoPreview(dataUrl, isGroup, roomId){
+  photoPreviewMeta = {mode:'chat', isGroup, roomId, currentDataUrl: dataUrl};
+  loadPreviewImageToCanvas(dataUrl);
   document.getElementById('photoEditBar').classList.add('hidden');
+  document.getElementById('profilePreviewMetaBar').classList.add('hidden');
+  document.getElementById('profilePreviewMetaBar').style.display = 'none';
+  document.getElementById('profilePreviewThumbStrip').classList.add('hidden');
+  document.getElementById('profilePreviewThumbStrip').style.display = 'none';
+  document.getElementById('photoPreviewSendBtn').textContent = '전송';
   openFullScreen('photoPreviewScreen');
+}
+// 0-52: 프로필 사진(대표/추가) 등록·재편집도 동일한 미리보기+편집 화면을 재사용
+// slotIndex: 0=대표사진, 1~4=추가사진(1번째 추가사진=slotIndex 1)
+function openProfilePhotoPreview(dataUrl, slotIndex){
+  photoPreviewMeta = {mode:'profile', slotIndex, currentDataUrl: dataUrl};
+  loadPreviewImageToCanvas(dataUrl);
+  document.getElementById('photoEditBar').classList.add('hidden');
+  document.getElementById('profilePreviewMetaBar').classList.remove('hidden');
+  document.getElementById('profilePreviewMetaBar').style.display = 'flex';
+  document.getElementById('profilePreviewThumbStrip').classList.remove('hidden');
+  document.getElementById('profilePreviewThumbStrip').style.display = 'flex';
+  document.getElementById('photoPreviewSendBtn').textContent = '저장';
+  renderProfilePreviewMeta();
+  renderProfilePreviewThumbStrip();
+  openFullScreen('photoPreviewScreen');
+}
+function reeditMainPhoto(){
+  if (!editPhotoBase64) return;
+  openProfilePhotoPreview(editPhotoBase64, 0);
+}
+function reeditExtraPhoto(i){
+  if (!editExtraPhotos[i]) return;
+  openProfilePhotoPreview(editExtraPhotos[i], i + 1);
+}
+function renderProfilePreviewMeta(){
+  if (!photoPreviewMeta || photoPreviewMeta.mode !== 'profile') return;
+  const avatarImg = document.getElementById('profilePreviewAvatarImg');
+  if (avatarImg) avatarImg.src = photoPreviewMeta.currentDataUrl;
+  const nickEl = document.getElementById('profilePreviewNickname');
+  if (nickEl){
+    const nickInput = document.getElementById('editNickname');
+    nickEl.textContent = (nickInput && nickInput.value.trim()) || (currentUser && currentUser.nickname) || '내 프로필';
+  }
+  const totalCount = Math.max(1 + editExtraPhotos.length, photoPreviewMeta.slotIndex + 1);
+  const counterEl = document.getElementById('photoPreviewCounter');
+  if (counterEl) counterEl.textContent = `${photoPreviewMeta.slotIndex + 1}/${totalCount}`;
+}
+function renderProfilePreviewThumbStrip(){
+  if (!photoPreviewMeta || photoPreviewMeta.mode !== 'profile') return;
+  const wrap = document.getElementById('profilePreviewThumbStrip');
+  if (!wrap) return;
+  const slots = [editPhotoBase64 || null, ...editExtraPhotos];
+  const display = slots.map((src,i)=> i===photoPreviewMeta.slotIndex ? photoPreviewMeta.currentDataUrl : src);
+  wrap.innerHTML = display.map((src,i)=> src ? `
+    <div onclick="switchProfilePreviewSlot(${i})" style="width:52px;height:52px;border-radius:9px;overflow:hidden;flex-shrink:0;cursor:pointer;border:2px solid ${i===photoPreviewMeta.slotIndex?'#fff':'transparent'};position:relative;">
+      <img src="${src}" style="width:100%;height:100%;object-fit:cover;display:block;">
+      ${i===0?'<span style="position:absolute;bottom:1px;left:1px;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:1px 4px;border-radius:4px;">대표</span>':''}
+    </div>` : '').join('');
+}
+function switchProfilePreviewSlot(i){
+  if (!photoPreviewMeta || photoPreviewMeta.mode !== 'profile') return;
+  if (i === photoPreviewMeta.slotIndex) return;
+  const slots = [editPhotoBase64 || null, ...editExtraPhotos];
+  const src = slots[i];
+  if (!src) return;
+  photoPreviewMeta.slotIndex = i;
+  photoPreviewMeta.currentDataUrl = src;
+  document.getElementById('photoEditBar').classList.add('hidden');
+  loadPreviewImageToCanvas(src);
+  renderProfilePreviewMeta();
+  renderProfilePreviewThumbStrip();
+}
+function applyProfilePreviewPhoto(slotIndex, dataUrl){
+  if (slotIndex === 0){
+    editPhotoBase64 = dataUrl;
+    const p = document.getElementById('editPhotoPreview');
+    p.src = editPhotoBase64; p.classList.remove('hidden');
+    document.getElementById('editPhotoPlaceholder').classList.add('hidden');
+    document.getElementById('editPhotoBadgeMain').classList.remove('hidden');
+    editPhotoPosition = {x:50, y:50};
+    const posImg = document.getElementById('editPhotoPositionImg');
+    posImg.src = editPhotoBase64; posImg.style.objectPosition = '50% 50%';
+    document.getElementById('editPhotoPositionWrap').classList.remove('hidden');
+  } else {
+    const idx = slotIndex - 1;
+    if (idx < editExtraPhotos.length) editExtraPhotos[idx] = dataUrl;
+    else if (editExtraPhotos.length < EXTRA_PHOTO_MAX) editExtraPhotos.push(dataUrl);
+    renderExtraPhotoSlots();
+  }
 }
 function closePhotoPreview(){
   closeFullScreen('photoPreviewScreen');
@@ -1723,6 +1822,12 @@ function closePhotoPreview(){
 function sendPreviewedPhoto(){
   if (!photoPreviewMeta) return;
   const meta = photoPreviewMeta;
+  if (meta.mode === 'profile'){
+    applyProfilePreviewPhoto(meta.slotIndex, meta.currentDataUrl);
+    closeFullScreen('photoPreviewScreen');
+    photoPreviewMeta = null;
+    return;
+  }
   closeFullScreen('photoPreviewScreen');
   photoPreviewMeta = null;
   const onResult = (res)=>{
@@ -1909,6 +2014,10 @@ function savePhotoEdit(){
     previewCtx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
   };
   img.src = photoPreviewMeta.currentDataUrl;
+  if (photoPreviewMeta.mode === 'profile'){
+    renderProfilePreviewMeta();
+    renderProfilePreviewThumbStrip();
+  }
 }
 function cancelPhotoEdit(){
   if (peDirty){
@@ -4921,12 +5030,16 @@ function triggerExitChat(){
 function triggerEditPhotoInput(){ document.getElementById('editPhotoInput').click(); }
 async function handleEditPhotoUpload(e){
   const file=e.target.files[0]; if(!file) return;
-  editPhotoBase64 = await compressImageFile(file);
-  const p=document.getElementById('editPhotoPreview'); p.src=editPhotoBase64; p.classList.remove('hidden'); document.getElementById('editPhotoPlaceholder').classList.add('hidden'); document.getElementById('editPhotoBadgeMain').classList.remove('hidden');
-  editPhotoPosition = {x:50, y:50};
-  const posImg = document.getElementById('editPhotoPositionImg');
-  posImg.src = editPhotoBase64; posImg.style.objectPosition = '50% 50%';
-  document.getElementById('editPhotoPositionWrap').classList.remove('hidden');
+  let image;
+  try { image = await compressImageFile(file); }
+  catch(err){
+    console.error('사진 처리 실패:', err);
+    showMiniAlert('이 사진은 불러올 수 없어요. 다른 사진으로 다시 시도해주세요.', [{label:'확인', primary:true}]);
+    e.target.value = '';
+    return;
+  }
+  e.target.value = '';
+  openProfilePhotoPreview(image, 0);
 }
 function setupPhotoPositionDrag(){
   const box = document.getElementById('editPhotoPositionBox');
@@ -4957,10 +5070,10 @@ function reorderExtraPhoto(i){
 function renderExtraPhotoSlots(){
   const wrap = document.getElementById('editExtraPhotoSlots');
   let html = editExtraPhotos.map((src,i)=>`
-    <div class="photo-slot" style="flex:0 0 68px;width:68px;height:68px;">
-      <img src="${src}" class="photo-preview">
-      <span onclick="event.stopPropagation();reorderExtraPhoto(${i})" title="누르면 순서를 맨 뒤로 보냅니다" style="position:absolute;top:2px;left:2px;background:var(--primary);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;cursor:pointer;">${i+2}</span>
-      <span onclick="event.stopPropagation();removeExtraPhoto(${i})" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.55);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;"><i class="fa-solid fa-xmark"></i></span>
+    <div class="photo-slot" style="flex:0 0 68px;width:68px;height:68px;overflow:visible;">
+      <img src="${src}" class="photo-preview" onclick="event.stopPropagation();reeditExtraPhoto(${i})">
+      <span onclick="event.stopPropagation();reorderExtraPhoto(${i})" title="누르면 순서를 맨 뒤로 보냅니다" style="position:absolute;top:-7px;left:-7px;background:var(--primary);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.35);border:2px solid var(--bg-card);z-index:2;">${i+2}</span>
+      <span onclick="event.stopPropagation();removeExtraPhoto(${i})" style="position:absolute;top:-7px;right:-7px;background:rgba(0,0,0,.65);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.35);z-index:2;"><i class="fa-solid fa-xmark"></i></span>
     </div>`).join('');
   if (editExtraPhotos.length < EXTRA_PHOTO_MAX){
     html += `<div class="photo-slot" style="flex:0 0 68px;width:68px;height:68px;" onclick="document.getElementById('editExtraPhotoInput').click()"><span><i class="fa-solid fa-plus"></i></span></div>`;
@@ -4971,10 +5084,17 @@ function removeExtraPhoto(i){ editExtraPhotos.splice(i,1); renderExtraPhotoSlots
 async function handleEditExtraPhotoUpload(e){
   const file = e.target.files[0]; if (!file) return;
   if (editExtraPhotos.length >= EXTRA_PHOTO_MAX) { e.target.value=''; return; }
-  const b64 = await compressImageFile(file);
-  editExtraPhotos.push(b64);
-  renderExtraPhotoSlots();
+  let image;
+  try { image = await compressImageFile(file); }
+  catch(err){
+    console.error('사진 처리 실패:', err);
+    showMiniAlert('이 사진은 불러올 수 없어요. 다른 사진으로 다시 시도해주세요.', [{label:'확인', primary:true}]);
+    e.target.value = '';
+    return;
+  }
+  const nextSlotIndex = editExtraPhotos.length + 1;
   e.target.value = '';
+  openProfilePhotoPreview(image, nextSlotIndex);
 }
 function loadProfileToForm(){
   if (!currentUser) return;
