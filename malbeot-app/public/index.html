@@ -53,6 +53,7 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 .icon-round-btn.active{background:var(--primary);color:#fff;}
 .photo-tool-btn{background:none;border:none;color:#fff;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;cursor:pointer;padding:7px 12px;border-radius:10px;}
 .photo-tool-btn.active{color:var(--primary);background:rgba(255,255,255,.14);}
+.pe-color-swatch.active{border-color:#fff !important;box-shadow:0 0 0 2px rgba(255,255,255,.5);}
 #photoPreviewCanvas,#photoEditCanvas{max-width:100%;max-height:100%;touch-action:none;}
 
 .sub-category-bar{background:#fff;border-bottom:1px solid var(--border-color);display:flex;padding:8px 14px;gap:8px;flex-shrink:0;}
@@ -1338,6 +1339,20 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <canvas id="photoEditCanvas"></canvas>
       </div>
       <div style="padding:8px 10px 14px;background:#111;">
+        <div id="photoEditColorRow" style="display:flex;align-items:center;gap:8px;padding:0 6px 10px;">
+          <span style="color:#fff;font-size:12px;flex-shrink:0;">색깔</span>
+          <div style="display:flex;gap:8px;flex:1;overflow-x:auto;">
+            <div class="pe-color-swatch active" data-color="#ff3040" onclick="selectPeColor('#ff3040')" style="width:24px;height:24px;border-radius:50%;background:#ff3040;flex-shrink:0;cursor:pointer;border:2px solid transparent;"></div>
+            <div class="pe-color-swatch" data-color="#ff9f1c" onclick="selectPeColor('#ff9f1c')" style="width:24px;height:24px;border-radius:50%;background:#ff9f1c;flex-shrink:0;cursor:pointer;border:2px solid transparent;"></div>
+            <div class="pe-color-swatch" data-color="#ffd60a" onclick="selectPeColor('#ffd60a')" style="width:24px;height:24px;border-radius:50%;background:#ffd60a;flex-shrink:0;cursor:pointer;border:2px solid transparent;"></div>
+            <div class="pe-color-swatch" data-color="#2ec4b6" onclick="selectPeColor('#2ec4b6')" style="width:24px;height:24px;border-radius:50%;background:#2ec4b6;flex-shrink:0;cursor:pointer;border:2px solid transparent;"></div>
+            <div class="pe-color-swatch" data-color="#3a86ff" onclick="selectPeColor('#3a86ff')" style="width:24px;height:24px;border-radius:50%;background:#3a86ff;flex-shrink:0;cursor:pointer;border:2px solid transparent;"></div>
+            <div class="pe-color-swatch" data-color="#8338ec" onclick="selectPeColor('#8338ec')" style="width:24px;height:24px;border-radius:50%;background:#8338ec;flex-shrink:0;cursor:pointer;border:2px solid transparent;"></div>
+            <div class="pe-color-swatch" data-color="#ff006e" onclick="selectPeColor('#ff006e')" style="width:24px;height:24px;border-radius:50%;background:#ff006e;flex-shrink:0;cursor:pointer;border:2px solid transparent;"></div>
+            <div class="pe-color-swatch" data-color="#ffffff" onclick="selectPeColor('#ffffff')" style="width:24px;height:24px;border-radius:50%;background:#ffffff;flex-shrink:0;cursor:pointer;border:2px solid #999;"></div>
+            <div class="pe-color-swatch" data-color="#000000" onclick="selectPeColor('#000000')" style="width:24px;height:24px;border-radius:50%;background:#000000;flex-shrink:0;cursor:pointer;border:2px solid transparent;"></div>
+          </div>
+        </div>
         <div id="photoEditThicknessRow" style="display:flex;align-items:center;gap:8px;padding:0 6px 10px;">
           <span style="color:#fff;font-size:12px;flex-shrink:0;">굵기</span>
           <input type="range" id="photoEditThickness" min="4" max="40" value="14" oninput="onThicknessChange()" style="flex:1;">
@@ -1684,6 +1699,7 @@ let peCanvas = null, peCtx = null;
 let peOrigImg = null;       // 편집 중인 기준 이미지(회전 시 갱신됨)
 let peStrokes = [];         // {tool:'pen'|'blur', thickness, color?, points:[{x,y}]}
 let peTool = 'pen';
+let peColor = '#ff3040';
 let peThickness = 14;
 let peDrawing = false;
 let peCurrentStroke = null;
@@ -1733,6 +1749,8 @@ function enterPhotoEditMode(){
     peStrokes = [];
     peBlurCanvas = null;
     peDirty = false;
+    peColor = '#ff3040';
+    document.querySelectorAll('.pe-color-swatch').forEach(el=> el.classList.toggle('active', el.dataset.color==='#ff3040'));
     peThickness = Number(document.getElementById('photoEditThickness').value) || 14;
     setupPeCanvasSize(img.width, img.height);
     renderPhotoEdit();
@@ -1762,6 +1780,11 @@ function selectPhotoTool(tool){
   peTool = tool;
   document.querySelectorAll('.photo-tool-btn').forEach(b=> b.classList.toggle('active', b.dataset.tool===tool));
   document.getElementById('photoEditThicknessRow').style.visibility = (tool==='rotate') ? 'hidden' : 'visible';
+  document.getElementById('photoEditColorRow').style.display = (tool==='pen') ? 'flex' : 'none';
+}
+function selectPeColor(color){
+  peColor = color;
+  document.querySelectorAll('.pe-color-swatch').forEach(el=> el.classList.toggle('active', el.dataset.color===color));
 }
 function onThicknessChange(){ peThickness = Number(document.getElementById('photoEditThickness').value) || 14; }
 
@@ -1781,7 +1804,7 @@ function peDown(evt){
   peDrawing = true;
   const p = getPeCanvasPoint(evt);
   if (peTool === 'eraser'){ eraseAtPoint(p); return; }
-  peCurrentStroke = { tool: peTool, thickness: peThickness, color: peTool==='pen' ? '#ff3040' : undefined, points: [p] };
+  peCurrentStroke = { tool: peTool, thickness: peThickness, color: peTool==='pen' ? peColor : undefined, points: [p] };
   peStrokes.push(peCurrentStroke);
   peDirty = true;
   renderPhotoEdit();
