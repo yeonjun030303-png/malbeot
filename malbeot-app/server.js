@@ -2720,5 +2720,75 @@ io.on('connection', (socket) => {
   });
 });
 
+// 0-53: 0-51 이전에 탈퇴 처리된 유저들의 팔로우/팔로워/프로필좋아요 잔여참조를
+// 서버 시작 시 딱 1회만 정리함(meta/staleFollowCleanupDone 플래그로 재실행 방지, 계속 남겨둬도 안전)
+async function cleanupStaleFollowRefsOnce() {
+  try {
+    const marker = await db.ref('meta/staleFollowCleanupDone').once('value');
+    if (marker.val()) return;
+    const usersSnap = await db.ref('users').once('value');
+    const allUsers = usersSnap.val() || {};
+    const validIds = new Set(Object.keys(allUsers));
+    let cleanedUserCount = 0, removedRefCount = 0;
+    for (const uid of Object.keys(allUsers)) {
+      const u = allUsers[uid] || {};
+      const updates = {};
+      ['followingIds', 'followerIds', 'profileLikedBy'].forEach(field => {
+        if (Array.isArray(u[field])) {
+          const filtered = u[field].filter(id => validIds.has(id));
+          if (filtered.length !== u[field].length) {
+            updates[field] = filtered;
+            removedRefCount += (u[field].length - filtered.length);
+          }
+        }
+      });
+      if (Object.keys(updates).length) {
+        await db.ref(`users/${uid}`).update(updates);
+        cleanedUserCount++;
+      }
+    }
+    await db.ref('meta/staleFollowCleanupDone').set(true);
+    console.log(`✅ 0-53: 팔로우/좋아요 잔여참조 정리 완료 (유저 ${cleanedUserCount}명, 참조 ${removedRefCount}건 제거)`);
+  } catch (e) {
+    console.error('0-53 잔여참조 정리 실패:', e);
+  }
+}
+cleanupStaleFollowRefsOnce();
+
+// 0-53: 0-51 이전에 탈퇴 처리된 유저들의 팔로우/팔로워/프로필좋아요 잔여참조를
+// 서버 시작 시 딱 1회만 정리함(meta/staleFollowCleanupDone 플래그로 재실행 방지, 계속 남겨둬도 안전)
+async function cleanupStaleFollowRefsOnce() {
+  try {
+    const marker = await db.ref('meta/staleFollowCleanupDone').once('value');
+    if (marker.val()) return;
+    const usersSnap = await db.ref('users').once('value');
+    const allUsers = usersSnap.val() || {};
+    const validIds = new Set(Object.keys(allUsers));
+    let cleanedUserCount = 0, removedRefCount = 0;
+    for (const uid of Object.keys(allUsers)) {
+      const u = allUsers[uid] || {};
+      const updates = {};
+      ['followingIds', 'followerIds', 'profileLikedBy'].forEach(field => {
+        if (Array.isArray(u[field])) {
+          const filtered = u[field].filter(id => validIds.has(id));
+          if (filtered.length !== u[field].length) {
+            updates[field] = filtered;
+            removedRefCount += (u[field].length - filtered.length);
+          }
+        }
+      });
+      if (Object.keys(updates).length) {
+        await db.ref(`users/${uid}`).update(updates);
+        cleanedUserCount++;
+      }
+    }
+    await db.ref('meta/staleFollowCleanupDone').set(true);
+    console.log(`✅ 0-53: 팔로우/좋아요 잔여참조 정리 완료 (유저 ${cleanedUserCount}명, 참조 ${removedRefCount}건 제거)`);
+  } catch (e) {
+    console.error('0-53 잔여참조 정리 실패:', e);
+  }
+}
+cleanupStaleFollowRefsOnce();
+
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => console.log(`말벗 서버 실행 중 (Firebase 연동): http://localhost:${PORT}`));
