@@ -176,7 +176,12 @@ app.post('/api/revenuecat-webhook', async (req, res) => {
       return res.status(200).send('user not found');
     }
 
-    user.points = (user.points || 0) + grantPoints;
+    // 0-54: 1년권(365일 이상)은 쌀을 한번에 다 주지 않고 매달 1일 자동으로 나눠 지급함(재구매 유도).
+    // 14일권 등 그 외 상품은 기존처럼 즉시 전액 지급.
+    const isMonthlyPayout = subProduct && subProduct.days >= 365;
+    if (!isMonthlyPayout) {
+      user.points = (user.points || 0) + grantPoints;
+    }
 
     // 0-20: 구독 상품이면 등급+만료일도 함께 갱신. 이미 활성 구독 중이면 남은 기간에 새로 산 기간을 이어붙임(연장).
     // 등급이 다르면(예: 골드 구독 중 플래티넘 구매) 더 높은 등급으로 올리고 남은 기간은 그대로 이어붙임.
@@ -192,20 +197,29 @@ app.post('/api/revenuecat-webhook', async (req, res) => {
         logoColorOn: (user.subscription && typeof user.subscription.logoColorOn === 'boolean') ? user.subscription.logoColorOn : true,
         badgeOn: (user.subscription && typeof user.subscription.badgeOn === 'boolean') ? user.subscription.badgeOn : true
       };
+      // 0-54: 1년권 매월 지급 - lastGrantedMonth를 null로 둬서 grantMonthlySubscriptionBonusIfNeeded()가
+      // 다음 체크(최대 1시간 이내)에 이번 달 몫을 바로 지급하게 함. 이후 매월 1일 자동 지급.
+      if (isMonthlyPayout) {
+        user.subscription.monthlyBonus = { amount: subProduct.points, lastGrantedMonth: null };
+      } else if (user.subscription) {
+        delete user.subscription.monthlyBonus;
+      }
     }
 
     await saveUser(user);
     if (eventId) await db.ref(`processedPurchaseEvents/${eventId}`).set({ userId, productId, grantPoints, at: Date.now() });
     // 0-33: 유저가 나중에 "결제 내역" 화면에서 조회할 수 있도록 기록해둠(관리자가 테스트로 지급한 구독은 여기 안 남음 - 실제 결제 건만)
+    // 0-54: 1년권은 이 시점엔 아직 포인트를 지급 안 했으므로(매달 나눠 지급) points를 0으로 기록함.
+    // 실제 매월 지급분은 grantMonthlySubscriptionBonusIfNeeded()에서 별도로 purchaseHistory에 기록함.
     await db.ref(`purchaseHistory/${userId}`).push({
       productId,
-      points: grantPoints,
+      points: isMonthlyPayout ? 0 : grantPoints,
       subscriptionTier: subProduct ? subProduct.tier : null,
       subscriptionDays: subProduct ? subProduct.days : null,
       at: Date.now()
     });
 
-    console.log(`[RevenueCat 웹훅] ${userId} 유저에게 쌀 ${grantPoints}개 지급 완료${subProduct ? ` + 구독(${subProduct.tier}, ${subProduct.days}일)` : ''} (상품: ${productId})`);
+    console.log(`[RevenueCat 웹훅] ${userId} 유저에게 ${isMonthlyPayout ? `구독(${subProduct.tier}, ${subProduct.days}일, 매달 ${grantPoints}개 지급 시작)` : `쌀 ${grantPoints}개 지급 완료${subProduct ? ` + 구독(${subProduct.tier}, ${subProduct.days}일)` : ''}`} (상품: ${productId})`);
 
     // 지금 접속 중인 유저라면 실시간으로 잔액+구독 상태를 갱신해줌 (접속 중이 아니면 다음 로그인 시 서버 데이터로 자동 반영됨)
     const sId = userToSocket[userId];
@@ -727,6 +741,46 @@ setInterval(notifySubscriptionsExpiringSoon, 60 * 60 * 1000);
 function kstDateStr(d) {
   return new Date(d.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
+function kstMonthStr(d) { return kstDateStr(d).slice(0, 7); }
+
+/* =====================================================================
+   0-54: 구독 1년권 매월 자동 지급
+   - 1년권(365일 이상) 구매/지급 시 쌀을 한번에 몰아주지 않고, 매달(KST 기준 달이 바뀔 때마다)
+     구독이 유효한 동안 자동으로 나눠 지급함. 구매 직후에는 lastGrantedMonth가 null이라
+     이 함수가 처음 도는 시점(최대 1시간 이내)에 이번 달 몫이 바로 지급됨.
+   - 무료 호스팅 환경 특성상 정확한 cron 대신 다른 일일 작업들과 동일하게 1시간마다 체크.
+===================================================================== */
+async function grantMonthlySubscriptionBonusIfNeeded() {
+  try {
+    const now = Date.now();
+    const thisMonth = kstMonthStr(new Date());
+    const allUsers = await getAllUsers();
+    for (const user of Object.values(allUsers)) {
+      const sub = user.subscription;
+      const mb = sub && sub.monthlyBonus;
+      if (!mb || !mb.amount) continue;
+      if (!sub.expiresAt || sub.expiresAt <= now) continue; // 구독 만료되면 더 이상 지급 안 함
+      if (mb.lastGrantedMonth === thisMonth) continue; // 이번 달 몫은 이미 지급함
+      user.points = (user.points || 0) + mb.amount;
+      user.subscription.monthlyBonus.lastGrantedMonth = thisMonth;
+      await saveUser(user);
+      await db.ref(`purchaseHistory/${user.id}`).push({
+        productId: `monthly_bonus_${sub.tier}`,
+        points: mb.amount,
+        subscriptionTier: sub.tier,
+        subscriptionDays: null,
+        at: now
+      });
+      const tierLabel = sub.tier === 'platinum' ? '플래티넘' : '골드';
+      const msg = `${tierLabel} 구독 매월 지급 쌀 ${mb.amount.toLocaleString()}개가 지급되었습니다.`;
+      const sId = userToSocket[user.id];
+      if (sId) io.to(sId).emit('points:updated', { points: user.points, subscription: user.subscription });
+      else sendWebPush(user.id, { title: '구독 매월 쌀 지급', body: msg, type: 'subscription_monthly_bonus' });
+      console.log(`[구독 매월지급] ${user.id} 유저에게 ${tierLabel} 쌀 ${mb.amount}개 지급 (${thisMonth})`);
+    }
+  } catch (e) { console.error('[구독 매월지급 오류]', e); }
+}
+setInterval(grantMonthlySubscriptionBonusIfNeeded, 60 * 60 * 1000);
 // 일일 접속 보상: 하루(KST 기준) 최초 로그인/세션복구 시 쌀 50개 자동 지급 (스위치 없이 항상 지급).
 // user 객체를 직접 변형만 하고 저장은 호출부의 saveUser(user)가 한 번에 처리함.
 function grantDailyLoginRewardIfNeeded(user) {
@@ -2611,9 +2665,14 @@ io.on('connection', (socket) => {
         logoColorOn: (target.subscription && typeof target.subscription.logoColorOn === 'boolean') ? target.subscription.logoColorOn : true,
         badgeOn: (target.subscription && typeof target.subscription.badgeOn === 'boolean') ? target.subscription.badgeOn : true
       };
-      // 실구매(RevenueCat 웹훅)와 동일하게 등급별 보너스 쌀도 즉시 지급 (골드 1000 / 플래티넘 3000)
+      // 0-54: 실구매와 동일한 흐름 - 365일(1년권) 관리자 지급은 매달 1일 자동 지급(monthlyBonus)으로 처리,
+      // 그 외(14일권 등) 관리자 지급은 기존처럼 즉시 전액 지급
       const bonusPoints = tier === 'platinum' ? 3000 : 1000;
-      target.points = (target.points || 0) + bonusPoints;
+      if (days >= 365) {
+        target.subscription.monthlyBonus = { amount: bonusPoints, lastGrantedMonth: null };
+      } else {
+        target.points = (target.points || 0) + bonusPoints;
+      }
       await saveUser(target);
       console.log(`[관리자 구독 지급] ${requester.nickname}(이)가 ${target.nickname}에게 ${tier}(${days}일) + 쌀 ${bonusPoints} 수동 지급`);
       const sId = userToSocket[target.id];

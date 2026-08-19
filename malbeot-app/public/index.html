@@ -557,12 +557,25 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </section>
 
     <section id="tab-chat" class="tab-content">
-      <div style="display:flex;gap:8px;padding:10px 14px;align-items:center;">
-        <div style="flex:1;position:relative;">
-          <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px;"></i>
-          <input type="text" id="groupSearchInput" placeholder="채팅방 검색" oninput="onGroupSearchInput(this.value)" style="width:100%;box-sizing:border-box;padding:9px 12px 9px 32px;border:1px solid var(--border-color);border-radius:20px;font-size:13px;background:var(--bg-card);color:inherit;">
+      <div id="chatListIconRow" style="display:flex;gap:8px;padding:10px 14px;align-items:center;">
+        <button type="button" onclick="toggleChatListSearch()" style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:1px solid var(--border-color);background:var(--bg-card);color:inherit;font-size:14px;"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <div id="openChatCreateEntry" onclick="openGroupCreateModal()" style="flex:1;position:relative;display:flex;align-items:center;gap:8px;border:1px solid var(--border-color);border-radius:20px;padding:8px 14px;background:var(--bg-card);cursor:pointer;">
+          <span style="position:relative;display:inline-flex;">
+            <i class="fa-solid fa-comment" style="font-size:15px;color:var(--primary);"></i>
+            <span style="position:absolute;right:-6px;bottom:-5px;width:13px;height:13px;border-radius:50%;background:var(--primary);color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-plus" style="font-size:8px;"></i></span>
+          </span>
+          <span style="font-size:13px;font-weight:600;">오픈채팅 만들기</span>
         </div>
-        <button type="button" onclick="openGroupCreateModal()" style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:none;background:var(--primary);color:#fff;font-size:15px;"><i class="fa-solid fa-plus"></i></button>
+        <button type="button" onclick="openSettingsScreen()" style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:1px solid var(--border-color);background:var(--bg-card);color:inherit;font-size:14px;"><i class="fa-solid fa-gear"></i></button>
+      </div>
+      <div id="chatListSearchRow" class="hidden" style="padding:0 14px 8px;">
+        <div style="position:relative;">
+          <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px;"></i>
+          <input type="text" id="groupSearchInput" placeholder="닉네임, 채팅방 이름, 대화 내용 검색" oninput="onGroupSearchInput(this.value)" style="width:100%;box-sizing:border-box;padding:9px 12px 9px 32px;border:1px solid var(--border-color);border-radius:20px;font-size:13px;background:var(--bg-card);color:inherit;">
+        </div>
+      </div>
+      <div id="chatAdBannerRow" style="padding:0 14px 8px;">
+        <div style="height:44px;border:1px dashed var(--border-color);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;">광고 영역</div>
       </div>
       <div id="groupSearchResultList"></div>
       <div style="padding:0 14px 6px;"><a href="javascript:void(0)" onclick="promptJoinByCode()" style="font-size:12px;color:var(--text-muted);">초대코드로 입장하기</a></div>
@@ -742,7 +755,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <p style="font-size:13px;color:#495057;margin-bottom:4px;">결제창으로 이동하시겠습니까?</p>
       <div style="display:flex;gap:8px;margin-top:18px;">
         <button class="btn btn-secondary" style="flex:1;" onclick="closeModal('lockUpsellModal')">취소</button>
-        <button class="btn btn-primary" style="flex:1;" onclick="closeModal('lockUpsellModal');closeFullScreen('photoLikersScreen');closeFullScreen('profileVisitorsScreen');openSubscriptionScreen()">확인</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="closeModal('lockUpsellModal');closeFullScreen('photoLikersScreen');closeFullScreen('profileVisitorsScreen');openRiceChargeScreen()">확인</button>
       </div>
     </div>
   </div>
@@ -905,29 +918,24 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
   </div>
 
   <div id="riceChargeScreen" class="full-screen-overlay">
-    <div class="fs-header"><button class="back-btn" onclick="closeRiceChargeScreen()"><i class="fa-solid fa-arrow-left"></i></button><div class="fs-title">쌀 충전소</div></div>
+    <div class="fs-header"><button class="back-btn" onclick="closeRiceChargeScreen()"><i class="fa-solid fa-arrow-left"></i></button><div class="fs-title">쌀 충전 · 구독</div></div>
     <div class="fs-body" style="padding:20px 16px 40px;">
       <div style="text-align:center;margin-bottom:18px;">
         <div style="font-size:13px;color:var(--text-muted);">보유 쌀</div>
         <div style="font-size:26px;font-weight:800;color:var(--primary);"><i class="fa-solid fa-bowl-rice" style="color:var(--warning);"></i> <span id="rechargeScreenBalance">0</span>개</div>
       </div>
+
+      <div style="font-weight:800;font-size:15px;margin-bottom:2px;">🎁 회원님을 위한 추천 혜택</div>
+      <div id="subscriptionCurrentStatus" style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:10px;"></div>
+      <div id="subscriptionPackageGrid" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;"></div>
+
+      <div style="font-weight:800;font-size:15px;margin-bottom:8px;"><i class="fa-solid fa-bowl-rice" style="color:var(--warning);"></i> 쌀 충전소</div>
       <div id="ricePackageGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"></div>
+
       <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:18px;line-height:1.6;">
         결제는 Google Play / App Store 인앱결제로 안전하게 처리됩니다.<br>
-        쌀은 충전 즉시 사용 가능하며, 일부라도 사용 시 환불이 제한됩니다.<br>부적절한 언행으로 이용정지·회원탈퇴 처리될 경우 환불이 불가합니다.
-      </p>
-    </div>
-  </div>
-
-  <div id="subscriptionScreen" class="full-screen-overlay">
-    <div class="fs-header"><button class="back-btn" onclick="closeFullScreen('subscriptionScreen')"><i class="fa-solid fa-arrow-left"></i></button><div class="fs-title">말벗 구독</div></div>
-    <div class="fs-body" style="padding:20px 16px 40px;">
-      <div id="subscriptionCurrentStatus" style="text-align:center;margin-bottom:18px;font-size:13px;color:var(--text-muted);line-height:1.6;"></div>
-      <div id="subscriptionPackageGrid" style="display:flex;flex-direction:column;gap:10px;"></div>
-      <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:18px;line-height:1.6;">
-        구독 상품은 자동 결제(정기결제)가 아닌 1회성 결제이며, 만료되면 자동으로 연장되지 않습니다.<br>
-        기존에 남은 기간이 있는 상태에서 다시 구매하면 남은 기간에 이어서 연장됩니다.<br>
-        결제는 Google Play / App Store 인앱결제로 안전하게 처리됩니다.
+        쌀은 충전 즉시 사용 가능하며, 일부라도 사용 시 환불이 제한됩니다.<br>부적절한 언행으로 이용정지·회원탈퇴 처리될 경우 환불이 불가합니다.<br>
+        구독 상품은 자동 결제(정기결제)가 아닌 1회성 결제이며, 만료되면 자동으로 연장되지 않습니다. 남은 기간이 있는 상태에서 다시 구매하면 이어서 연장됩니다.
       </p>
     </div>
   </div>
@@ -3812,6 +3820,7 @@ const RICE_PACKAGES = [
 function openRiceChargeScreen(){
   document.getElementById('rechargeScreenBalance').textContent = (currentUser ? currentUser.points : 0).toLocaleString();
   renderRicePackages();
+  renderSubscriptionPackages(); // 0-54: 쌀충전소+구독 통합 화면이라 함께 렌더링
   openFullScreen('riceChargeScreen');
 }
 function renderRicePackages(){
@@ -3984,18 +3993,54 @@ function submitGroupCreate(){
   });
 }
 // 채팅방 검색: 1:1 채팅 + 내가 이미 들어간 단체채팅방(로컬 필터) + 아직 안 들어간 공개 단체채팅방(서버 검색)을 한번에 보여줌
+// 0-54: 돋보기 아이콘을 눌러야 검색창이 나타나게 함(평소엔 광고란+오픈채팅 만들기 칸이 그 자리를 대신함)
+function toggleChatListSearch(){
+  const row = document.getElementById('chatListSearchRow');
+  const willShow = row.classList.contains('hidden');
+  row.classList.toggle('hidden');
+  if (willShow) {
+    document.getElementById('groupSearchInput').focus();
+  } else {
+    document.getElementById('groupSearchInput').value = '';
+    onGroupSearchInput('');
+  }
+}
+// 0-54: 검색어가 하나라도 있으면 광고란/오픈채팅 만들기 칸을 잠깐 숨기고 결과에 집중시킴(검색 지우면 복귀)
+function setChatListBrowseUiVisible(visible){
+  const ad = document.getElementById('chatAdBannerRow');
+  const create = document.getElementById('openChatCreateEntry');
+  if (ad) ad.classList.toggle('hidden', !visible);
+  if (create) create.style.display = visible ? '' : 'none';
+}
+// 0-54: 검색어와 대상 텍스트를 비교해 일치하는 구간을 파란색으로 강조 표시함(닉네임/방이름/대화내용 공통 사용)
+function highlightMatch(text, query){
+  const safe = escapeHtml(text || '');
+  if (!query) return safe;
+  const idx = safe.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return safe;
+  return safe.slice(0, idx) + `<span style="color:var(--primary);font-weight:700;">${safe.slice(idx, idx+query.length)}</span>` + safe.slice(idx+query.length);
+}
 function onGroupSearchInput(value){
   clearTimeout(groupSearchDebounce);
   const q = value.trim();
   const resultBox = document.getElementById('groupSearchResultList');
   const listBox = document.getElementById('chatRoomList');
-  if (!q){ resultBox.innerHTML=''; listBox.style.display=''; return; }
+  if (!q){ resultBox.innerHTML=''; listBox.style.display=''; setChatListBrowseUiVisible(true); return; }
+  setChatListBrowseUiVisible(false);
   groupSearchDebounce = setTimeout(()=>{
     listBox.style.display='none';
     const qLower = q.toLowerCase();
     const joinedGroupIds = new Set((currentGroupChatRooms||[]).map(r=>r.roomId));
-    const localDmMatches = (currentChatRooms||[]).filter(r=> ((r.targetUser&&r.targetUser.nickname)||'').toLowerCase().includes(qLower));
-    const localGroupMatches = (currentGroupChatRooms||[]).filter(r=> (((r.meta)&&r.meta.title)||'').toLowerCase().includes(qLower));
+    // 0-54: 닉네임/방이름뿐 아니라 그동안 주고받은 대화 내용(전체 메시지 텍스트)에 검색어가 포함된 방도 매칭
+    const roomContainsQuery = (r)=> (r.messages||[]).some(m => m.type!=='image' && (m.text||'').toLowerCase().includes(qLower));
+    const localDmMatches = (currentChatRooms||[]).filter(r=>
+      ((r.targetUser&&r.targetUser.nickname)||'').toLowerCase().includes(qLower) ||
+      roomContainsQuery(r)
+    );
+    const localGroupMatches = (currentGroupChatRooms||[]).filter(r=>
+      (((r.meta)&&r.meta.title)||'').toLowerCase().includes(qLower) ||
+      roomContainsQuery(r)
+    );
     socket.emit('group:search', {query:q}, (res)=>{
       const publicRooms = ((res && res.rooms) || []).filter(r=> !joinedGroupIds.has(r.roomId));
       resultBox.innerHTML='';
@@ -5424,9 +5469,10 @@ const SUBSCRIPTION_PACKAGES = [
   { id: 'sub_gold_365d',     tier: 'gold',     days: 365, price: 216000, label: '골드 1년권' },
   { id: 'sub_platinum_365d', tier: 'platinum', days: 365, price: 489000, label: '플래티넘 1년권' }
 ];
+// 0-54: 쌀충전소+구독을 한 화면(riceChargeScreen)으로 통합함에 따라 openSubscriptionScreen()은
+// 통합 화면을 여는 openRiceChargeScreen()의 별칭으로 유지(다른 화면에서 이 이름으로 호출하는 곳이 많아 삭제하지 않음)
 function openSubscriptionScreen(){
-  renderSubscriptionPackages();
-  openFullScreen('subscriptionScreen');
+  openRiceChargeScreen();
 }
 function renderSubscriptionPackages(){
   const statusEl = document.getElementById('subscriptionCurrentStatus');
@@ -5439,13 +5485,27 @@ function renderSubscriptionPackages(){
   grid.innerHTML = SUBSCRIPTION_PACKAGES.map(p=>{
     const isPlat = p.tier === 'platinum';
     const periodLabel = p.days >= 365 ? '1년권' : '14일권';
+    const bonusAmt = isPlat ? 3000 : 1000;
+    // 0-54: 1년권은 한번에 지급이 아니라 매달 1일 지급되는 방식이라 안내 문구를 구분함
+    const bonusText = p.days >= 365 ? `매달 쌀 ${bonusAmt.toLocaleString()}개(매월 1일) 지급` : `쌀 ${bonusAmt.toLocaleString()}개 즉시 지급`;
+    // 0-54: 1년권은 같은 등급 14일권의 26회분(365/14) 가격을 "정가"로 놓고 실제 할인율을 계산해서 크게 강조함
+    let discountHtml = '';
+    if (p.days >= 365) {
+      const dailyEquivalent = SUBSCRIPTION_PACKAGES.find(x => x.tier === p.tier && x.days < 365);
+      if (dailyEquivalent) {
+        const fullPrice = Math.round(dailyEquivalent.price * 365 / dailyEquivalent.days);
+        const discountPct = Math.round((1 - p.price / fullPrice) * 100);
+        discountHtml = `<div style="font-size:10px;color:#e03131;font-weight:800;margin-bottom:2px;">정가 ${fullPrice.toLocaleString()}원 → <span style="font-size:12px;">${discountPct}% 할인!</span></div>`;
+      }
+    }
     return `
       <div style="display:flex;justify-content:space-between;align-items:center;border:1px solid ${isPlat?'#059669':'#c9891a'};border-radius:14px;padding:14px;">
         <div>
           <div style="font-weight:800;font-size:14px;"><i class="fa-solid fa-gem" style="color:${isPlat?'#059669':'#c9891a'};margin-right:4px;"></i>${isPlat?'플래티넘':'골드'} ${periodLabel}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">쌀 ${(isPlat?3000:1000).toLocaleString()}개 지급 · 등급뱃지 · 로고색상 · 방문자/좋아요 전체열람</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${bonusText} · 등급뱃지 · 로고색상 · 방문자/좋아요 전체열람</div>
         </div>
         <div style="text-align:right;">
+          ${discountHtml}
           <div style="font-weight:800;font-size:15px;margin-bottom:6px;">${p.price.toLocaleString()}원</div>
           <button class="btn ${isPlat?'':'btn-secondary'} btn-sm" style="${isPlat?'background:#059669;border-color:#059669;color:#fff;':''}" onclick="handleBuySubscriptionPackage('${p.id}')">구독</button>
         </div>
