@@ -1155,6 +1155,19 @@ io.on('connection', (socket) => {
         if (sId) io.to(sId).emit('chat:new_message', { roomId, message: { senderId: 'system', text: systemMessageText, timestamp: Date.now() } });
       }
     }
+    // 0-51: 탈퇴한 유저의 흔적(팔로우/팔로워/프로필좋아요)이 다른 유저들의 배열에 그대로 남아
+    // "밖에서 보이는 팔로잉 숫자"와 "실제 목록에 뜨는 인원수"가 어긋나는 버그가 있었음 -> 탈퇴 시 전체 유저를 훑어 정리
+    const usersSnap = await db.ref('users').once('value');
+    const allUsers = usersSnap.val() || {};
+    for (const uid of Object.keys(allUsers)) {
+      if (uid === userId) continue;
+      const u = allUsers[uid];
+      const updates = {};
+      if (Array.isArray(u.followingIds) && u.followingIds.includes(userId)) updates.followingIds = u.followingIds.filter(id => id !== userId);
+      if (Array.isArray(u.followerIds) && u.followerIds.includes(userId)) updates.followerIds = u.followerIds.filter(id => id !== userId);
+      if (Array.isArray(u.profileLikedBy) && u.profileLikedBy.includes(userId)) updates.profileLikedBy = u.profileLikedBy.filter(id => id !== userId);
+      if (Object.keys(updates).length) await db.ref(`users/${uid}`).update(updates);
+    }
     await db.ref(`users/${userId}`).remove();
   }
 
@@ -1164,26 +1177,7 @@ io.on('connection', (socket) => {
       const user = await getUser(userId);
       if (!user) return cb({ success: false });
 
-      const postsSnap = await db.ref('posts').once('value');
-      const allPosts = postsSnap.val() || {};
-      for (const pid of Object.keys(allPosts)) {
-        if (allPosts[pid].authorId === userId) await deletePostDb(pid);
-      }
-
-      const chatsSnap = await db.ref('chats').once('value');
-      const allChats = chatsSnap.val() || {};
-      for (const roomId of Object.keys(allChats)) {
-        const room = allChats[roomId];
-        if (room.userIds && room.userIds.includes(userId)) {
-          await addMessage(roomId, { senderId: 'system', text: '탈퇴한 사용자입니다.', timestamp: Date.now() });
-          await saveRoomMeta(roomId, { withdrawnAt: Date.now() });
-          const otherId = room.userIds.find(id => id !== userId);
-          const sId = userToSocket[otherId];
-          if (sId) io.to(sId).emit('chat:new_message', { roomId, message: { senderId: 'system', text: '탈퇴한 사용자입니다.', timestamp: Date.now() } });
-        }
-      }
-
-      await db.ref(`users/${userId}`).remove();
+      await forceWithdrawUserAccount(userId, '탈퇴한 사용자입니다.');
       delete socketToUser[socket.id];
       delete userToSocket[userId];
       cb({ success: true });
