@@ -3306,12 +3306,20 @@ function confirmDeletePostFully(id){
 function openProfileDetailScreen(userId){
   currentProfileUserId = userId; profilePhotoIndex = 0;
   socket.emit('profile:record_visit', {targetUserId: userId});
-  socket.emit('users:get_one', {userId}, (res)=>{
-    const user = res && res.user;
-    if (!user) return;
-    currentProfileUserCache = user;
-    renderProfileDetail(user);
+  let fetchedUser = null, userLoaded = false, roomsLoaded = false;
+  function tryOpenProfile(){
+    if (!userLoaded || !roomsLoaded || !fetchedUser) return;
+    currentProfileUserCache = fetchedUser;
+    renderProfileDetail(fetchedUser);
     openFullScreen('profileDetailScreen');
+  }
+  socket.emit('users:get_one', {userId}, (res)=>{
+    fetchedUser = res && res.user; userLoaded = true; tryOpenProfile();
+  });
+  // 메시지 버튼을 "메시지 보내기"(신규)/"채팅창으로 이동하기"(기존 채팅방 있음)로 정확히 나누기 위해 최신 채팅목록을 함께 불러옴
+  socket.emit('chat:get_list', (res)=>{
+    if (res && res.success) currentChatRooms = res.rooms;
+    roomsLoaded = true; tryOpenProfile();
   });
 }
 function refreshOpenProfileIfNeeded(){
@@ -3424,7 +3432,12 @@ function renderProfileDetail(user){
         </div>
       </div>`:''}
       ${isMe?'':`<button class="btn ${isFollowing?'btn-secondary':'btn-primary'} btn-block" style="margin-bottom:8px;${isFollowing?'color:var(--primary);':''}" onclick="toggleFollowUser('${user.id}')"><i class="fa-solid fa-user${isFollowing?'-check':'-plus'}"></i> ${isFollowing?'팔로잉':'팔로우'}</button>`}
-      ${isMe?'':'<button class="btn btn-primary btn-block" onclick="handleSendMessageClick()"><i class="fa-solid fa-comments"></i> 메시지 보내기</button>'}
+      ${isMe?'':(function(){
+        const existingRoom = (currentChatRooms||[]).find(r=>r.targetUser && r.targetUser.id===user.id);
+        return existingRoom
+          ? '<button class="btn btn-primary btn-block" onclick="handleSendMessageClick()"><i class="fa-solid fa-comment-dots"></i> 채팅창으로 이동하기</button>'
+          : '<button class="btn btn-primary btn-block" onclick="handleSendMessageClick()"><i class="fa-solid fa-comments"></i> 메시지 보내기</button>';
+      })()}
       <div class="profile-posts-title profile-section-header" id="profilePostsScrollHeader" onclick="toggleProfileMiniList('profilePostsScroll')">
         <span>작성한 글 <span class="profile-count" id="profilePostsScrollCount">(0개)</span></span>
         <i class="fa-solid fa-chevron-down accordion-arrow" id="profilePostsScrollArrow" style="display:none;"></i>
