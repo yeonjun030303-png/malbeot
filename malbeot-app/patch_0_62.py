@@ -1,4 +1,14 @@
-const nsfwjs = require('nsfwjs');
+import os
+
+TARGET = "moderation.js"
+
+if not os.path.exists(TARGET):
+    print(f"❌ 파일을 찾을 수 없습니다: {os.path.abspath(TARGET)}")
+    print("현재 위치:", os.getcwd())
+    print("→ C:\\malbeot\\malbeot-app 에서 실행 중인지 확인해주세요.")
+    raise SystemExit(1)
+
+NEW_CONTENT = """const nsfwjs = require('nsfwjs');
 const tf = require('@tensorflow/tfjs-node');
 const sharp = require('sharp');
 
@@ -22,7 +32,7 @@ const BANNED_WORDS = [
 
 function containsBannedWord(text) {
   if (!text) return false;
-  const normalized = text.toLowerCase().replace(/\s/g, '');
+  const normalized = text.toLowerCase().replace(/\\s/g, '');
   return BANNED_WORDS.some(word => normalized.includes(word));
 }
 
@@ -120,3 +130,9 @@ module.exports = {
   checkImageNsfw,
   loadNsfwModel
 };
+"""
+
+with open(TARGET, "w", encoding="utf-8") as f:
+    f.write(NEW_CONTENT)
+
+print("✅ 0-62 완료: moderation.js에 NSFW 검사 큐잉 + 이미지 축소 + 메모리 보호 로직 적용")
