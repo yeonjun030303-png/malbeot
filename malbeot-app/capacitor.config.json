@@ -1,0 +1,10 @@
+﻿{
+  "appId": "com.malbeot.app",
+  "appName": "malbeot",
+  "webDir": "public",
+  "server": {
+    "url": "https://malbeot-1.onrender.com",
+    "cleartext": true,
+    "allowNavigation": ["*.kakao.com", "*.kakaocdn.net"]
+  }
+}
