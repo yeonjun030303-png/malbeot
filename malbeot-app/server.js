@@ -978,7 +978,7 @@ io.on('connection', (socket) => {
         bio: data.bio || '반갑습니다!', photos: data.photos || [], points: 100,
         isOnline: true, lastSeen: Date.now(), blockedUserIds: [],
         lastPostDate: null, adWatchCountToday: 0, lastAdChargeDate: null,
-        profileUpdatedAt: Date.now(),
+        profileUpdatedAt: Date.now(), joinedAt: Date.now(), onboardingSeen: false,
         followingIds: [], followerIds: [], profileLikedBy: [], notifyKeywords: []
       };
       await saveUser(user);
@@ -1065,7 +1065,7 @@ io.on('connection', (socket) => {
         bio: data.bio || '반갑습니다!', photos: data.photos || [], points: 100,
         isOnline: true, lastSeen: Date.now(), blockedUserIds: [],
         lastPostDate: null, adWatchCountToday: 0, lastAdChargeDate: null,
-        profileUpdatedAt: Date.now(),
+        profileUpdatedAt: Date.now(), joinedAt: Date.now(), onboardingSeen: false,
         deviceId: data.deviceId || null, lastIp: getClientIp(socket),
         followingIds: [], followerIds: [], profileLikedBy: [], notifyKeywords: []
       };
@@ -2088,7 +2088,7 @@ io.on('connection', (socket) => {
       const results = Object.keys(all)
         .map(roomId => all[roomId].meta)
         .filter(meta => meta && meta.title && meta.title.toLowerCase().includes(q))
-        .map(meta => ({ roomId: meta.roomId, title: meta.title, intro: meta.intro, memberCount: (meta.memberIds || []).length, inviteCode: meta.inviteCode }))
+        .map(meta => ({ roomId: meta.roomId, title: meta.title, intro: meta.intro, memberCount: (meta.memberIds || []).length, inviteCode: meta.inviteCode, createdAt: meta.createdAt || 0 }))
         .slice(0, 30);
       cb && cb({ success: true, rooms: results });
     } catch (e) { console.error(e); cb && cb({ success: false, rooms: [] }); }
@@ -2758,6 +2758,70 @@ io.on('connection', (socket) => {
       const sId = userToSocket[target.id];
       if (sId) { io.to(sId).emit('account:banned'); delete userToSocket[target.id]; }
       broadcastUsers();
+      cb && cb({ success: true });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 0-57: 관리자 통계 대시보드 - 가입자/결제/신고처리율 요약
+  socket.on('admin:stats:get', async (data, cb) => {
+    try {
+      const requester = await getUser(socketToUser[socket.id]);
+      if (!requester || !isAdmin(requester)) return cb && cb({ success: false });
+      const allUsers = await getAllUsers();
+      const userList = Object.values(allUsers);
+      const totalUsers = userList.length;
+      const kstDateStr = (d) => new Date(d).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+      const todayStr = kstDateStr(Date.now());
+      const dayBuckets = {};
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+        dayBuckets[kstDateStr(d)] = 0;
+      }
+      let todaySignups = 0;
+      userList.forEach(u => {
+        const joined = u.joinedAt || u.profileUpdatedAt;
+        if (!joined) return;
+        const dStr = kstDateStr(joined);
+        if (dStr === todayStr) todaySignups++;
+        if (Object.prototype.hasOwnProperty.call(dayBuckets, dStr)) dayBuckets[dStr]++;
+      });
+      const signupsByDay = Object.keys(dayBuckets).map(date => ({ date, count: dayBuckets[date] }));
+
+      const purchaseSnap = await db.ref('purchaseHistory').once('value');
+      const purchaseAll = purchaseSnap.val() || {};
+      let totalPayments = 0, monthPayments = 0;
+      const thisMonth = kstMonthStr(new Date());
+      Object.values(purchaseAll).forEach(userPurchases => {
+        Object.values(userPurchases || {}).forEach(p => {
+          totalPayments++;
+          if (kstMonthStr(new Date(p.at || 0)) === thisMonth) monthPayments++;
+        });
+      });
+
+      const reportsSnap = await db.ref('reports').once('value');
+      const reportsAll = Object.values(reportsSnap.val() || {});
+      const totalReports = reportsAll.length;
+      const resolvedReports = reportsAll.filter(r => r.status === 'resolved').length;
+      const resolveRate = totalReports ? Math.round((resolvedReports / totalReports) * 100) : 0;
+
+      cb && cb({
+        success: true,
+        totalUsers, todaySignups, signupsByDay,
+        totalPayments, monthPayments,
+        totalReports, resolvedReports, resolveRate
+      });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
+  // 0-59: 신규가입자 온보딩 튜토리얼 - 시청/건너뛰기 모두 '봤음'으로 저장(다음 로그인부터 안 뜸)
+  socket.on('user:onboarding_seen', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      if (!userId) return cb && cb({ success: false });
+      const user = await getUser(userId);
+      if (!user) return cb && cb({ success: false });
+      user.onboardingSeen = true;
+      await saveUser(user);
       cb && cb({ success: true });
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });

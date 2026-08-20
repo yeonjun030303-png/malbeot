@@ -298,6 +298,8 @@ body.dark-mode .tagxs{color:var(--text-muted);}
 .settings-accordion-header.open .accordion-arrow{transform:rotate(180deg);}
 .settings-accordion-body{display:none;}
 .settings-accordion-body.open{display:block;}
+.onboarding-dot{width:6px;height:6px;border-radius:50%;background:var(--border-color);}
+.onboarding-dot.active{background:var(--primary);width:16px;border-radius:3px;}
 .font-size-input{width:52px;padding:6px 8px;border:1px solid var(--border-color);border-radius:6px;font-size:12px;background:var(--bg-subtle);color:var(--text-main);text-align:center;}
 
 /* ---- 안읽은 메시지 배지 ---- */
@@ -1120,6 +1122,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <button id="adminTabAbuseBtn" class="btn btn-secondary" style="flex:0 0 auto;white-space:nowrap;" onclick="switchAdminTab('abuse')">어뷰징 의심</button>
         <button id="adminTabPhoneBtn" class="btn btn-secondary" style="flex:0 0 auto;white-space:nowrap;" onclick="switchAdminTab('phone')">번호변경</button>
         <button id="adminTabSubBtn" class="btn btn-secondary" style="flex:0 0 auto;white-space:nowrap;" onclick="switchAdminTab('sub')">구독관리</button>
+        <button id="adminTabStatsBtn" class="btn btn-secondary" style="flex:0 0 auto;white-space:nowrap;" onclick="switchAdminTab('stats')">통계</button>
       </div>
       <div id="adminReportsTab">
         <div style="display:flex;gap:8px;margin-bottom:10px;">
@@ -1167,6 +1170,36 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
           <button class="btn btn-secondary" onclick="searchAdminSubscriptionUsers()">검색</button>
         </div>
         <div id="adminSubSearchResults"></div>
+      </div>
+      <div id="adminStatsTab" class="hidden">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div style="padding:14px;border:1px solid var(--border-color);border-radius:10px;text-align:center;">
+            <div id="statTotalUsers" style="font-size:22px;font-weight:700;">-</div>
+            <div style="font-size:12px;color:var(--text-muted);">총 가입자</div>
+          </div>
+          <div style="padding:14px;border:1px solid var(--border-color);border-radius:10px;text-align:center;">
+            <div id="statTodaySignups" style="font-size:22px;font-weight:700;">-</div>
+            <div style="font-size:12px;color:var(--text-muted);">오늘 신규가입</div>
+          </div>
+          <div style="padding:14px;border:1px solid var(--border-color);border-radius:10px;text-align:center;">
+            <div id="statTotalPayments" style="font-size:22px;font-weight:700;">-</div>
+            <div style="font-size:12px;color:var(--text-muted);">누적 결제/지급 건수</div>
+          </div>
+          <div style="padding:14px;border:1px solid var(--border-color);border-radius:10px;text-align:center;">
+            <div id="statMonthPayments" style="font-size:22px;font-weight:700;">-</div>
+            <div style="font-size:12px;color:var(--text-muted);">이번달 결제/지급</div>
+          </div>
+          <div style="padding:14px;border:1px solid var(--border-color);border-radius:10px;text-align:center;">
+            <div id="statTotalReports" style="font-size:22px;font-weight:700;">-</div>
+            <div style="font-size:12px;color:var(--text-muted);">누적 신고 건수</div>
+          </div>
+          <div style="padding:14px;border:1px solid var(--border-color);border-radius:10px;text-align:center;">
+            <div id="statResolveRate" style="font-size:22px;font-weight:700;">-</div>
+            <div style="font-size:12px;color:var(--text-muted);">신고 처리율</div>
+          </div>
+        </div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">최근 7일 신규가입</div>
+        <div id="statSignupChart" style="display:flex;align-items:flex-end;gap:6px;height:100px;padding:0 4px;"></div>
       </div>
     </div>
   </div>
@@ -1424,6 +1457,37 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </div>
   </div>
 
+  <div id="onboardingTutorialScreen" class="modal-overlay">
+    <div class="modal-box" style="max-width:340px;padding:0;overflow:hidden;">
+      <div id="onboardingSlides" style="position:relative;">
+        <div class="onboarding-slide" data-step="0" style="padding:36px 24px 20px;text-align:center;">
+          <div style="font-size:48px;margin-bottom:16px;"><i class="fa-solid fa-comments" style="color:var(--primary);"></i></div>
+          <div style="font-size:17px;font-weight:700;margin-bottom:10px;">오픈채팅으로 만나보세요</div>
+          <div style="font-size:13px;color:var(--text-muted);line-height:1.6;">관심사가 맞는 사람들과 단체로 자유롭게 대화할 수 있어요. 채팅 탭에서 직접 방을 만들거나 검색해서 참여해보세요.</div>
+        </div>
+        <div class="onboarding-slide hidden" data-step="1" style="padding:36px 24px 20px;text-align:center;">
+          <div style="font-size:48px;margin-bottom:16px;"><i class="fa-solid fa-images" style="color:var(--primary);"></i></div>
+          <div style="font-size:17px;font-weight:700;margin-bottom:10px;">말벗스토리로 일상을 공유해요</div>
+          <div style="font-size:13px;color:var(--text-muted);line-height:1.6;">사진과 글로 일상을 나누고, 다른 사람들과 공감·댓글로 소통해보세요.</div>
+        </div>
+        <div class="onboarding-slide hidden" data-step="2" style="padding:36px 24px 20px;text-align:center;">
+          <div style="font-size:48px;margin-bottom:16px;"><i class="fa-solid fa-gem" style="color:var(--primary);"></i></div>
+          <div style="font-size:17px;font-weight:700;margin-bottom:10px;">구독으로 더 많은 기능을 이용해요</div>
+          <div style="font-size:13px;color:var(--text-muted);line-height:1.6;">골드·플래티넘 구독을 하면 방문자 전체 목록, 좋아요 누른 사람 목록 등을 확인할 수 있어요.</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;gap:6px;padding-bottom:14px;">
+        <span id="onbDot0" class="onboarding-dot active"></span>
+        <span id="onbDot1" class="onboarding-dot"></span>
+        <span id="onbDot2" class="onboarding-dot"></span>
+      </div>
+      <div style="display:flex;border-top:1px solid var(--border-color);">
+        <button type="button" style="flex:1;padding:14px;background:none;border:none;color:var(--text-muted);font-size:14px;cursor:pointer;" onclick="skipOnboarding()">건너뛰기</button>
+        <button type="button" id="onboardingNextBtn" style="flex:1;padding:14px;background:none;border:none;border-left:1px solid var(--border-color);color:var(--primary);font-weight:700;font-size:14px;cursor:pointer;" onclick="nextOnboardingStep()">다음</button>
+      </div>
+    </div>
+  </div>
+
   <div id="scrollTopBtn" onclick="scrollActiveContainerToTop()"><i class="fa-solid fa-arrow-up"></i></div>
 </div>
 
@@ -1445,6 +1509,7 @@ let sessionToken = sessionStorage.getItem('malbeot_token') || null;
 let currentChatRooms = [];
 let currentGroupChatRooms = [];
 let groupSearchDebounce = null;
+let lastPublicRoomsForSort = []; // 0-58: 오픈채팅 검색결과 정렬 변경시 재사용
 let activeGroupRoomId = null;
 let activeGroupRoomMeta = null;
 let activeGroupLastReadAt = {};
@@ -2497,7 +2562,7 @@ function submitKakaoSignup(confirmed, deviceConfirmed){
     deviceConfirmed
   };
   socket.emit('auth:kakao_complete_profile', kakaoData, (res)=>{
-    if (res.success){ currentUser = res.user; saveSession(res.token); closeModal('authModal'); initApp(); }
+    if (res.success){ currentUser = res.user; saveSession(res.token); closeModal('authModal'); initApp(); if (!currentUser.onboardingSeen) setTimeout(showOnboardingTutorial, 400); }
     else if (res.needsConfirm){
       showMiniAlert('닉네임에 부적절한 단어가 발견되었습니다. \"삭제된 닉네임입니다\"로 표기됩니다. 그래도 사용하시겠습니까?', [
         {label:'취소', primary:false},
@@ -4111,26 +4176,76 @@ function onGroupSearchInput(value){
         resultBox.appendChild(wrap);
       });
       if (publicRooms.length){
-        const label = document.createElement('div');
-        label.style.cssText = 'padding:8px 4px 4px;font-size:12px;color:var(--text-muted);font-weight:700;';
-        label.textContent = '공개 단체채팅방';
-        resultBox.appendChild(label);
+        const headerWrap = document.createElement('div');
+        headerWrap.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 4px 4px;';
+        headerWrap.innerHTML = `<span style="font-size:12px;color:var(--text-muted);font-weight:700;">공개 단체채팅방</span>
+          <select id="publicRoomSortSelect" style="font-size:12px;padding:4px 6px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-input);color:inherit;" onchange="sortPublicRoomResults(this.value)">
+            <option value="relevance">관련도순</option>
+            <option value="members">인원수 많은순</option>
+            <option value="newest">최신 생성순</option>
+          </select>`;
+        resultBox.appendChild(headerWrap);
+        const publicContainer = document.createElement('div');
+        publicContainer.id = 'publicRoomResultsContainer';
+        resultBox.appendChild(publicContainer);
+        lastPublicRoomsForSort = publicRooms;
+        renderPublicRoomList(publicRooms, publicContainer);
       }
-      publicRooms.forEach(r=>{
-        const wrap = document.createElement('div'); wrap.className='chat-row-wrap';
-        wrap.innerHTML = `<div class="chat-row-fg" style="cursor:default;">
-          <div class="avatar-sm" style="display:flex;align-items:center;justify-content:center;background:var(--bg-secondary,#eee);"><i class="fa-solid fa-users"></i></div>
-          <div class="chat-row-text">
-            <div class="chat-row-nick">${escapeHtml(r.title)} <span style="color:var(--text-muted);font-weight:400;">${r.memberCount}</span></div>
-            <div class="chat-row-last">${escapeHtml(r.intro||'')}</div>
-          </div>
-          <button type="button" class="btn btn-primary btn-sm">입장</button>
-        </div>`;
-        wrap.querySelector('button').addEventListener('click', ()=>{ joinGroupByInviteCode(r.inviteCode); });
-        resultBox.appendChild(wrap);
-      });
     });
   }, 300);
+}
+// 0-58: 공개 단체채팅방 검색결과 목록을 그리는 헬퍼(정렬 변경시 재사용)
+function renderPublicRoomList(rooms, container){
+  container.innerHTML = '';
+  rooms.forEach(r=>{
+    const wrap = document.createElement('div'); wrap.className='chat-row-wrap';
+    wrap.innerHTML = `<div class="chat-row-fg" style="cursor:default;">
+      <div class="avatar-sm" style="display:flex;align-items:center;justify-content:center;background:var(--bg-secondary,#eee);"><i class="fa-solid fa-users"></i></div>
+      <div class="chat-row-text">
+        <div class="chat-row-nick">${escapeHtml(r.title)} <span style="color:var(--text-muted);font-weight:400;">${r.memberCount}</span></div>
+        <div class="chat-row-last">${escapeHtml(r.intro||'')}</div>
+      </div>
+      <button type="button" class="btn btn-primary btn-sm">입장</button>
+    </div>`;
+    wrap.querySelector('button').addEventListener('click', ()=>{ joinGroupByInviteCode(r.inviteCode); });
+    container.appendChild(wrap);
+  });
+}
+// 0-58: 정렬 옵션 변경시 서버 재검색 없이 이미 받은 결과만 다시 정렬
+function sortPublicRoomResults(sortBy){
+  const container = document.getElementById('publicRoomResultsContainer');
+  if (!container) return;
+  let sorted = lastPublicRoomsForSort.slice();
+  if (sortBy==='members') sorted.sort((a,b)=> b.memberCount - a.memberCount);
+  else if (sortBy==='newest') sorted.sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
+  renderPublicRoomList(sorted, container);
+}
+// 0-59: 신규가입자 온보딩 튜토리얼
+let onboardingStep = 0;
+function showOnboardingTutorial(){
+  onboardingStep = 0;
+  renderOnboardingStep();
+  openModal('onboardingTutorialScreen');
+}
+function renderOnboardingStep(){
+  document.querySelectorAll('.onboarding-slide').forEach(el=>{
+    el.classList.toggle('hidden', Number(el.dataset.step) !== onboardingStep);
+  });
+  for (let i=0;i<3;i++){
+    document.getElementById('onbDot'+i).classList.toggle('active', i===onboardingStep);
+  }
+  document.getElementById('onboardingNextBtn').textContent = onboardingStep===2 ? '시작하기' : '다음';
+}
+function nextOnboardingStep(){
+  if (onboardingStep < 2){ onboardingStep++; renderOnboardingStep(); }
+  else finishOnboarding();
+}
+function skipOnboarding(){ finishOnboarding(); }
+function finishOnboarding(){
+  closeModal('onboardingTutorialScreen');
+  if (currentUser) currentUser.onboardingSeen = true;
+  saveSession();
+  socket.emit('user:onboarding_seen', {});
 }
 function clearGroupSearch(){
   document.getElementById('groupSearchInput').value='';
@@ -5735,6 +5850,7 @@ function switchAdminTab(tab){
   const aBtn = document.getElementById('adminTabAbuseBtn');
   const pBtn = document.getElementById('adminTabPhoneBtn');
   const sBtn = document.getElementById('adminTabSubBtn');
+  const stBtn = document.getElementById('adminTabStatsBtn');
   rBtn.style.background = tab==='reports' ? 'var(--primary)' : '';
   rBtn.style.color = tab==='reports' ? '#fff' : '';
   cBtn.style.background = tab==='chats' ? 'var(--primary)' : '';
@@ -5745,16 +5861,39 @@ function switchAdminTab(tab){
   pBtn.style.color = tab==='phone' ? '#fff' : '';
   sBtn.style.background = tab==='sub' ? 'var(--primary)' : '';
   sBtn.style.color = tab==='sub' ? '#fff' : '';
+  stBtn.style.background = tab==='stats' ? 'var(--primary)' : '';
+  stBtn.style.color = tab==='stats' ? '#fff' : '';
   document.getElementById('adminReportsTab').classList.toggle('hidden', tab!=='reports');
   document.getElementById('adminChatsTab').classList.toggle('hidden', tab!=='chats');
   document.getElementById('adminAbuseTab').classList.toggle('hidden', tab!=='abuse');
   document.getElementById('adminPhoneTab').classList.toggle('hidden', tab!=='phone');
   document.getElementById('adminSubTab').classList.toggle('hidden', tab!=='sub');
+  document.getElementById('adminStatsTab').classList.toggle('hidden', tab!=='stats');
   if (tab==='reports') loadAdminReports();
   else if (tab==='chats') loadAdminChatRooms();
   else if (tab==='phone') loadAdminPhoneRequests();
   else if (tab==='sub') { loadAdminSubscriptionDefaultList(); }
+  else if (tab==='stats') { loadAdminStats(); }
   else loadAdminAbuse();
+}
+// 0-57: 관리자 통계 대시보드 - 가입자/결제/신고처리율 요약 조회+렌더
+function loadAdminStats(){
+  socket.emit('admin:stats:get', {}, (res)=>{
+    if (!res || !res.success) return;
+    document.getElementById('statTotalUsers').textContent = res.totalUsers.toLocaleString();
+    document.getElementById('statTodaySignups').textContent = res.todaySignups.toLocaleString();
+    document.getElementById('statTotalPayments').textContent = res.totalPayments.toLocaleString();
+    document.getElementById('statMonthPayments').textContent = res.monthPayments.toLocaleString();
+    document.getElementById('statTotalReports').textContent = res.totalReports.toLocaleString();
+    document.getElementById('statResolveRate').textContent = res.resolveRate + '%';
+    const chart = document.getElementById('statSignupChart');
+    const maxCount = Math.max(1, ...res.signupsByDay.map(d=>d.count));
+    chart.innerHTML = res.signupsByDay.map(d=>{
+      const barH = Math.max(4, Math.round((d.count / maxCount) * 90));
+      const label = d.date.slice(5).replace('-', '/');
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">${d.count}</div><div style="width:100%;background:var(--primary);border-radius:4px 4px 0 0;height:${barH}px;"></div><div style="font-size:10px;color:var(--text-muted);margin-top:4px;">${label}</div></div>`;
+    }).join('');
+  });
 }
 // 0-22/0-38: 관리자 구독관리 탭 - 닉네임 검색 + 지급/회수 (0-38: 검색 없이도 우선순위 기본목록 표시)
 function renderAdminSubUserList(users, emptyText){
