@@ -4155,22 +4155,35 @@ function onGroupSearchInput(value){
         label.textContent = '내 채팅방';
         resultBox.appendChild(label);
       }
+      // 0-60: 검색어가 매칭된 부분(닉네임/방이름 또는 대화내용)을 파란색으로 강조 표시
+      const findMatchSnippet = (r)=>{
+        const m = (r.messages||[]).slice().reverse().find(m => m.type!=='image' && (m.text||'').toLowerCase().includes(qLower));
+        return m ? m.text : '';
+      };
       localGroupMatches.forEach(r=>{
         const meta = r.meta || {};
+        const snippet = findMatchSnippet(r);
         const wrap = document.createElement('div'); wrap.className='chat-row-wrap';
         wrap.innerHTML = `<div class="chat-row-fg">
           <div class="avatar-sm" style="display:flex;align-items:center;justify-content:center;background:var(--bg-secondary,#eee);"><i class="fa-solid fa-users"></i></div>
-          <div class="chat-row-text"><div class="chat-row-nick">${escapeHtml(meta.title||'')}</div></div>
+          <div class="chat-row-text">
+            <div class="chat-row-nick">${highlightMatch(meta.title||'', q)}</div>
+            ${snippet ? `<div class="chat-row-last">${highlightMatch(snippet, q)}</div>` : ''}
+          </div>
         </div>`;
         wrap.querySelector('.chat-row-fg').addEventListener('click', ()=>{ clearGroupSearch(); openGroupChatRoom(r.roomId); });
         resultBox.appendChild(wrap);
       });
       localDmMatches.forEach(r=>{
         const target = r.targetUser || {};
+        const snippet = findMatchSnippet(r);
         const wrap = document.createElement('div'); wrap.className='chat-row-wrap';
         wrap.innerHTML = `<div class="chat-row-fg">
           <span onclick="event.stopPropagation();openProfileDetailScreen('${target.id}')" style="cursor:pointer;display:inline-block;">${avatarHtmlFor(target,'avatar-sm')}</span>
-          <div class="chat-row-text"><div class="chat-row-nick">${escapeHtml(target.nickname||'')}</div></div>
+          <div class="chat-row-text">
+            <div class="chat-row-nick">${highlightMatch(target.nickname||'', q)}</div>
+            ${snippet ? `<div class="chat-row-last">${highlightMatch(snippet, q)}</div>` : ''}
+          </div>
         </div>`;
         wrap.querySelector('.chat-row-fg').addEventListener('click', ()=>{ clearGroupSearch(); openChatModal(r.roomId, target, r.messages); });
         resultBox.appendChild(wrap);
