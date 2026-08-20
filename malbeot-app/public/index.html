@@ -2633,7 +2633,13 @@ function initApp(){
    화면 전체(.full-screen-overlay)나 모달(.modal-overlay)이 열릴 때마다 자동으로 감지해서
    히스토리에 한 단계씩 쌓아두고, 뒤로가기를 누르면 앱을 벗어나지 않고 가장 최근에 연 화면만 닫히게 처리함. */
 let uiBackStack = [];
-let uiPopping = false;
+// 0-65: 기존엔 uiPopping이 참/거짓 플래그 하나였는데, 한 번의 클릭 처리 안에서 모달 2개가 동시에
+// 닫히는 경우(예: 확인창을 닫으면서 그 아래 설정창도 같이 닫는 버튼) 첫 번째 닫힘만 플래그로 상쇄되고
+// 두 번째 닫힘은 history.back()이 호출되지 않아 앱 내부 스택과 브라우저 히스토리 깊이가 어긋났음.
+// 그 어긋남이 누적되면 이후 아무 모달에서나 "취소/뒤로가기"를 눌러도 여러 단계가 한꺼번에 닫히면서
+// 결국 홈까지 밀려나가는 버그로 이어졌음(설정→차단/신고 취소 시 홈으로 나가지는 버그의 원인).
+// 카운터 방식으로 바꿔서 동시에 몇 개가 닫히든 정확히 그 개수만큼만 상쇄되도록 함.
+let expectedPopstates = 0;
 const uiOverlayObserver = new MutationObserver(muts=>{
   muts.forEach(m=>{
     if (m.attributeName !== 'class') return;
@@ -2645,24 +2651,22 @@ const uiOverlayObserver = new MutationObserver(muts=>{
       uiBackStack.push(el);
       history.pushState({ uiOverlay: uiBackStack.length }, '');
     } else if (!isActive && idx !== -1){
+      // 프로그램(closeModal 등)이 스스로 닫은 경우에만 여기로 들어옴. 실제 뒤로가기(popstate)로 닫힌
+      // 경우엔 아래 popstate 핸들러가 스택에서 먼저 빼놓기 때문에 idx가 이미 -1이라 이 분기를 타지 않음.
       uiBackStack.splice(idx, 1);
-      // 0-47: 프로그램이 스스로 닫을 때(closeModal 등)도 히스토리 동기화를 위해 history.back()을 호출하는데,
-      // 이 back()이 나중에 popstate로 돌아왔을 때 "사용자가 진짜로 뒤로가기를 누른 것"으로 오인해서
-      // 그 아래 화면까지 한 번 더 닫아버리던 게 진짜 원인이었음. uiPopping을 여기서 미리 true로 세팅해서
-      // 그 되돌아온 popstate가 무시되도록 함(진짜 뒤로가기와 구분).
-      if (!uiPopping){ uiPopping = true; try{ history.back(); }catch(e){} }
+      expectedPopstates++;
+      try{ history.back(); }catch(e){ expectedPopstates--; }
     }
   });
 });
 document.querySelectorAll('.full-screen-overlay, .modal-overlay').forEach(el=> uiOverlayObserver.observe(el, {attributes:true}));
 window.addEventListener('popstate', ()=>{
-  // 0-47: 위에서 프로그램이 스스로 유발한 back()으로 인한 popstate면(uiPopping===true) 여기선 아무것도 안 하고 소비만 함
-  if (uiPopping){ uiPopping = false; return; }
+  // 프로그램이 스스로 유발한 back()으로 인한 popstate는 개수만큼 소비만 하고 아무것도 하지 않음
+  if (expectedPopstates > 0){ expectedPopstates--; return; }
+  // 여기부터는 사용자가 진짜로 기기/브라우저 뒤로가기를 누른 경우
   if (uiBackStack.length > 0){
-    uiPopping = true;
-    const el = uiBackStack[uiBackStack.length - 1];
+    const el = uiBackStack.pop(); // observer가 이 클래스 변경을 또 다른 닫힘으로 오인해 이중 처리하지 않도록 먼저 스택에서 제거
     el.classList.remove('active');
-    setTimeout(()=>{ uiPopping = false; }, 0);
   }
 });
 // 백스페이스 키: 입력창(텍스트/입력)에 포커스가 없을 때 누르면 기기 뒤로가기와 동일하게 현재 열린 화면/모달을 닫음
