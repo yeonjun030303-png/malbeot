@@ -94,7 +94,23 @@ async function runNsfwCheck(imageInput) {
 }
 
 // imageInput: 이미지 파일의 Buffer 또는 data URI 문자열(data:image/...;base64,...)
+const NSFW_CHECK_TIMEOUT_MS = 12000; // 0-64: 검사 1건이 이 시간을 넘기면 포기하고 통과 처리(큐가 영구히 막히는 것 방지)
+
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      console.warn(`NSFW 검사 타임아웃(${ms}ms 초과, 통과 처리): ${label}`);
+      resolve({ isNsfw: false, score: 0, error: `타임아웃(${ms}ms) - 통과 처리` });
+    }, ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function checkImageNsfw(imageInput) {
+  // 0-64: 이번 검사 결과를 기다리는 것과 별개로, 큐는 타임아웃 시점에 무조건 다음으로 넘어가게 함
+  // (기존에는 runNsfwCheck가 응답 없이 멈추면 큐 전체가 영구히 막혀서 이후의 모든 사진 전송/프로필저장이
+  //  같이 멈추는 문제가 있었음 - 채팅 사진전송/프로필 사진저장이 동시에 "먹통"이 되던 버그의 원인)
   const task = nsfwQueue.then(async () => {
     const rss = currentRssMb();
     if (rss >= MEMORY_GUARD_RSS_MB) {
@@ -102,14 +118,14 @@ async function checkImageNsfw(imageInput) {
       return { isNsfw: false, score: 0, error: `메모리 보호로 검사 스킵(RSS ${rss.toFixed(0)}MB, 통과 처리)` };
     }
     try {
-      return await runNsfwCheck(imageInput);
+      return await withTimeout(runNsfwCheck(imageInput), NSFW_CHECK_TIMEOUT_MS, 'checkImageNsfw');
     } catch (err) {
       console.error('NSFW 검사 중 오류:', err);
       // 검사 실패 시 안전하게 통과시킬지 차단할지는 정책 결정 필요 (기본: 통과)
       return { isNsfw: false, score: 0, error: err.message };
     }
   });
-  // 이번 검사가 실패하더라도 큐 자체는 끊기지 않고 다음 검사로 이어지게 함
+  // 이번 검사가 실패/타임아웃되더라도 큐 자체는 끊기지 않고 다음 검사로 이어지게 함
   nsfwQueue = task.catch(() => {});
   return task;
 }

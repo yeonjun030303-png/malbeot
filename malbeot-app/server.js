@@ -1086,13 +1086,19 @@ io.on('connection', (socket) => {
   });
 
   socket.on('profile:update', async (data, cb) => {
+    // 0-64: cb 이중호출 방지 + 어떤 이유로든 20초 안에는 반드시 응답이 가도록 안전망
+    // (NSFW 검사 큐가 막히거나 DB 저장이 지연되면 클라이언트가 "저장 중..." 상태로 영원히 멈추고,
+    //  새로고침해도 실제로는 저장이 안 된 상태로 남는 버그의 원인이었음)
+    let responded = false;
+    const safeCb = (res) => { if (responded) return; responded = true; cb && cb(res); };
+    const hardTimeout = setTimeout(() => safeCb({ success: false, message: '서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.' }), 20000);
     try {
       const userId = socketToUser[socket.id];
       const user = await getUser(userId);
-      if (!user) return cb({ success: false });
+      if (!user) { clearTimeout(hardTimeout); return safeCb({ success: false }); }
 
       if (data.nickname && containsBannedWord(data.nickname) && data.confirmed !== true) {
-        return cb({ success: false, needsConfirm: true });
+        clearTimeout(hardTimeout); return safeCb({ success: false, needsConfirm: true });
       }
       if (data.nickname) {
         data.nicknameFiltered = containsBannedWord(data.nickname);
@@ -1106,7 +1112,7 @@ io.on('connection', (socket) => {
           if (!photoData) continue;
           if (prevPhotos.includes(photoData)) continue; // 기존에 이미 검사 통과한 사진은 스킵
           const nsfwResult = await checkImageNsfw(photoData);
-          if (nsfwResult.isNsfw) return cb({ success: false, message: '부적절한 사진이 포함되어 있어 변경할 수 없습니다.' });
+          if (nsfwResult.isNsfw) { clearTimeout(hardTimeout); return safeCb({ success: false, message: '부적절한 사진이 포함되어 있어 변경할 수 없습니다.' }); }
         }
       }
 
@@ -1117,9 +1123,10 @@ io.on('connection', (socket) => {
       Object.assign(user, data, { profileUpdatedAt: Date.now() });
       if (photosChanged) user.photoLikes = {};
       await saveUser(user);
-      cb({ success: true, user: { ...user, isAdmin: isAdmin(user) } });
+      clearTimeout(hardTimeout);
+      safeCb({ success: true, user: { ...user, isAdmin: isAdmin(user) } });
       broadcastUsers();
-    } catch (e) { console.error(e); cb({ success: false }); }
+    } catch (e) { console.error(e); clearTimeout(hardTimeout); safeCb({ success: false }); }
   });
   // 프로필 사진별 개별 좋아요 토글 (본인 사진은 좋아요 불가)
   socket.on('photo:like', async (data, cb) => {
@@ -1719,12 +1726,16 @@ io.on('connection', (socket) => {
   });
 
   socket.on('chat:send_image', async (data, cb) => {
+    // 0-64: cb를 두 번 이상 부르지 않도록 가드 + 어떤 경우에도 15초 안에는 반드시 cb가 호출되도록 안전망
+    let responded = false;
+    const safeCb = (res) => { if (responded) return; responded = true; cb && cb(res); };
+    const hardTimeout = setTimeout(() => safeCb({ success: false, message: '서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.' }), 15000);
     try {
       const userId = socketToUser[socket.id];
       const room = await getRoom(data.roomId);
-      if (!room || !room.userIds.includes(userId)) return cb && cb({ success: false });
+      if (!room || !room.userIds.includes(userId)) { clearTimeout(hardTimeout); return safeCb({ success: false }); }
       const nsfwResult = await checkImageNsfw(data.image);
-      if (nsfwResult.isNsfw) return cb && cb({ success: false, blocked: true, message: '부적절한 사진으로 감지되어 전송할 수 없습니다.' });
+      if (nsfwResult.isNsfw) { clearTimeout(hardTimeout); return safeCb({ success: false, blocked: true, message: '부적절한 사진으로 감지되어 전송할 수 없습니다.' }); }
       const msg = await addMessage(data.roomId, { senderId: userId, type: 'image', data: data.image, timestamp: Date.now(), read: false });
       const sender = await getUser(userId);
       room.userIds.forEach(uid => {
@@ -1732,8 +1743,9 @@ io.on('connection', (socket) => {
         if (sId) io.to(sId).emit('chat:new_message', { roomId: data.roomId, message: msg, senderNickname: sender && sender.nickname });
         else if (uid !== userId) sendWebPush(uid, { title: (sender && sender.nickname) || '말벗', body: '사진을 보냈습니다', type: 'chat', roomId: data.roomId });
       });
-      cb && cb({ success: true });
-    } catch (e) { console.error(e); cb && cb({ success: false }); }
+      clearTimeout(hardTimeout);
+      safeCb({ success: true });
+    } catch (e) { console.error(e); clearTimeout(hardTimeout); safeCb({ success: false }); }
   });
 
   // 채팅 메시지 삭제: mode='everyone'(내 메시지, 30분 이내에만, 양쪽 다 삭제표시) / mode='me'(나에게만, 내 화면에서만 숨김)
