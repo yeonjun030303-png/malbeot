@@ -6,7 +6,7 @@ const { Server } = require('socket.io');
 const admin = require('firebase-admin');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { checkImageNsfw, containsBannedWord } = require('./moderation');
+const { checkImageNsfw, containsBannedWord, loadNsfwModel } = require('./moderation');
 const webpush = require('web-push');
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -2915,3 +2915,10 @@ cleanupStaleFollowRefsOnce();
 
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => console.log(`말벗 서버 실행 중 (Firebase 연동): http://localhost:${PORT}`));
+// 0-61: NSFW 모델을 서버 시작 시점에 미리 로드(예열)해둠.
+// 기존엔 사용자가 사진을 처음 저장/전송하는 순간에 처음 로드되면서 그 요청이 응답 없이 오래 멈춰있는
+// 것처럼 보이는 문제(프로필 저장 화면 멈춤, 채팅 사진 전송 안 됨)가 있었음 — 특히 Render 무료 플랜은
+// 재시작(502 등)이 잦아 재시작 직후 첫 요청마다 이 문제가 반복됨.
+loadNsfwModel()
+  .then(() => console.log('✅ NSFW 이미지 검사 모델 예열 완료'))
+  .catch(err => console.error('⚠️ NSFW 모델 예열 실패(사용자 요청 시점에 재시도됨):', err.message));

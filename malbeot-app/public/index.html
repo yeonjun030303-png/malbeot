@@ -1939,7 +1939,16 @@ function sendPreviewedPhoto(){
   }
   closeFullScreen('photoPreviewScreen');
   photoPreviewMeta = null;
+  let photoSendDone = false;
+  const photoSendTimeout = setTimeout(()=>{
+    if (photoSendDone) return;
+    photoSendDone = true;
+    showMiniAlert('서버 응답이 지연되고 있어요. 전송이 안 됐을 수 있으니 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]);
+  }, 15000);
   const onResult = (res)=>{
+    if (photoSendDone) return;
+    photoSendDone = true;
+    clearTimeout(photoSendTimeout);
     if (!res) { showMiniAlert('사진 전송에 실패했어요. 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]); return; }
     if (res.blocked) showMiniAlert(res.message || '부적절한 사진으로 감지되어 전송할 수 없습니다.', [{label:'확인', primary:true}]);
     else if (!res.success) showMiniAlert(res.message || '사진 전송에 실패했어요. 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]);
@@ -5394,7 +5403,20 @@ function submitProfileUpdate(confirmed){
     photoPosition: editPhotoBase64 ? editPhotoPosition : null,
     confirmed
   };
+  const saveBtn = document.querySelector('#profileForm button[type=\"submit\"]');
+  if (saveBtn){ saveBtn.disabled = true; saveBtn.dataset.origHtml = saveBtn.innerHTML; saveBtn.innerHTML = '<i class=\"fa-solid fa-spinner fa-spin\"></i> 저장 중...'; }
+  let profileSaveDone = false;
+  const profileSaveTimeout = setTimeout(()=>{
+    if (profileSaveDone) return;
+    profileSaveDone = true;
+    if (saveBtn){ saveBtn.disabled = false; if (saveBtn.dataset.origHtml) saveBtn.innerHTML = saveBtn.dataset.origHtml; }
+    showMiniAlert('서버 응답이 지연되고 있어요. 저장이 안 됐을 수 있으니 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]);
+  }, 20000);
   socket.emit('profile:update', data, (res)=>{
+    if (profileSaveDone) return;
+    profileSaveDone = true;
+    clearTimeout(profileSaveTimeout);
+    if (saveBtn){ saveBtn.disabled = false; if (saveBtn.dataset.origHtml) saveBtn.innerHTML = saveBtn.dataset.origHtml; }
     if (res.success){ currentUser = res.user; saveSession(); updateUserUI(); showMiniAlert('프로필이 저장되었습니다.', [{label:'확인', primary:true}]); }
     else if (res.needsConfirm){
       showMiniAlert('닉네임에 부적절한 단어가 발견되었습니다. \"삭제된 닉네임입니다\"로 표기됩니다. 그래도 사용하시겠습니까?', [

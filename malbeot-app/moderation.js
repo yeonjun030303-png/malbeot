@@ -70,5 +70,6 @@ async function checkImageNsfw(imageInput) {
 module.exports = {
   BANNED_WORDS,
   containsBannedWord,
-  checkImageNsfw
+  checkImageNsfw,
+  loadNsfwModel
 };
