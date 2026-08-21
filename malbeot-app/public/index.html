@@ -1395,6 +1395,13 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     <img id="imageLightboxImg" src="" style="max-width:94%;max-height:88%;object-fit:contain;">
   </div>
 
+  <div id="photoViewerOverlay" class="modal-overlay" style="position:fixed;inset:0;background:#000;z-index:10000;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+    <div onclick="closePhotoViewer()" style="position:absolute;top:16px;left:16px;z-index:2;color:#fff;font-size:22px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-xmark"></i></div>
+    <div id="photoViewerCounter" style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,.45);padding:5px 14px;border-radius:14px;z-index:2;"></div>
+    <img id="photoViewerImg" src="" ontouchstart="pvTouchStart(event)" ontouchend="pvTouchEnd(event)" onclick="pvHandleTap(event)" style="max-width:100%;max-height:100%;object-fit:contain;touch-action:pan-y;">
+    <div id="photoViewerHeartPop" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:88px;color:#ff4d6d;pointer-events:none;opacity:0;z-index:2;"><i class="fa-regular fa-heart"></i></div>
+  </div>
+
   <!-- 0-40: 채팅 사진 전송 전 미리보기 + 편집(회전/블러/펜/지우개) 화면 -->
   <!-- 0-52: 프로필 사진 등록시에도 동일 화면 재사용(mode=profile) -->
   <div id="photoPreviewScreen" class="full-screen-overlay" style="background:#000;z-index:300;">
@@ -3382,7 +3389,7 @@ function renderPostDetail(p){
   const commentsHtml = renderCommentsTree(p);
   const isFiltered = !!p.filtered;
   const isDeleted = !!p.deleted;
-  const mediaHtml = (p.photo && !isFiltered && !isDeleted) ? (p.mediaType==='video'?`<video src="${p.photo}" controls muted style="width:100%;border-radius:10px;margin-bottom:12px;"></video>`:`<img src="${p.photo}" style="width:100%;border-radius:10px;margin-bottom:12px;">`) : '';
+  const mediaHtml = (p.photo && !isFiltered && !isDeleted) ? (p.mediaType==='video'?`<video src="${p.photo}" controls muted style="width:100%;border-radius:10px;margin-bottom:12px;"></video>`:`<img src="${p.photo}" onclick="openPhotoViewer(['${p.photo}'], 0, {})" style="width:100%;border-radius:10px;margin-bottom:12px;cursor:pointer;">`) : '';
   const contentHtml = isFiltered
     ? `<div style="font-size:14px;line-height:1.6;color:var(--text-muted);margin-bottom:14px;">부적절한 단어로 삭제된 게시글입니다.</div>`
     : isDeleted
@@ -3662,7 +3669,7 @@ function renderProfileDetail(user){
   const followerCount = (user.followerIds||[]).length;
   const followingCount = (user.followingIds||[]).length;
   const photoContent = photos[profilePhotoIndex]
-    ? `<img src="${photos[profilePhotoIndex]}" style="${user.photoPosition ? photoPosStyle(user.photoPosition) : 'object-position:50% 38%;'}">`
+    ? `<img src="${photos[profilePhotoIndex]}" onclick="openProfilePhotoViewer()" style="cursor:pointer;${user.photoPosition ? photoPosStyle(user.photoPosition) : 'object-position:50% 38%;'}">`
     : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding-top:52px;">${defaultAvatarHtml(user.gender,'avatar-large')}</div>`;
   document.getElementById('profileDetailBody').innerHTML = `
     <div class="profile-photo-wrap" style="display:flex;align-items:center;justify-content:center;background:${user.gender==='female'?'var(--pink-light)':'var(--blue-light)'};">
@@ -4434,7 +4441,7 @@ function appendGroupChatBubble(m){
   } else if (m.deletedForEveryone){
     bubble.classList.add('msg-deleted');
     bubble.textContent = '메시지가 삭제되었습니다';
-  } else if (m.type==='image') { bubble.innerHTML = `<img src="${m.data}" style="cursor:pointer;" onclick="openImageLightbox('${m.data}')">`; }
+  } else if (m.type==='image') { bubble.innerHTML = `<img src="${m.data}" style="cursor:pointer;" onclick="openChatAreaImageViewer('groupChatMessageArea', this)">`; }
   else { bubble.innerHTML = (m.replyTo && m.replyTo.preview ? `<div class="msg-reply-quote">${escapeHtml(m.replyTo.preview)}</div>` : '') + linkifyMessageText(m.text); }
   row.appendChild(bubble);
   const timeRow = document.createElement('div'); timeRow.className='msg-time-row';
@@ -4752,6 +4759,94 @@ function openImageLightbox(url){
 function closeImageLightbox(){
   closeModal('imageLightboxOverlay');
   document.getElementById('imageLightboxImg').src = '';
+}
+/* ===== 0-70: 사진 전체화면 뷰어 (프로필/채팅/커뮤니티 공용) - 스와이프+카운터+더블탭 좋아요 ===== */
+let photoViewerState = null;
+let pvTouchStartX = null;
+let pvLastTapTime = 0;
+function openPhotoViewer(images, startIndex, opts){
+  opts = opts || {};
+  images = (images||[]).filter(Boolean);
+  if (!images.length) return;
+  photoViewerState = {
+    images,
+    index: Math.min(Math.max(startIndex||0, 0), images.length - 1),
+    likable: !!opts.likable,
+    isLiked: opts.isLiked || function(){ return false; },
+    onToggleLike: opts.onToggleLike || function(){}
+  };
+  renderPhotoViewer();
+  openModal('photoViewerOverlay');
+}
+function closePhotoViewer(){
+  closeModal('photoViewerOverlay');
+  photoViewerState = null;
+}
+function renderPhotoViewer(){
+  if (!photoViewerState) return;
+  document.getElementById('photoViewerImg').src = photoViewerState.images[photoViewerState.index];
+  document.getElementById('photoViewerCounter').textContent = `${photoViewerState.index + 1}/${photoViewerState.images.length}`;
+}
+function photoViewerNext(){
+  if (!photoViewerState) return;
+  if (photoViewerState.index < photoViewerState.images.length - 1){ photoViewerState.index++; renderPhotoViewer(); }
+}
+function photoViewerPrev(){
+  if (!photoViewerState) return;
+  if (photoViewerState.index > 0){ photoViewerState.index--; renderPhotoViewer(); }
+}
+function pvTouchStart(e){ pvTouchStartX = e.touches[0].clientX; }
+function pvTouchEnd(e){
+  if (pvTouchStartX===null) return;
+  const dx = e.changedTouches[0].clientX - pvTouchStartX;
+  pvTouchStartX = null;
+  if (Math.abs(dx) < 40) return;
+  if (dx < 0) photoViewerNext(); else photoViewerPrev();
+}
+function pvHandleTap(e){
+  e.stopPropagation();
+  const now = Date.now();
+  if (now - pvLastTapTime < 300){ pvToggleLike(); }
+  pvLastTapTime = now;
+}
+function pvToggleLike(){
+  if (!photoViewerState || !photoViewerState.likable) return;
+  const liked = photoViewerState.isLiked(photoViewerState.index);
+  photoViewerState.onToggleLike(photoViewerState.index);
+  showPhotoViewerHeartPop(!liked);
+}
+function showPhotoViewerHeartPop(liked){
+  const el = document.getElementById('photoViewerHeartPop');
+  if (!el) return;
+  el.querySelector('i').className = liked ? 'fa-solid fa-heart' : 'fa-regular fa-heart';
+  el.style.transition = 'none';
+  el.style.opacity = '1';
+  el.style.transform = 'translate(-50%,-50%) scale(1.2)';
+  void el.offsetWidth;
+  requestAnimationFrame(()=>{
+    el.style.transition = 'opacity 0.7s ease, transform 0.7s ease';
+    el.style.opacity = '0';
+    el.style.transform = 'translate(-50%,-50%) scale(0.85)';
+  });
+}
+function openProfilePhotoViewer(){
+  const user = currentProfileUserCache;
+  if (!user || !user.photos || !user.photos.length) return;
+  const isMe = currentUser && user.id === currentUser.id;
+  openPhotoViewer(user.photos, profilePhotoIndex, {
+    likable: !isMe,
+    isLiked: (i)=> !!(((user.photoLikes && user.photoLikes[i]) || {})[currentUser && currentUser.id]),
+    onToggleLike: (i)=> toggleProfilePhotoLike(user.id, i)
+  });
+}
+function openChatAreaImageViewer(containerId, clickedImg){
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const imgs = Array.from(container.querySelectorAll('.msg-bubble img'));
+  const srcs = imgs.map(im=>im.src);
+  const idx = imgs.indexOf(clickedImg);
+  if (idx < 0) return;
+  openPhotoViewer(srcs, idx, {});
 }
 function toggleGroupMute(){
   if (!activeGroupRoomId) return;
@@ -5101,7 +5196,7 @@ function appendChatBubble(m, checkDate=true){
     bubble.classList.add('msg-deleted');
     bubble.textContent = '메시지가 삭제되었습니다';
   } else if (m.type==='image') {
-    bubble.innerHTML = quoteHtml + `<img src="${m.data}">`;
+    bubble.innerHTML = quoteHtml + `<img src="${m.data}" style="cursor:pointer;" onclick="openChatAreaImageViewer('chatMessageArea', this)">`;
   } else {
     bubble.innerHTML = quoteHtml + (m.forwarded?'<div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">전달된 메시지</div>':'') + linkifyMessageText(m.text);
   }
