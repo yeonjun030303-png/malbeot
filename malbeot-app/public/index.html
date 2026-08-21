@@ -121,6 +121,8 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 
 .full-screen-overlay{position:absolute;inset:0;background:#fff;z-index:150;display:none;flex-direction:column;}
 .full-screen-overlay.active{display:flex;}
+/* 0-69: 채팅방 위에 프로필 화면을 겹쳐 띄울 때만(chatModal이 함께 열려있을 때) profileDetailScreen을 그 위로 올림 */
+#profileDetailScreen.active:has(~ #chatModal.active){z-index:200;}
 .full-screen-overlay.drawer-right{left:auto;width:50%;box-shadow:-6px 0 20px rgba(0,0,0,.18);}
 #groupInfoScreen .chat-row-nick{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 #groupInfoScreen .chat-row-fg{padding:9px 2px;gap:8px;}
@@ -621,7 +623,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
             </div>
           </div>
           <form id="profileForm" onsubmit="return false;">
-            <div class="form-group"><label>가입한 휴대폰 번호</label><input type="text" id="editPhoneReadonly" readonly disabled style="opacity:.7;"></div>
+            <div class="form-group"><label>가입한 휴대폰 번호 <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(상대방에게 표기되지 않아요)</span></label><input type="text" id="editPhoneReadonly" readonly disabled style="opacity:.7;"></div>
             <div style="display:flex;gap:10px;">
               <div class="form-group" style="flex:1;"><label>별명</label><input type="text" id="editNickname" maxlength="10"></div>
               <div class="form-group" style="flex:1;"><label>사는 지역</label>
@@ -1254,8 +1256,6 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div style="margin-left:auto;display:flex;gap:4px;">
         <button class="icon-round-btn" onclick="openChatSearchBar()"><i class="fa-solid fa-magnifying-glass"></i></button>
         <button class="icon-round-btn" onclick="openChatInfoScreen()"><i class="fa-solid fa-bars"></i></button>
-        <button class="icon-round-btn" onclick="openBlockReportModal('chat', activeRoomId)"><i class="fa-solid fa-ellipsis"></i></button>
-        <button class="icon-round-btn" style="color:var(--danger);" onclick="triggerExitChat()"><i class="fa-solid fa-right-from-bracket"></i></button>
       </div>
     </div>
     <div id="chatSearchBar" class="chat-search-bar hidden">
@@ -1391,7 +1391,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     <div id="chatGalleryFullGrid" style="padding:10px;overflow-y:auto;flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;"></div>
   </div>
 
-  <div id="imageLightboxOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;align-items:center;justify-content:center;" onclick="closeImageLightbox()">
+  <div id="imageLightboxOverlay" class="modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;" onclick="closeImageLightbox()">
     <img id="imageLightboxImg" src="" style="max-width:94%;max-height:88%;object-fit:contain;">
   </div>
 
@@ -1915,6 +1915,8 @@ function renderProfilePreviewThumbStrip(){
   const wrap = document.getElementById('profilePreviewThumbStrip');
   if (!wrap) return;
   const slots = [editPhotoBase64 || null, ...editExtraPhotos];
+  // 0-69: 새로 추가 중인 사진의 slotIndex가 기존 배열 길이보다 클 수 있으므로(아직 저장 전) 그만큼 자리를 늘려줌
+  while (slots.length <= photoPreviewMeta.slotIndex) slots.push(null);
   const display = slots.map((src,i)=> i===photoPreviewMeta.slotIndex ? photoPreviewMeta.currentDataUrl : src);
   wrap.innerHTML = display.map((src,i)=> src ? `
     <div onclick="switchProfilePreviewSlot(${i})" style="width:52px;height:52px;border-radius:9px;overflow:hidden;flex-shrink:0;cursor:pointer;border:2px solid ${i===photoPreviewMeta.slotIndex?'#fff':'transparent'};position:relative;">
@@ -4744,10 +4746,11 @@ function openGroupGalleryScreen(){
 }
 function openImageLightbox(url){
   document.getElementById('imageLightboxImg').src = url;
-  document.getElementById('imageLightboxOverlay').style.display = 'flex';
+  // 0-69: openModal(클래스 기반)로 열어서 다른 화면들처럼 뒤로가기 스택에 자동으로 포함되게 함
+  openModal('imageLightboxOverlay');
 }
 function closeImageLightbox(){
-  document.getElementById('imageLightboxOverlay').style.display = 'none';
+  closeModal('imageLightboxOverlay');
   document.getElementById('imageLightboxImg').src = '';
 }
 function toggleGroupMute(){
@@ -4956,9 +4959,9 @@ function closeChatModal(){
 }
 function openProfileFromChatHeader(){
   if (!activeChatTargetId) return;
-  const targetId = activeChatTargetId; // closeChatModal()이 activeChatTargetId를 null로 초기화하므로 미리 저장해둬야 함
-  closeChatModal();
-  openProfileDetailScreen(targetId);
+  // 0-69: 채팅방을 닫지 않고 그대로 둔 채 프로필 화면만 위에 겹쳐서 띄움(위 CSS의 :has() 규칙이 z-index를 자동으로 올려줌).
+  // 프로필에서 뒤로가기를 누르면 프로필만 닫히고 채팅방이 그대로 남아있게 됨.
+  openProfileDetailScreen(activeChatTargetId);
 }
 /* ===================== 채팅창 내 대화 검색 =====================
    돋보기 버튼으로 검색바를 열고, 검색어를 입력하면 최신 메시지부터 1/N 순번을 매김.
