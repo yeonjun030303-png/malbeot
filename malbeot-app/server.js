@@ -374,7 +374,15 @@ async function addMessage(roomId, msg) {
   return msg;
 }
 async function deleteRoom(roomId) {
+  const room = await getRoom(roomId);
+  if (room && room.userIds) {
+    await Promise.all(room.userIds.map(uid => db.ref(`userChats/${uid}/${roomId}`).remove()));
+  }
   await db.ref(`chats/${roomId}`).remove();
+}
+
+async function addUserChatIndex(roomId, userIds) {
+  await Promise.all(userIds.map(uid => db.ref(`userChats/${uid}/${roomId}`).set(true)));
 }
 
 // ===== 단체채팅방(오픈채팅 스타일) DB 헬퍼 =====
@@ -1669,12 +1677,12 @@ io.on('connection', (socket) => {
   socket.on('chat:get_list', async (cb) => {
     try {
       const userId = socketToUser[socket.id];
-      const snap = await db.ref('chats').once('value');
-      const allChats = snap.val() || {};
+      const idxSnap = await db.ref(`userChats/${userId}`).once('value');
+      const myRoomIds = Object.keys(idxSnap.val() || {});
       const rooms = [];
-      for (const roomId of Object.keys(allChats)) {
-        const room = allChats[roomId];
-        if (!room.userIds || !room.userIds.includes(userId)) continue;
+      for (const roomId of myRoomIds) {
+        const room = await getRoom(roomId);
+        if (!room || !room.userIds || !room.userIds.includes(userId)) continue;
         const otherId = room.userIds.find(id => id !== userId);
         const targetUser = await getUser(otherId);
         const messages = (room.messages ? Object.values(room.messages) : []).filter(m => !(m.deletedFor || []).includes(userId));
@@ -1715,6 +1723,7 @@ io.on('connection', (socket) => {
         user.points -= 50;
         await saveUser(user);
         await saveRoomMeta(roomId, { roomId, userIds: [user.id, target.id] });
+        await addUserChatIndex(roomId, [user.id, target.id]);
         await addMessage(roomId, { senderId: 'system', text: '대화가 시작되었습니다. (쌀 50개 차감)', timestamp: Date.now() });
       }
       const msg = await addMessage(roomId, { senderId: user.id, text: data.text, timestamp: Date.now(), read: false });
@@ -1815,6 +1824,7 @@ io.on('connection', (socket) => {
         user.points -= 50;
         await saveUser(user);
         await saveRoomMeta(roomId, { roomId, userIds: [user.id, target.id] });
+        await addUserChatIndex(roomId, [user.id, target.id]);
         await addMessage(roomId, { senderId: 'system', text: '대화가 시작되었습니다. (쌀 50개 차감)', timestamp: Date.now() });
       }
       const newMsgBase = srcMsg.type === 'image'
@@ -2958,3 +2968,25 @@ setTimeout(() => {
     .then(() => console.log('✅ NSFW 이미지 검사 모델 예열 완료'))
     .catch(err => console.error('⚠️ NSFW 모델 예열 실패(사용자 요청 시점에 재시도됨):', err.message));
 }, 5000);
+
+setTimeout(async () => {
+  try {
+    const marker = await db.ref('meta/userChatsIndexBackfillDone').once('value');
+    if (marker.val()) return;
+    console.log('🔄 0-68: userChats 인덱스 백필 시작...');
+    const snap = await db.ref('chats').once('value');
+    const allChats = snap.val() || {};
+    let count = 0;
+    for (const roomId of Object.keys(allChats)) {
+      const room = allChats[roomId];
+      if (room && Array.isArray(room.userIds)) {
+        await addUserChatIndex(roomId, room.userIds);
+        count++;
+      }
+    }
+    await db.ref('meta/userChatsIndexBackfillDone').set(true);
+    console.log(`✅ 0-68: userChats 인덱스 백필 완료 (방 ${count}개)`);
+  } catch (e) {
+    console.error('0-68 userChats 인덱스 백필 실패(다음 재시작 때 재시도됨):', e);
+  }
+}, 20000);
