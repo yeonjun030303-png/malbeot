@@ -7,7 +7,7 @@
     "node": "20.x"
   },
   "scripts": {
-    "start": "node server.js"
+    "start": "node --max-old-space-size=400 --expose-gc server.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
