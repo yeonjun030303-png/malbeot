@@ -9,6 +9,26 @@ const jwt = require('jsonwebtoken');
 const { checkImageNsfw, containsBannedWord, loadNsfwModel } = require('./moderation');
 const webpush = require('web-push');
 
+// ===== 0-66: 502 크래시 루프 원인 파악용 안전망 =====
+// Node 20은 처리되지 않은 Promise rejection(unhandledRejection)이 발생하면 기본적으로
+// 프로세스 전체를 종료시킴 -> 이 서버는 지금까지 이걸 잡아주는 코드가 없어서, 어딘가 하나의
+// 비동기 라우트에서 try/catch 없이 에러가 나면 그 요청 하나 때문에 서버 전체가 죽고
+// Render가 재시작하는 동안 502가 뜨는 크래시 루프가 발생할 수 있었음.
+// 아래 핸들러는 (1) 서버가 즉시 죽지 않게 막고 (2) 정확한 원인을 Render 로그에 남긴다.
+process.on('unhandledRejection', (reason) => {
+  console.error('🔴 [unhandledRejection] 처리되지 않은 Promise 에러(서버는 계속 실행됨):', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('🔴 [uncaughtException] 처리되지 않은 예외(서버는 계속 실행됨):', err);
+});
+
+// 0-66: 메모리 사용량을 30초마다 로그로 남겨서, 502/재시작 직전 RSS가 얼마였는지
+// Render 로그에서 추적 가능하게 함(OOM으로 죽는 것인지 판단하는 용도)
+setInterval(() => {
+  const m = process.memoryUsage();
+  console.log(`📊 메모리 RSS ${(m.rss/1024/1024).toFixed(0)}MB / heapUsed ${(m.heapUsed/1024/1024).toFixed(0)}MB`);
+}, 30000);
+
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -2931,6 +2951,10 @@ server.listen(PORT, () => console.log(`말벗 서버 실행 중 (Firebase 연동
 // 기존엔 사용자가 사진을 처음 저장/전송하는 순간에 처음 로드되면서 그 요청이 응답 없이 오래 멈춰있는
 // 것처럼 보이는 문제(프로필 저장 화면 멈춤, 채팅 사진 전송 안 됨)가 있었음 — 특히 Render 무료 플랜은
 // 재시작(502 등)이 잦아 재시작 직후 첫 요청마다 이 문제가 반복됨.
-loadNsfwModel()
-  .then(() => console.log('✅ NSFW 이미지 검사 모델 예열 완료'))
-  .catch(err => console.error('⚠️ NSFW 모델 예열 실패(사용자 요청 시점에 재시도됨):', err.message));
+// 0-66: 부팅 직후(다른 초기화 작업과 메모리 스파이크가 겹치는 시점)를 피하기 위해
+// 5초 지연 후 예열하고, 실패해도 서버 자체는 절대 죽지 않게 처리
+setTimeout(() => {
+  loadNsfwModel()
+    .then(() => console.log('✅ NSFW 이미지 검사 모델 예열 완료'))
+    .catch(err => console.error('⚠️ NSFW 모델 예열 실패(사용자 요청 시점에 재시도됨):', err.message));
+}, 5000);
