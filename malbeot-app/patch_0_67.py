@@ -1,4 +1,7 @@
-// ===== 0-67: NSFW 자동검사(tfjs-node) 완전 비활성화 =====
+﻿import re
+
+# ===== 1) moderation.js: NSFW 자동검사(tfjs-node/nsfwjs) 완전 제거 =====
+new_moderation = '''// ===== 0-67: NSFW 자동검사(tfjs-node) 완전 비활성화 =====
 // Render 무료 플랜(RAM 512MB)에서 @tensorflow/tfjs-node 자체의 기본 메모리 사용량이
 // 너무 커서(네이티브 바이너리만으로 150~300MB대) 서버가 반복적으로 OOM(FatalProcessOutOfMemory)
 // 으로 죽는 문제가 있었음. 이건 코드로 우회할 수 없는 순수 메모리 한도 문제라서,
@@ -25,7 +28,7 @@ const BANNED_WORDS = [
 
 function containsBannedWord(text) {
   if (!text) return false;
-  const normalized = text.toLowerCase().replace(/\s/g, '');
+  const normalized = text.toLowerCase().replace(/\\s/g, '');
   return BANNED_WORDS.some(word => normalized.includes(word));
 }
 
@@ -49,3 +52,24 @@ module.exports = {
   checkImageNsfw,
   loadNsfwModel
 };
+'''
+
+with open('moderation.js', 'w', encoding='utf-8') as f:
+    f.write(new_moderation)
+
+# ===== 2) package.json: 이제 안 쓰는 무거운 패키지 제거 =====
+with open('package.json', 'r', encoding='utf-8') as f:
+    pkg = f.read()
+
+for line in [
+    '    "@tensorflow/tfjs-node": "^4.22.0",\n',
+    '    "nsfwjs": "^4.3.0",\n',
+    '    "sharp": "^0.35.3",\n',
+]:
+    assert line in pkg, f"package.json에서 해당 줄을 못 찾음: {line!r}"
+    pkg = pkg.replace(line, '', 1)
+
+with open('package.json', 'w', encoding='utf-8') as f:
+    f.write(pkg)
+
+print("패치 완료: moderation.js 교체, package.json에서 tfjs-node/nsfwjs/sharp 제거")

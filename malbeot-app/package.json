@@ -13,14 +13,11 @@
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
-    "@tensorflow/tfjs-node": "^4.22.0",
     "bcryptjs": "^2.4.3",
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "firebase-admin": "^12.6.0",
     "jsonwebtoken": "^9.0.2",
-    "nsfwjs": "^4.3.0",
-    "sharp": "^0.35.3",
     "socket.io": "^4.7.5",
     "web-push": "^3.6.7"
   }
