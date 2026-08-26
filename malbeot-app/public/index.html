@@ -459,7 +459,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <div style="display:flex;gap:8px;">
           <div class="form-group" style="flex:1;">
             <label>성별</label>
-            <select id="regGender"><option value="female">여성 (핑크)</option><option value="male">남성 (파란색)</option></select>
+            <select id="regGender"><option value="female">여성</option><option value="male">남성</option></select>
           </div>
           <div class="form-group" style="flex:1;">
             <label>나이 선택</label>
@@ -611,7 +611,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
               <div class="photo-slot" onclick="triggerEditPhotoInput()">
                 <img id="editPhotoPreview" class="photo-preview hidden" alt="수정 사진" onclick="event.stopPropagation();reeditMainPhoto()">
                 <span id="editPhotoPlaceholder"><i class="fa-solid fa-plus"></i></span>
-                <span id="editPhotoBadgeMain" class="hidden photo-slot-badge">1</span>
+                <span id="editPhotoBadgeMain" class="hidden photo-slot-badge" style="color:#ffd76b;"><i class="fa-solid fa-star"></i></span>
               </div>
               <div id="editExtraPhotoSlots" style="display:contents;"></div>
             </div>
@@ -638,7 +638,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
               </div>
             </div>
             <div style="display:flex;gap:10px;">
-              <div class="form-group" style="flex:1;"><label>성별</label><select id="editGender"><option value="female">여성 (핑크)</option><option value="male">남성 (파란색)</option></select></div>
+              <div class="form-group" style="flex:1;"><label>성별</label><select id="editGender"><option value="female">여성</option><option value="male">남성</option></select></div>
               <div class="form-group" style="flex:1;"><label>나이</label><select id="editAge"></select></div>
             </div>
             <div class="form-group"><label>자기소개</label><textarea id="editBio" rows="2" placeholder="자신만의 이야기를 편하게 소개해주세요."></textarea></div>
@@ -5476,7 +5476,7 @@ function setupPhotoPositionDrag(){
   const onMove = (clientX, clientY)=>{
     const rect = box.getBoundingClientRect();
     let x = ((clientX-rect.left)/rect.width)*100;
-    let y = ((clientY-rect.top)/rect.height)*100;
+    let y = 100 - ((clientY-rect.top)/rect.height)*100;
     x = Math.max(0, Math.min(100, x)); y = Math.max(0, Math.min(100, y));
     editPhotoPosition = {x:Math.round(x), y:Math.round(y)};
     document.getElementById('editPhotoPositionImg').style.objectPosition = `${editPhotoPosition.x}% ${editPhotoPosition.y}%`;
