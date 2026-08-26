@@ -1395,7 +1395,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     <img id="imageLightboxImg" src="" style="max-width:94%;max-height:88%;object-fit:contain;">
   </div>
 
-  <div id="photoViewerOverlay" class="modal-overlay" style="position:fixed;inset:0;background:#000;z-index:10000;display:none;align-items:center;justify-content:center;overflow:hidden;">
+  <div id="photoViewerOverlay" class="modal-overlay" style="position:fixed;inset:0;background:#000;z-index:10000;align-items:center;justify-content:center;overflow:hidden;">
     <div onclick="closePhotoViewer()" style="position:absolute;top:16px;left:16px;z-index:2;color:#fff;font-size:22px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-xmark"></i></div>
     <div id="photoViewerCounter" style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,.45);padding:5px 14px;border-radius:14px;z-index:2;"></div>
     <img id="photoViewerImg" src="" ontouchstart="pvTouchStart(event)" ontouchend="pvTouchEnd(event)" onclick="pvHandleTap(event)" style="max-width:100%;max-height:100%;object-fit:contain;touch-action:pan-y;">
