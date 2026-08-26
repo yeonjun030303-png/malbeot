@@ -568,13 +568,11 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     <section id="tab-chat" class="tab-content">
       <div id="chatListIconRow" style="display:flex;gap:8px;padding:10px 14px;align-items:center;">
         <button type="button" onclick="toggleChatListSearch()" style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:1px solid var(--border-color);background:var(--bg-card);color:inherit;font-size:14px;"><i class="fa-solid fa-magnifying-glass"></i></button>
-        <div id="openChatCreateEntry" onclick="openGroupCreateModal()" style="flex:1;position:relative;display:flex;align-items:center;gap:8px;border:1px solid var(--border-color);border-radius:20px;padding:8px 14px;background:var(--bg-card);cursor:pointer;">
-          <span style="position:relative;display:inline-flex;">
-            <i class="fa-solid fa-comment" style="font-size:15px;color:var(--primary);"></i>
-            <span style="position:absolute;right:-6px;bottom:-5px;width:13px;height:13px;border-radius:50%;background:var(--primary);color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-plus" style="font-size:8px;"></i></span>
-          </span>
-          <span style="font-size:13px;font-weight:600;">오픈채팅 만들기</span>
+        <div id="openChatCreateEntry" onclick="openGroupCreateModal()" title="오픈채팅 만들기" style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:1px solid var(--border-color);background:var(--bg-card);cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;">
+          <i class="fa-solid fa-comment" style="font-size:15px;color:var(--primary);"></i>
+          <span style="position:absolute;right:-2px;bottom:-2px;width:13px;height:13px;border-radius:50%;background:var(--primary);color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--bg-card);"><i class="fa-solid fa-plus" style="font-size:8px;"></i></span>
         </div>
+        <div style="flex:1;"></div>
         <button type="button" onclick="openSettingsScreen()" style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:1px solid var(--border-color);background:var(--bg-card);color:inherit;font-size:14px;"><i class="fa-solid fa-gear"></i></button>
       </div>
       <div id="chatListSearchRow" class="hidden" style="padding:0 14px 8px;">
