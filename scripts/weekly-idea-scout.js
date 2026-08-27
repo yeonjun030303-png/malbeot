@@ -1,5 +1,40 @@
 const fs = require('fs');
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function callGemini(prompt, apiKey) {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 15000; // 15초
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      }
+    );
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (text) return text;
+
+    const isRetryable = data?.error?.code === 503 || data?.error?.code === 429;
+    console.error(`Gemini 응답 실패 (시도 ${attempt}/${MAX_RETRIES}):`, JSON.stringify(data));
+
+    if (isRetryable && attempt < MAX_RETRIES) {
+      console.log(`${RETRY_DELAY_MS / 1000}초 후 재시도...`);
+      await sleep(RETRY_DELAY_MS);
+      continue;
+    }
+    return null;
+  }
+  return null;
+}
+
 async function main() {
   const prompt = `당신은 소셜/데이팅 성격의 채팅 앱 "말벗"의 프로덕트 매니저입니다.
 앱 특징: 실시간 채팅(1:1, 오픈채팅, 단체방), 프로필 사진 다중등록, 취미기반 매칭, 구독제(골드/플래티넘, 포인트명 "쌀"), 신고기반 콘텐츠 모더레이션, 안드로이드 앱 전환 중, 아직 상용화 전 단계.
@@ -12,21 +47,14 @@ async function main() {
 과장하지 말고 실제로 채팅/소셜 앱들이 흔히 쓰는 검증된 패턴 위주로, 한국어로 작성해주세요.`;
 
   const apiKey = process.env.GEMINI_API_KEY;
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    }
-  );
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  const text = await callGemini(prompt, apiKey);
+
   if (!text) {
-    console.error('파싱 실패:', JSON.stringify(data));
-    fs.writeFileSync('review-result.md', '⚠️ 이번 주 생성 실패 (API 응답 파싱 오류)');
+    console.error('Gemini 응답을 최종적으로 받지 못함 (재시도 소진)');
+    fs.writeFileSync('review-result.md', '⚠️ 이번 주 생성 실패 (API 응답을 재시도 후에도 받지 못함)');
     return;
   }
+
   fs.writeFileSync('review-result.md', text);
   console.log(text);
 }

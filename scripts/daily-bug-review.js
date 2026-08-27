@@ -1,12 +1,48 @@
 // 데일리 버그 리뷰 스크립트
 // - 최근 30시간 이내 커밋의 diff를 모아서 Gemini에게 리뷰를 맡김
 // - 결과를 review-result.md 파일로 저장 (없으면 워크플로우가 이슈를 안 만듦 = 변경사항 없거나 특이사항 없을 때)
+// - Gemini가 503(일시 과부하) 등으로 응답 실패하면 잠깐 쉬었다가 최대 3번까지 자동 재시도함
 
 const { execSync } = require('child_process');
 const fs = require('fs');
 
 function run(cmd) {
   return execSync(cmd, { encoding: 'utf-8' }).trim();
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function callGemini(prompt, apiKey) {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 15000; // 15초
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      }
+    );
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (text) return text;
+
+    const isRetryable = data?.error?.code === 503 || data?.error?.code === 429;
+    console.error(`Gemini 응답 실패 (시도 ${attempt}/${MAX_RETRIES}):`, JSON.stringify(data));
+
+    if (isRetryable && attempt < MAX_RETRIES) {
+      console.log(`${RETRY_DELAY_MS / 1000}초 후 재시도...`);
+      await sleep(RETRY_DELAY_MS);
+      continue;
+    }
+    return null;
+  }
+  return null;
 }
 
 async function main() {
@@ -53,19 +89,10 @@ async function main() {
 ${truncated}`;
 
   const apiKey = process.env.GEMINI_API_KEY;
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    }
-  );
-  const data = await res.json();
-  const reviewText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  const reviewText = await callGemini(prompt, apiKey);
 
   if (!reviewText) {
-    console.error('Gemini 응답 파싱 실패:', JSON.stringify(data));
+    console.error('Gemini 응답을 최종적으로 받지 못함 (재시도 소진) - 이번 회차는 리뷰 스킵');
     return;
   }
 
