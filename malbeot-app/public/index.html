@@ -2189,10 +2189,25 @@ function cancelPhotoEdit(){
 function showMiniAlert(text, buttons){
   document.getElementById('miniAlertText').textContent = text;
   const wrap = document.getElementById('miniAlertButtons'); wrap.innerHTML = '';
+  const overlay = document.getElementById('miniAlertModal');
+  const card = overlay.querySelector('.mini-alert-card');
+  const isMenu = buttons.length >= 3;
+  overlay.style.alignItems = isMenu ? 'flex-end' : '';
+  overlay.style.padding = isMenu ? '0' : '';
+  if (card){
+    card.style.width = isMenu ? '100%' : '';
+    card.style.maxWidth = isMenu ? '480px' : '';
+    card.style.margin = isMenu ? '0 auto' : '';
+    card.style.borderRadius = isMenu ? '16px 16px 0 0' : '';
+    card.style.paddingBottom = isMenu ? 'calc(20px + env(safe-area-inset-bottom))' : '';
+  }
+  wrap.style.flexDirection = isMenu ? 'column' : 'row';
   buttons.forEach(b=>{
     const btn = document.createElement('button');
     btn.className = 'btn ' + (b.primary ? 'btn-primary' : 'btn-secondary');
-    btn.style.flex = '1'; btn.textContent = b.label;
+    btn.style.flex = isMenu ? 'none' : '1';
+    if (isMenu) btn.style.width = '100%';
+    btn.textContent = b.label;
     if (b.danger){
       // 톤온톤 경고색: 배경은 danger색의 옅은 버전, 글자는 danger색 그대로
       btn.style.background = 'color-mix(in srgb, var(--danger) 15%, #fff)';
