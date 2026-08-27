@@ -2,7 +2,7 @@ name: 📊 주간 마케팅 어드바이저
 
 on:
   schedule:
-    - cron: '0 0 * * 4'   # 매주 목요일
+    - cron: '0 8 * * 4'   # 매주 목요일
   workflow_dispatch: {}
 
 permissions:

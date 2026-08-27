@@ -2,7 +2,7 @@ name: 💡 주간 아이디어 스카우트
 
 on:
   schedule:
-    - cron: '0 0 * * 1'   # 매주 월요일 UTC 0시 = 한국시간 오전 9시
+    - cron: '0 8 * * 1'   # 매주 월요일 UTC 0시 = 한국시간 오전 9시
   workflow_dispatch: {}
 
 permissions:
