@@ -4376,6 +4376,8 @@ function openGroupChatRoom(roomId){
   const cached = findCachedGroupRoom(roomId);
   activeGroupLastReadAt = (cached && cached.lastReadAt) || {};
   groupMaxSeenTs = 0;
+  // 0-78: 이전 방에서 아직 안 읽혀서 감시 중이던 말풍선들을 여기서 한 번에 정리(누적 방지)
+  if (groupReadObserver) groupReadObserver.disconnect();
   document.getElementById('groupChatTitle').textContent = (cached && cached.meta && cached.meta.title) || '단체채팅방';
   document.getElementById('groupChatMemberCount').textContent = (cached && cached.meta && cached.meta.memberIds) ? cached.meta.memberIds.length : '';
   const area = document.getElementById('groupChatMessageArea'); area.innerHTML=''; area.dataset.lastDate='';
@@ -4406,6 +4408,8 @@ function closeGroupChatModal(){
   loadChatRoomList();
   clearTimeout(groupMarkReadTimer);
   groupMaxSeenTs = 0;
+  // 0-78: 방을 닫을 때도 옵저버 감시 대상 정리(누적 방지 안전망)
+  if (groupReadObserver) groupReadObserver.disconnect();
 }
 function memberNicknameOf(uid){
   if (activeGroupRoomMeta && activeGroupRoomMeta.members){
@@ -5088,6 +5092,8 @@ function openChatModal(roomId, target, messages){
   }
   document.getElementById('chatTargetName').textContent = target.nickname || '';
   chatMaxSeenTs = 0;
+  // 0-78: 이전 방에서 아직 안 읽혀서 감시 중이던 말풍선들을 여기서 한 번에 정리(누적 방지)
+  if (chatReadObserver) chatReadObserver.disconnect();
   const area = document.getElementById('chatMessageArea'); area.innerHTML=''; area.dataset.lastDate='';
   let lastDate = null;
   (messages||[]).forEach(m=>{
@@ -5114,6 +5120,8 @@ function closeChatModal(){
   closeChatSearchBar();
   clearTimeout(chatMarkReadTimer);
   chatMaxSeenTs = 0;
+  // 0-78: 방을 닫을 때도 옵저버 감시 대상 정리(누적 방지 안전망)
+  if (chatReadObserver) chatReadObserver.disconnect();
 }
 function openProfileFromChatHeader(){
   if (!activeChatTargetId) return;
