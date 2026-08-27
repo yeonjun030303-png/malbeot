@@ -2,7 +2,7 @@ name: 💡 주간 아이디어 스카우트
 
 on:
   schedule:
-    - cron: '0 8 * * 1'   # 매주 월요일 UTC 0시 = 한국시간 오전 9시
+    - cron: '0 8 * * 1'   # UTC 8시 = 한국시간 오후 5시 (매주 월요일)
   workflow_dispatch: {}
 
 permissions:
@@ -14,16 +14,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
       - name: 스크립트 실행
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node scripts/weekly-idea-scout.js
+
       - name: 이슈로 등록
         uses: peter-evans/create-issue-from-file@v5
         with:
           title: "💡 주간 아이디어 제안 - ${{ github.run_id }}"
           content-filepath: ./review-result.md
           labels: idea, bot
+
+      - name: HTML 리포트 생성
+        run: node scripts/md-to-html.js "💡 주간 아이디어 제안"
+
+      - name: 이메일 발송
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: "💡 [말벗] 주간 아이디어 제안"
+          to: ${{ secrets.MAIL_TO }}
+          from: 말벗 아이디어스카우터
+          html_body: file://report.html
+          attachments: report.html

@@ -2,7 +2,7 @@ name: 🐛 데일리 버그 리뷰
 
 on:
   schedule:
-    - cron: '0 8 * * *'   # UTC 0시 = 한국시간 오전 9시
+    - cron: '0 8 * * *'   # UTC 8시 = 한국시간 오후 5시
   workflow_dispatch: {}    # "Run workflow" 버튼으로 수동 실행도 가능
 
 permissions:
@@ -44,3 +44,21 @@ jobs:
           title: "🐛 데일리 버그 리뷰 - ${{ github.run_id }}"
           content-filepath: ./review-result.md
           labels: daily-review, bot
+
+      - name: HTML 리포트 생성
+        if: steps.check.outputs.has_result == 'true'
+        run: node scripts/md-to-html.js "🐛 데일리 버그 리뷰"
+
+      - name: 이메일 발송
+        if: steps.check.outputs.has_result == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: "🐛 [말벗] 데일리 버그 리뷰"
+          to: ${{ secrets.MAIL_TO }}
+          from: 말벗 버그헌터
+          html_body: file://report.html
+          attachments: report.html

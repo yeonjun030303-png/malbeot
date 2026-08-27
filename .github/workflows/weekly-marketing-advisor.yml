@@ -2,7 +2,7 @@ name: 📊 주간 마케팅 어드바이저
 
 on:
   schedule:
-    - cron: '0 8 * * 4'   # 매주 목요일
+    - cron: '0 8 * * 4'   # UTC 8시 = 한국시간 오후 5시 (매주 목요일)
   workflow_dispatch: {}
 
 permissions:
@@ -27,3 +27,19 @@ jobs:
           title: "📊 주간 마케팅 제안 - ${{ github.run_id }}"
           content-filepath: ./review-result.md
           labels: marketing, bot
+
+      - name: HTML 리포트 생성
+        run: node scripts/md-to-html.js "📊 주간 마케팅 제안"
+
+      - name: 이메일 발송
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: "📊 [말벗] 주간 마케팅 제안"
+          to: ${{ secrets.MAIL_TO }}
+          from: 말벗 마케팅어드바이저
+          html_body: file://report.html
+          attachments: report.html
