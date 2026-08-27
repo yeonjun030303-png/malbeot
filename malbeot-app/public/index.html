@@ -609,7 +609,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
               <div class="photo-slot" onclick="triggerEditPhotoInput()">
                 <img id="editPhotoPreview" class="photo-preview hidden" alt="수정 사진" onclick="event.stopPropagation();reeditMainPhoto()">
                 <span id="editPhotoPlaceholder"><i class="fa-solid fa-plus"></i></span>
-                <span id="editPhotoBadgeMain" class="hidden photo-slot-badge" style="color:#ffd76b;"><i class="fa-solid fa-star"></i></span>
+                <span id="editPhotoBadgeMain" class="hidden photo-slot-badge" style="background:#ffd76b;color:#3a2a00;">1</span>
               </div>
               <div id="editExtraPhotoSlots" style="display:contents;"></div>
             </div>
@@ -1537,6 +1537,8 @@ let currentPostCache = null;
 let editingPostId = null;
 let blockReportContext = null;
 let profilePhotoIndex = 0;
+// 0-77: 마우스 포인터 기기(PC)인지 판별. 터치기기는 스와이프로 넘기고, PC는 좌우 화살표 버튼으로 넘기게 함
+const IS_TOUCH_DEVICE = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 let pendingSignupPhone = "";
 let activeChatTargetId = null;
 let currentChatMessages = []; // 현재 열려있는 1:1 채팅방의 메시지 배열(검색 기능용)
@@ -1559,6 +1561,13 @@ function getLocalDateStr(d){
   d = d || new Date();
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
+}
+// 0-77: 하루 한번(00시 기준 초기화, 로컬 기기 시각 기준), 커뮤니티 탭에 그날 처음 들어올 때만 포인트 안내창 표시
+function maybeShowCommunityDailyAlert(){
+  const today = getLocalDateStr();
+  if (localStorage.getItem('malbeot_communityDailySeenDate') === today) return;
+  localStorage.setItem('malbeot_communityDailySeenDate', today);
+  showMiniAlert('매일 1번씩 글을 올리면 포인트를 지급해드려요!', [{label:'확인', primary:true}]);
 }
 // 하루 한번(00시 기준 초기화, 로컬 기기 시각 기준), (투표) 카테고리를 처음 선택할 때만 안내창 표시
 function maybeShowVoteInfoAlert(){
@@ -2781,7 +2790,7 @@ function switchTab(tab){
   if (homeSearchInput) homeSearchInput.value = '';
   if (communitySearchInput) communitySearchInput.value = '';
   if (tab==='tab-home') loadHomeUserList();
-  if (tab==='tab-community') loadCommunityPosts();
+  if (tab==='tab-community') { loadCommunityPosts(); maybeShowCommunityDailyAlert(); }
   if (tab==='tab-chat') loadChatRoomList();
   if (tab==='tab-mypage') { loadProfileToForm(); refreshMyPageVisitorCount(); refreshMypageSubLabel(); }
 }
@@ -3615,6 +3624,13 @@ function refreshOpenProfileIfNeeded(){
 }
 function closeProfileDetailScreen(){ closeFullScreen('profileDetailScreen'); }
 function changeProfilePhoto(i){ profilePhotoIndex = i; if (currentProfileUserCache) renderProfileDetail(currentProfileUserCache); }
+// 0-77: 프로필 상세화면(별명/취미 등 표시되는 화면)에서 좌우 화살표 버튼으로 사진 넘기기
+function profilePhotoPrev(){ if (profilePhotoIndex > 0) changeProfilePhoto(profilePhotoIndex - 1); }
+function profilePhotoNext(){
+  if (!currentProfileUserCache) return;
+  const photos = (currentProfileUserCache.photos && currentProfileUserCache.photos.length) ? currentProfileUserCache.photos : [null];
+  if (profilePhotoIndex < photos.length - 1) changeProfilePhoto(profilePhotoIndex + 1);
+}
 function toggleProfilePhotoLike(targetUserId, photoIndex){
   socket.emit('photo:like', {targetUserId, photoIndex}, (res)=>{
     if (!res || !res.success || !currentProfileUserCache) return;
@@ -3686,9 +3702,14 @@ function renderProfileDetail(user){
   const photoContent = photos[profilePhotoIndex]
     ? `<img src="${photos[profilePhotoIndex]}" onclick="openProfilePhotoViewer()" style="cursor:pointer;${user.photoPosition ? photoPosStyle(user.photoPosition) : 'object-position:50% 38%;'}">`
     : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding-top:52px;">${defaultAvatarHtml(user.gender,'avatar-large')}</div>`;
+  const showProfileArrows = photos.length>1 && !IS_TOUCH_DEVICE;
+  const profilePrevArrow = showProfileArrows ? `<div onclick="event.stopPropagation();profilePhotoPrev()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:3;color:#fff;font-size:16px;width:34px;height:34px;display:${profilePhotoIndex>0?'flex':'none'};align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-chevron-left"></i></div>` : '';
+  const profileNextArrow = showProfileArrows ? `<div onclick="event.stopPropagation();profilePhotoNext()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:3;color:#fff;font-size:16px;width:34px;height:34px;display:${profilePhotoIndex<photos.length-1?'flex':'none'};align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-chevron-right"></i></div>` : '';
   document.getElementById('profileDetailBody').innerHTML = `
     <div class="profile-photo-wrap" style="display:flex;align-items:center;justify-content:center;background:${user.gender==='female'?'var(--pink-light)':'var(--blue-light)'};">
       ${photoContent}
+      ${profilePrevArrow}
+      ${profileNextArrow}
       ${photos.length>1?`<div class="profile-photo-dots">${dots}</div>`:''}
       ${hasPhotos?`<div class="photo-like-btn" style="display:flex;align-items:center;gap:7px;">${isMe?'':`<span onclick="toggleProfilePhotoLike('${user.id}', ${profilePhotoIndex})" style="cursor:pointer;"><i class="fa-${iLikedThisPhoto?'solid':'regular'} fa-heart" style="color:${iLikedThisPhoto?'#ff4d6d':'#fff'};"></i></span>`}<span onclick="event.stopPropagation();openPhotoLikersScreen('${user.id}', ${profilePhotoIndex})" style="cursor:pointer;">${photoLikeCount}</span></div>`:''}
     </div>
@@ -5513,8 +5534,7 @@ function renderExtraPhotoSlots(){
   let html = editExtraPhotos.map((src,i)=>`
     <div class="photo-slot">
       <img src="${src}" class="photo-preview" onclick="event.stopPropagation();reeditExtraPhoto(${i})">
-      <span class="photo-slot-badge" onclick="event.stopPropagation();reorderExtraPhoto(${i})" title="누르면 순서를 맨 뒤로 보냅니다">${i+2}</span>
-      <span onclick="event.stopPropagation();setAsMainPhoto(${i})" style="position:absolute;bottom:-6px;left:-6px;background:rgba(0,0,0,.65);color:#ffd76b;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.35);z-index:2;" title="대표사진으로 지정"><i class="fa-solid fa-star"></i></span>
+      <span class="photo-slot-badge" onclick="event.stopPropagation();setAsMainPhoto(${i})" title="누르면 대표사진(1번)으로 지정됩니다">${i+2}</span>
       <span onclick="event.stopPropagation();removeExtraPhoto(${i})" style="position:absolute;top:-7px;right:-7px;background:rgba(0,0,0,.65);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.35);z-index:2;"><i class="fa-solid fa-xmark"></i></span>
     </div>`).join('');
   if (editExtraPhotos.length < EXTRA_PHOTO_MAX){
