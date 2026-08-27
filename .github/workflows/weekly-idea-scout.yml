@@ -1,0 +1,29 @@
+name: 💡 주간 아이디어 스카우트
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'   # 매주 월요일 UTC 0시 = 한국시간 오전 9시
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 스크립트 실행
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/weekly-idea-scout.js
+      - name: 이슈로 등록
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "💡 주간 아이디어 제안 - ${{ github.run_id }}"
+          content-filepath: ./review-result.md
+          labels: idea, bot

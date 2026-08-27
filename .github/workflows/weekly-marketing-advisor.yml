@@ -1,0 +1,29 @@
+name: 📊 주간 마케팅 어드바이저
+
+on:
+  schedule:
+    - cron: '0 0 * * 4'   # 매주 목요일
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  advise:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 스크립트 실행
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/weekly-marketing-advisor.js
+      - name: 이슈로 등록
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "📊 주간 마케팅 제안 - ${{ github.run_id }}"
+          content-filepath: ./review-result.md
+          labels: marketing, bot
