@@ -517,6 +517,11 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <div class="user-points-badge hidden" id="headerPointsWrap" onclick="switchTab('tab-mypage')"><i class="fa-solid fa-bowl-rice" style="color:var(--warning);"></i> <span id="userPoints">100</span></div>
       <button class="icon-round-btn hidden" id="headerWriteBtn" onclick="openComposeScreen()"><i class="fa-solid fa-pen"></i></button>
       <button class="icon-round-btn hidden" id="headerAdminModeBtn" onclick="toggleAdminModeView()" title="관리자 모드"><i class="fa-solid fa-user-shield"></i></button>
+      <button type="button" class="icon-round-btn hidden" id="headerChatSearchBtn" onclick="document.getElementById('groupSearchInput').focus()"><i class="fa-solid fa-magnifying-glass"></i></button>
+      <button type="button" class="icon-round-btn hidden" id="headerChatCreateBtn" onclick="openGroupCreateModal()" title="오픈채팅 만들기" style="position:relative;">
+        <i class="fa-solid fa-comment" style="font-size:15px;"></i>
+        <span style="position:absolute;right:2px;bottom:2px;width:12px;height:12px;border-radius:50%;background:var(--primary);color:#fff;font-size:8px;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--bg-card);"><i class="fa-solid fa-plus" style="font-size:7px;"></i></span>
+      </button>
       <button class="icon-round-btn" id="headerSettingsBtn" onclick="openSettingsScreen()"><i class="fa-solid fa-gear"></i></button>
     </div>
   </header>
@@ -566,16 +571,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </section>
 
     <section id="tab-chat" class="tab-content">
-      <div id="chatListIconRow" style="display:flex;gap:8px;padding:10px 14px;align-items:center;">
-        <button type="button" onclick="toggleChatListSearch()" style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:1px solid var(--border-color);background:var(--bg-card);color:inherit;font-size:14px;"><i class="fa-solid fa-magnifying-glass"></i></button>
-        <div id="openChatCreateEntry" onclick="openGroupCreateModal()" title="오픈채팅 만들기" style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:1px solid var(--border-color);background:var(--bg-card);cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;">
-          <i class="fa-solid fa-comment" style="font-size:15px;color:var(--primary);"></i>
-          <span style="position:absolute;right:-2px;bottom:-2px;width:13px;height:13px;border-radius:50%;background:var(--primary);color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--bg-card);"><i class="fa-solid fa-plus" style="font-size:8px;"></i></span>
-        </div>
-        <div style="flex:1;"></div>
-        <button type="button" onclick="openSettingsScreen()" style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:1px solid var(--border-color);background:var(--bg-card);color:inherit;font-size:14px;"><i class="fa-solid fa-gear"></i></button>
-      </div>
-      <div id="chatListSearchRow" class="hidden" style="padding:0 14px 8px;">
+      <div id="chatListSearchRow" style="padding:8px 14px 8px;">
         <div style="position:relative;">
           <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px;"></i>
           <input type="text" id="groupSearchInput" placeholder="닉네임, 채팅방 이름, 대화 내용 검색" oninput="onGroupSearchInput(this.value)" style="width:100%;box-sizing:border-box;padding:9px 12px 9px 32px;border:1px solid var(--border-color);border-radius:20px;font-size:13px;background:var(--bg-card);color:inherit;">
@@ -2770,12 +2766,15 @@ function updateHeaderForTab(tab){
   const homeSearchWrap = document.getElementById('headerHomeSearchWrap');
   const homeAdBannerRow = document.getElementById('homeAdBannerRow');
   const communitySearchRow = document.getElementById('communitySearchRow');
+  const chatSearchBtn = document.getElementById('headerChatSearchBtn');
+  const chatCreateBtn = document.getElementById('headerChatCreateBtn');
   ptsWrap.classList.add('hidden'); writeBtn.classList.add('hidden'); filterBar.classList.remove('hidden');
   homeSearchWrap.classList.add('hidden'); homeAdBannerRow.classList.add('hidden'); communitySearchRow.classList.add('hidden');
+  chatSearchBtn.classList.add('hidden'); chatCreateBtn.classList.add('hidden');
   document.getElementById('homeSearchDropdown').classList.add('hidden');
   if (tab==='tab-home'){ title.textContent='실시간 친구들'; ptsWrap.classList.remove('hidden'); homeSearchWrap.classList.remove('hidden'); homeAdBannerRow.classList.remove('hidden'); }
   else if (tab==='tab-community'){ title.textContent='일상 이야기'; writeBtn.classList.remove('hidden'); ptsWrap.classList.remove('hidden'); communitySearchRow.classList.remove('hidden'); }
-  else if (tab==='tab-chat'){ title.textContent='채팅'; filterBar.classList.add('hidden'); }
+  else if (tab==='tab-chat'){ title.textContent='채팅'; filterBar.classList.add('hidden'); chatSearchBtn.classList.remove('hidden'); chatCreateBtn.classList.remove('hidden'); }
   else { title.textContent='설정'; filterBar.classList.add('hidden'); }
 }
 function switchTab(tab){
@@ -4181,18 +4180,7 @@ function submitGroupCreate(){
   });
 }
 // 채팅방 검색: 1:1 채팅 + 내가 이미 들어간 단체채팅방(로컬 필터) + 아직 안 들어간 공개 단체채팅방(서버 검색)을 한번에 보여줌
-// 0-54: 돋보기 아이콘을 눌러야 검색창이 나타나게 함(평소엔 광고란+오픈채팅 만들기 칸이 그 자리를 대신함)
-function toggleChatListSearch(){
-  const row = document.getElementById('chatListSearchRow');
-  const willShow = row.classList.contains('hidden');
-  row.classList.toggle('hidden');
-  if (willShow) {
-    document.getElementById('groupSearchInput').focus();
-  } else {
-    document.getElementById('groupSearchInput').value = '';
-    onGroupSearchInput('');
-  }
-}
+// 0-79: 검색창이 상시노출로 바뀌면서(예전엔 아이콘 눌러야 나타남) toggleChatListSearch는 더 이상 필요 없어 제거됨
 // 0-54: 검색어가 하나라도 있으면 광고란/오픈채팅 만들기 칸을 잠깐 숨기고 결과에 집중시킴(검색 지우면 복귀)
 function setChatListBrowseUiVisible(visible){
   const ad = document.getElementById('chatAdBannerRow');
