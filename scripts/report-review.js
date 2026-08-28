@@ -10,7 +10,8 @@
 //   단, AUTO_WARN으로 실제 경고를 집행한 건은 status를 'resolved'로 갱신함(중복 경고 방지)
 
 const fs = require('fs');
-const admin = require('firebase-admin');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getDatabase } = require('firebase-admin/database');
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -123,11 +124,11 @@ function extractJson(text) {
 
 async function main() {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+  initializeApp({
+    credential: cert(serviceAccount),
     databaseURL: process.env.FIREBASE_DB_URL
   });
-  const db = admin.database();
+  const db = getDatabase();
 
   const snap = await db.ref('reports').orderByChild('status').equalTo('pending').once('value');
   const all = snap.val() || {};
