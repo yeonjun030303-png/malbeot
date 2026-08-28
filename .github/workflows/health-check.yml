@@ -1,0 +1,56 @@
+name: 헬스체크-장애감시봇
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # 10분 간격
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node.js 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 헬스체크 실행
+        run: node scripts/health-check.js
+
+      - name: 결과 존재 확인
+        id: check
+        run: |
+          if [ -f "review-result.md" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 마크다운 -> HTML 변환
+        if: steps.check.outputs.exists == 'true'
+        run: node scripts/md-to-html.js review-result.md report.html
+
+      - name: 이슈 등록 (긴급)
+        if: steps.check.outputs.exists == 'true'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "장애 감지"
+          content-filepath: review-result.md
+          labels: incident, urgent, bot
+
+      - name: 이메일 발송
+        if: steps.check.outputs.exists == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: "[말벗] 서비스 장애 감지"
+          to: ${{ secrets.MAIL_TO }}
+          from: 말벗 자동화봇
+          html_body: file://report.html
+          attachments: report.html
