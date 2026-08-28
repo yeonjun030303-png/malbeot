@@ -2,7 +2,7 @@
 // - 최근 30시간 이내 커밋의 diff를 모아서 Gemini에게 리뷰를 맡김
 // - 결과를 review-result.md 파일로 저장 (없으면 워크플로우가 이슈를 안 만듦 = 변경사항 없거나 특이사항 없을 때)
 // - Gemini가 503(일시 과부하) 등으로 응답 실패하면 지수 백오프로 재시도하고,
-//   그래도 계속 실패하면 대체 모델(gemini-2.5-flash)로 한 번 더 시도함
+//   그래도 계속 실패하면 대체 모델(gemini-3.6-flash)로 한 번 더 시도함
 
 const { execSync } = require('child_process');
 const fs = require('fs');
@@ -50,8 +50,8 @@ async function callGemini(prompt, apiKey) {
   if (text) return text;
 
   // 2차: 주 모델이 계속 과부하면 대체 모델로 한 번 더 시도
-  console.log('주 모델(gemini-flash-latest) 실패 - 대체 모델(gemini-2.5-flash)로 재시도');
-  text = await callGeminiModel('gemini-2.5-flash', prompt, apiKey, 2, 15000);
+  console.log('주 모델(gemini-flash-latest) 실패 - 대체 모델(gemini-3.6-flash)로 재시도');
+  text = await callGeminiModel('gemini-3.6-flash', prompt, apiKey, 2, 15000);
   return text;
 }
 

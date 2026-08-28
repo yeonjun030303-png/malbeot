@@ -39,8 +39,8 @@ async function callGemini(prompt, apiKey) {
   if (text) return text;
 
   // 2차: 주 모델이 계속 과부하면 대체 모델로 한 번 더 시도
-  console.log('주 모델(gemini-flash-latest) 실패 - 대체 모델(gemini-2.5-flash)로 재시도');
-  text = await callGeminiModel('gemini-2.5-flash', prompt, apiKey, 2, 15000);
+  console.log('주 모델(gemini-flash-latest) 실패 - 대체 모델(gemini-3.6-flash)로 재시도');
+  text = await callGeminiModel('gemini-3.6-flash', prompt, apiKey, 2, 15000);
   return text;
 }
 
