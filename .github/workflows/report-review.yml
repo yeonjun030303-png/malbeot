@@ -1,0 +1,63 @@
+name: 신고-제재 검토봇
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # 매일 UTC 08:00 = KST 17:00 (기존 3개 봇과 동일 시간대)
+  workflow_dispatch: {}
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node.js 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 의존성 설치
+        run: npm install firebase-admin
+
+      - name: 신고 검토 실행
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/report-review.js
+
+      - name: 결과 존재 확인
+        id: check
+        run: |
+          if [ -f "review-result.md" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 마크다운 -> HTML 변환
+        if: steps.check.outputs.exists == 'true'
+        run: node scripts/md-to-html.js review-result.md report.html
+
+      - name: 이슈 등록 (관리자 확인용)
+        if: steps.check.outputs.exists == 'true'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "신고-제재 검토 결과"
+          content-filepath: review-result.md
+          labels: report-review, bot
+
+      - name: 이메일 발송
+        if: steps.check.outputs.exists == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: "[말벗] 신고-제재 검토 결과"
+          to: ${{ secrets.MAIL_TO }}
+          from: 말벗 자동화봇
+          html_body: file://report.html
+          attachments: report.html
