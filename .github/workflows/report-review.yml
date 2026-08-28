@@ -31,7 +31,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node scripts/report-review.js
 
-      - name: 결과 존재 확인
+      - name: 결과 파일 확인
         id: check
         run: |
           if [ -f "review-result.md" ]; then
@@ -40,7 +40,7 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 마크다운 -> HTML 변환
+      - name: 리포트파일 -> HTML 변환
         if: steps.check.outputs.exists == 'true'
         run: node scripts/md-to-html.js review-result.md report.html
 
@@ -48,7 +48,7 @@ jobs:
         if: steps.check.outputs.exists == 'true'
         uses: peter-evans/create-issue-from-file@v5
         with:
-          title: "신고-제재 검토 결과"
+          title: "🚨 신고-제재 검토 결과"
           content-filepath: review-result.md
           labels: report-review, bot
 
@@ -60,7 +60,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USER }}
           password: ${{ secrets.MAIL_PASS }}
-          subject: "[말벗] 신고-제재 검토 결과"
+          subject: "🚨 [말벗] 신고-제재 검토 결과"
           to: ${{ secrets.MAIL_TO }}
           from: 말벗 자동화봇
           html_body: file://report.html

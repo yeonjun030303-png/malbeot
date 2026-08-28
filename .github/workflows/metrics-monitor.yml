@@ -1,4 +1,4 @@
-name: 지표-모니터링요원
+name: 지표-멤버십관리
 
 on:
   schedule:
@@ -30,7 +30,7 @@ jobs:
           FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
         run: node scripts/metrics-monitor.js
 
-      - name: 결과 존재 확인
+      - name: 결과 파일 확인
         id: check
         run: |
           if [ -f "review-result.md" ]; then
@@ -39,7 +39,7 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 마크다운 -> HTML 변환
+      - name: 리포트파일 -> HTML 변환
         if: steps.check.outputs.exists == 'true'
         run: node scripts/md-to-html.js review-result.md report.html
 
@@ -47,7 +47,7 @@ jobs:
         if: steps.check.outputs.exists == 'true'
         uses: peter-evans/create-issue-from-file@v5
         with:
-          title: "주간 지표 리포트"
+          title: "📈 주간 지표 리포트"
           content-filepath: review-result.md
           labels: metrics, bot
 
@@ -59,7 +59,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USER }}
           password: ${{ secrets.MAIL_PASS }}
-          subject: "[말벗] 주간 지표 리포트"
+          subject: "📈 [말벗] 주간 지표 리포트"
           to: ${{ secrets.MAIL_TO }}
           from: 말벗 자동화봇
           html_body: file://report.html
