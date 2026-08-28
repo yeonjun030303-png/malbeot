@@ -1,7 +1,8 @@
 // 데일리 버그 리뷰 스크립트
 // - 최근 30시간 이내 커밋의 diff를 모아서 Gemini에게 리뷰를 맡김
 // - 결과를 review-result.md 파일로 저장 (없으면 워크플로우가 이슈를 안 만듦 = 변경사항 없거나 특이사항 없을 때)
-// - Gemini가 503(일시 과부하) 등으로 응답 실패하면 잠깐 쉬었다가 최대 3번까지 자동 재시도함
+// - Gemini가 503(일시 과부하) 등으로 응답 실패하면 지수 백오프로 재시도하고,
+//   그래도 계속 실패하면 대체 모델(gemini-2.5-flash)로 한 번 더 시도함
 
 const { execSync } = require('child_process');
 const fs = require('fs');
@@ -14,13 +15,10 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function callGemini(prompt, apiKey) {
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY_MS = 15000; // 15초
-
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+async function callGeminiModel(model, prompt, apiKey, maxRetries, baseDelayMs) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -33,16 +31,28 @@ async function callGemini(prompt, apiKey) {
     if (text) return text;
 
     const isRetryable = data?.error?.code === 503 || data?.error?.code === 429;
-    console.error(`Gemini 응답 실패 (시도 ${attempt}/${MAX_RETRIES}):`, JSON.stringify(data));
+    console.error(`[${model}] Gemini 응답 실패 (시도 ${attempt}/${maxRetries}):`, JSON.stringify(data));
 
-    if (isRetryable && attempt < MAX_RETRIES) {
-      console.log(`${RETRY_DELAY_MS / 1000}초 후 재시도...`);
-      await sleep(RETRY_DELAY_MS);
+    if (isRetryable && attempt < maxRetries) {
+      const delay = baseDelayMs * Math.pow(2, attempt - 1); // 지수 백오프
+      console.log(`[${model}] ${delay / 1000}초 후 재시도...`);
+      await sleep(delay);
       continue;
     }
     return null;
   }
   return null;
+}
+
+async function callGemini(prompt, apiKey) {
+  // 1차: 주 모델(gemini-flash-latest)로 지수 백오프 재시도 (20s, 40s, 80s)
+  let text = await callGeminiModel('gemini-flash-latest', prompt, apiKey, 4, 20000);
+  if (text) return text;
+
+  // 2차: 주 모델이 계속 과부하면 대체 모델로 한 번 더 시도
+  console.log('주 모델(gemini-flash-latest) 실패 - 대체 모델(gemini-2.5-flash)로 재시도');
+  text = await callGeminiModel('gemini-2.5-flash', prompt, apiKey, 2, 15000);
+  return text;
 }
 
 async function main() {
@@ -92,7 +102,7 @@ ${truncated}`;
   const reviewText = await callGemini(prompt, apiKey);
 
   if (!reviewText) {
-    console.error('Gemini 응답을 최종적으로 받지 못함 (재시도 소진) - 이번 회차는 리뷰 스킵');
+    console.error('Gemini 응답을 최종적으로 받지 못함 (주/대체 모델 모두 재시도 소진) - 이번 회차는 리뷰 스킵');
     return;
   }
 
