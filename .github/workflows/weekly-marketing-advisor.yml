@@ -2,7 +2,7 @@ name: 📊 주간 마케팅 어드바이저
 
 on:
   schedule:
-    - cron: '0 8 * * 4'   # UTC 8시 = 한국시간 오후 5시 (매주 목요일)
+    - cron: '0 8 * * 4'   # UTC 8시 = 한국시 오후 5시 (매주 목요일)
   workflow_dispatch: {}
 
 permissions:
@@ -21,7 +21,18 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node scripts/weekly-marketing-advisor.js
+
+      - name: 결과 존재 확인
+        id: check
+        run: |
+          if [ -s review-result.md ]; then
+            echo "has_result=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_result=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: 이슈로 등록
+        if: steps.check.outputs.has_result == 'true'
         uses: peter-evans/create-issue-from-file@v5
         with:
           title: "📊 주간 마케팅 제안 - ${{ github.run_id }}"
@@ -29,9 +40,11 @@ jobs:
           labels: marketing, bot
 
       - name: HTML 리포트 생성
+        if: steps.check.outputs.has_result == 'true'
         run: node scripts/md-to-html.js "📊 주간 마케팅 제안"
 
       - name: 이메일 발송
+        if: steps.check.outputs.has_result == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
