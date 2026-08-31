@@ -1,8 +1,7 @@
 // 지표 모니터링 요원 봇
 // - Firebase에서 DAU(최근 접속), 신규가입/탈퇴, 구독(골드/플래티넘) 현황을 집계
 // - 매주 실행분을 metrics/weekly/<날짜> 에 스냅샷으로 저장해두고, 전주 스냅샷과 비교해 급변 항목 하이라이트
-// - 필드명(예: createdAt, lastActiveAt, subscriptionTier)은 실제 스키마 확인 전 추정치이므로,
-//   최초 실행 결과의 "감지된 필드" 항목을 꼭 확인하고 다르면 알려주세요 - 바로 수정해드립니다.
+// - 필드 스키마는 2026-08-31 Firebase 콘솔에서 실제 확인 완료 (가입일: uid 파싱 / 최근접속: lastSeen / 구독등급: 필드 없음, 전원 free)
 
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getDatabase } = require('firebase-admin/database');
@@ -19,12 +18,19 @@ function withTimeout(promise, ms, label) {
 }
 
 function pickCreatedAt(user) {
+  // 2026-08-31 실제 스키마 확인: 가입일 별도 필드 없음. uid가 'u_<가입시각ms>_<랜덤>' 형태라 여기서 파싱함
+  if (user.id) {
+    const m = String(user.id).match(/^u_(\d+)_/);
+    if (m) return Number(m[1]);
+  }
   return user.createdAt || user.joinedAt || user.signupAt || null;
 }
 function pickLastActive(user) {
-  return user.lastActiveAt || user.lastSeenAt || user.lastLoginAt || null;
+  // 2026-08-31 실제 스키마 확인: lastSeen(ms 타임스탬프) 하나만 존재
+  return user.lastSeen || null;
 }
 function pickTier(user) {
+  // 2026-08-31 실제 스키마 확인: 구독등급 필드 자체가 아직 없음(전원 무료). 추후 필드 추가되면 자동 감지되도록 후보는 남겨둠
   return (user.subscriptionTier || (user.subscription && user.subscription.tier) || user.plan || 'free');
 }
 
@@ -98,10 +104,10 @@ async function main() {
     lines.push(`- ${diffLine(tier, tierCounts[tier], prevTierCount)}`);
   });
   lines.push('');
-  lines.push('### ⚠️ 필드 감지 참고 (스키마 추정치 - 실제와 다르면 알려주세요)');
-  lines.push('- 가입일 필드 후보: createdAt / joinedAt / signupAt');
-  lines.push('- 최근접속 필드 후보: lastActiveAt / lastSeenAt / lastLoginAt');
-  lines.push('- 구독등급 필드 후보: subscriptionTier / subscription.tier / plan');
+  lines.push('### ✅ 필드 스키마 (2026-08-31 실제 확인 완료)');
+  lines.push('- 가입일: uid(id) 파싱 (u_<가입시각ms>_<랜덤>)');
+  lines.push('- 최근접속: lastSeen');
+  lines.push('- 구독등급: 전용 필드 없음 (전원 free)');
 
   fs.writeFileSync('review-result.md', lines.join('\n'));
   console.log(lines.join('\n'));
