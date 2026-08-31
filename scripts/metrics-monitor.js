@@ -9,6 +9,14 @@ const { getDatabase } = require('firebase-admin/database');
 const fs = require('fs');
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const FIREBASE_TIMEOUT_MS = 60000; // Firebase 요청이 60초 안에 응답 없으면 포기 (무한대기로 6시간 강제종료되는 문제 방지)
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} - ${ms / 1000}초 동안 응답 없음(타임아웃)`)), ms))
+  ]);
+}
 
 function pickCreatedAt(user) {
   return user.createdAt || user.joinedAt || user.signupAt || null;
@@ -28,7 +36,7 @@ async function main() {
   });
   const db = getDatabase();
 
-  const snap = await db.ref('users').once('value');
+  const snap = await withTimeout(db.ref('users').once('value'), FIREBASE_TIMEOUT_MS, 'users 읽기');
   const usersObj = snap.val() || {};
   const users = Object.keys(usersObj).map(id => ({ id, ...usersObj[id] }));
 
@@ -61,10 +69,10 @@ async function main() {
 
   // 이번 주 스냅샷 저장
   const weekKey = new Date(now).toISOString().slice(0, 10);
-  await db.ref(`metrics/weekly/${weekKey}`).set(snapshot);
+  await withTimeout(db.ref(`metrics/weekly/${weekKey}`).set(snapshot), FIREBASE_TIMEOUT_MS, '스냅샷 저장');
 
   // 지난 스냅샷들 중 이번 주 이전 것 중 가장 최근 것을 "전주"로 사용
-  const historySnap = await db.ref('metrics/weekly').once('value');
+  const historySnap = await withTimeout(db.ref('metrics/weekly').once('value'), FIREBASE_TIMEOUT_MS, '히스토리 읽기');
   const history = historySnap.val() || {};
   const prevKeys = Object.keys(history).filter(k => k !== weekKey).sort();
   const prevKey = prevKeys[prevKeys.length - 1];
