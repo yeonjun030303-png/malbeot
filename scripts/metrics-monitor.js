@@ -107,7 +107,7 @@ async function main() {
   console.log(lines.join('\n'));
 }
 
-main().catch(err => {
+main().then(() => process.exit(0)).catch(err => {
   console.error('스크립트 오류:', err);
   process.exit(1);
 });
