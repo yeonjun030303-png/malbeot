@@ -19,15 +19,28 @@ function sleep(ms) {
 
 async function callGeminiModel(model, prompt, apiKey, maxRetries, baseDelayMs) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    let data;
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+          signal: AbortSignal.timeout(60000)
+        }
+      );
+      data = await res.json();
+    } catch (e) {
+      console.error('[' + model + '] 타임아웃/네트워크 오류 (시도 ' + attempt + '/' + maxRetries + '): ' + e.message);
+      if (attempt < maxRetries) {
+        const delay = baseDelayMs * Math.pow(2, attempt - 1);
+        console.log('[' + model + '] ' + (delay / 1000) + '초 후 재시도...');
+        await sleep(delay);
+        continue;
       }
-    );
-    const data = await res.json();
+      return null;
+    }
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (text) return text;

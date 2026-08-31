@@ -12,11 +12,19 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function callGemini(model, prompt) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      signal: AbortSignal.timeout(60000)
+    });
+  } catch (e) {
+    const err = new Error('Gemini ' + model + ' 타임아웃/네트워크 오류: ' + e.message);
+    err.status = 503;
+    throw err;
+  }
   if (!res.ok) {
     const err = new Error(`Gemini ${model} 응답 오류: ${res.status}`);
     err.status = res.status;
