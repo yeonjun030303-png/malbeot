@@ -1,0 +1,62 @@
+name: 약관·정책 점검
+
+on:
+  schedule:
+    - cron: '0 8 1 * *'  # 매월 1일 UTC 08:00 = KST 17:00
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node.js 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 약관·정책 점검 실행
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/policy-check.js
+
+      - name: 결과 파일 확인
+        id: check
+        run: |
+          if [ -f "policy-result.md" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 리포트 파일 -> HTML 변환
+        if: steps.check.outputs.exists == 'true'
+        run: node scripts/md-to-html.js policy-result.md report.html
+
+      - name: 이슈 등록 (관리자 확인용)
+        if: steps.check.outputs.exists == 'true'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "⚖️ 약관·정책 점검"
+          content-filepath: policy-result.md
+          labels: policy-check, bot
+
+      - name: 이메일 발송
+        if: steps.check.outputs.exists == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: "⚖️ [말벗] 약관·정책 점검"
+          to: ${{ secrets.MAIL_TO }}
+          from: 말벗 자동화봇
+          html_body: file://report.html
+          attachments: report.html

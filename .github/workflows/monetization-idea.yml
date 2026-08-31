@@ -1,0 +1,62 @@
+name: 수익화 아이디어
+
+on:
+  schedule:
+    - cron: '0 8 * * 2'  # 매주 화 UTC 08:00 = KST 17:00
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node.js 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 수익화 아이디어 생성 실행
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/monetization-idea.js
+
+      - name: 결과 파일 확인
+        id: check
+        run: |
+          if [ -f "monetization-result.md" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 리포트 파일 -> HTML 변환
+        if: steps.check.outputs.exists == 'true'
+        run: node scripts/md-to-html.js monetization-result.md report.html
+
+      - name: 이슈 등록 (관리자 확인용)
+        if: steps.check.outputs.exists == 'true'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "💰 수익화 아이디어"
+          content-filepath: monetization-result.md
+          labels: monetization-idea, bot
+
+      - name: 이메일 발송
+        if: steps.check.outputs.exists == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: "💰 [말벗] 수익화 아이디어"
+          to: ${{ secrets.MAIL_TO }}
+          from: 말벗 자동화봇
+          html_body: file://report.html
+          attachments: report.html
