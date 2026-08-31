@@ -14,13 +14,16 @@ async function callGemini(model, prompt) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
   let res;
   try {
+    console.log('[진단] fetch 호출 직전: ' + model + ' / ' + new Date().toISOString());
     res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
       signal: AbortSignal.timeout(60000)
     });
+    console.log('[진단] fetch 완료, status: ' + res.status + ' / ' + new Date().toISOString());
   } catch (e) {
+    console.log('[진단] catch 진입: ' + e.name + ' / ' + e.message + ' / ' + new Date().toISOString());
     const err = new Error('Gemini ' + model + ' 타임아웃/네트워크 오류: ' + e.message);
     err.status = 503;
     throw err;
