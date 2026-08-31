@@ -47,7 +47,7 @@ jobs:
 
       - name: HTML 리포트 생성
         if: steps.check.outputs.has_result == 'true'
-        run: node scripts/md-to-html.js "🐛 데일리 버그 리뷰"
+        run: node scripts/md-to-html.js review-result.md report.html "🐛 데일리 버그 리뷰"
 
       - name: 이메일 발송
         if: steps.check.outputs.has_result == 'true'
