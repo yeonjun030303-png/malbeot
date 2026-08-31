@@ -2,7 +2,7 @@ name: 라이선스·저작권 점검
 
 on:
   schedule:
-    - cron: '0 8 1 * *'  # 매월 1일 UTC 08:00 = KST 17:00
+    - cron: '30 8 1 * *'  # 매월 1일 UTC 08:00 = KST 17:00
   workflow_dispatch: {}
 
 permissions:

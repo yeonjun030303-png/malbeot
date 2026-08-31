@@ -2,7 +2,7 @@ name: 고객문의 모니터링
 
 on:
   schedule:
-    - cron: '0 8 * * *'  # 매일 UTC 08:00 = KST 17:00 (기존 봇들과 동일 시간대)
+    - cron: '15 8 * * *'  # 매일 UTC 08:00 = KST 17:00 (기존 봇들과 동일 시간대)
   workflow_dispatch: {}
 
 permissions:

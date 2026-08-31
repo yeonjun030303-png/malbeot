@@ -2,7 +2,7 @@ name: 신고-제재 검토봇
 
 on:
   schedule:
-    - cron: '0 8 * * *'  # 매일 UTC 08:00 = KST 17:00 (기존 3개 봇과 동일 시간대)
+    - cron: '5 8 * * *'  # 매일 UTC 08:00 = KST 17:00 (기존 3개 봇과 동일 시간대)
   workflow_dispatch: {}
 
 permissions:
