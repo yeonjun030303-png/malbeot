@@ -1,0 +1,66 @@
+name: |!고객문의 모니터링
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # 몤인 UTC 08:00 = KST 17:00 (기젘 면을 시간 동일한)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 전장속 체큭앋일
+        uses: actions/checkout@v4
+
+      - name: Node.js 설트
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 의존성성 설트
+        run: npm install firebase-admin
+
+      - name: 고객문의 확드 실행
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+        run: node scripts/inquiry-monitor.js
+
+      - name: 결과 파이요 하일
+        id: check
+        run: |
+          if [ -f "inquiry-result.md" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 리포트 파이 -> HTML 변환
+        if: steps.check.outputs.exists == 'true'
+        run: node scripts/md-to-html.js inquiry-result.md report.html
+
+      - name: 이드 읰로 (관리자 확인)
+        if: steps.check.outputs.exists == 'true'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "📮 고ꠝ문의 모니터 갰과"
+          content-filepath: inquiry-result.md
+          labels: inquiry-monitor, bot
+
+      - name: 이몀일 반패
+        if: steps.check.outputs.exists == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: "📮 [맀번핐] 고ꠝ문의 모니터 갰과"
+          to: ${{ secrets.MAIL_TO }}
+          from: 비�{긍 자동화없국
+          html_body: file://report.html
+          attachments: report.html
