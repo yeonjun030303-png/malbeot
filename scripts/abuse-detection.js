@@ -76,7 +76,7 @@ async function main() {
   console.log(lines.join('\n'));
 }
 
-main().catch(err => {
+main().then(() => process.exit(0)).catch(err => {
   console.error('이상행동탐지 실패:', err);
   process.exit(1);
 });
