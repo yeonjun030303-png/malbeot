@@ -37,7 +37,14 @@ async function checkHealth() {
 }
 
 async function main() {
-  const result = await checkHealth();
+  let result = await checkHealth();
+
+  // 일시적 지연/블립으로 인한 오탐 방지: 1차 실패 시 10초 대기 후 재확인, 그때도 실패해야 진짜 알림
+  if (!result.ok) {
+    console.log(`1차 체크 실패(${result.reason}) - 10초 후 재확인...`);
+    await new Promise(r => setTimeout(r, 10000));
+    result = await checkHealth();
+  }
 
   if (result.ok) {
     console.log(`정상 - 응답시간 ${(result.elapsed / 1000).toFixed(1)}초`);
