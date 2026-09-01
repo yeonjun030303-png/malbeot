@@ -1,8 +1,8 @@
-name: 주간 결정위원회 리포트
+name: 주간 결정위원회 파이프라인
 
 on:
   schedule:
-    - cron: '0 8 * * 1'  # 매주 월요일 UTC 08:00 = KST 17:00 (실행요일은 추후 조정 가능)
+    - cron: '0 11 * * 0'  # 매주 일요일 UTC 11:00 = KST 20:00
   workflow_dispatch: {}
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
   issues: write
 
 jobs:
-  team-lead:
+  team-lead-summary:
     runs-on: ubuntu-latest
     steps:
       - name: 저장소 체크아웃
@@ -21,11 +21,13 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 1단계 - 팀장취합봇 실행
+      - name: 팀장취합봇 실행
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
         run: node scripts/team-lead-summary.js
 
       - name: team-summaries.json 업로드
@@ -34,8 +36,8 @@ jobs:
           name: team-summaries
           path: team-summaries.json
 
-  committee:
-    needs: team-lead
+  committee-review:
+    needs: team-lead-summary
     runs-on: ubuntu-latest
     steps:
       - name: 저장소 체크아웃
@@ -51,9 +53,11 @@ jobs:
         with:
           name: team-summaries
 
-      - name: 2단계 - 결정위원회봇 실행
+      - name: 결정위원회봇 실행
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
         run: node scripts/committee-review.js
 
       - name: committee-result.json 업로드
@@ -62,8 +66,8 @@ jobs:
           name: committee-result
           path: committee-result.json
 
-  chief:
-    needs: committee
+  chief-report:
+    needs: committee-review
     runs-on: ubuntu-latest
     steps:
       - name: 저장소 체크아웃
@@ -84,40 +88,28 @@ jobs:
         with:
           name: committee-result
 
-      - name: 3단계 - 총괄실장봇 실행
+      - name: 총괄실장봇 실행
         run: node scripts/chief-report.js
 
-      - name: 결과 파일 확인
-        id: check
-        run: |
-          if [ -f "chief-result.md" ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: 리포트 파일 -> HTML 변환
-        if: steps.check.outputs.exists == 'true'
-        run: node scripts/md-to-html.js chief-result.md report.html "총괄실장 주간 보고"
+      - name: 결과 파일 -> HTML 변환
+        run: node scripts/md-to-html.js chief-report-result.md report.html "🏢 주간 총괄 리포트"
 
       - name: 이슈 등록 (대표 확인용)
-        if: steps.check.outputs.exists == 'true'
         uses: peter-evans/create-issue-from-file@v5
         with:
-          title: "📋 총괄실장 주간 보고"
-          content-filepath: chief-result.md
+          title: "🏢 주간 총괄 리포트"
+          content-filepath: chief-report-result.md
           labels: chief-report, bot
 
       - name: 이메일 발송
-        if: steps.check.outputs.exists == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 465
           username: ${{ secrets.MAIL_USER }}
           password: ${{ secrets.MAIL_PASS }}
-          subject: "📋 [말벗] 총괄실장 주간 보고"
+          subject: "🏢 [말벗] 주간 총괄 리포트"
           to: ${{ secrets.MAIL_TO }}
-          from: 말벗 자동화팀
+          from: 말벗 자동화봇
           html_body: file://report.html
           attachments: report.html

@@ -1,83 +1,80 @@
-// 3단계: 총괄실장봇 - 팀장취합(team-summaries.json) + 결정위원회(committee-result.json) 결과를
-// 최종취합해서 GitHub 이슈등록 + 이메일발송용 리포트 파일(chief-result.md)로 정리
+// 3단계: 총괄실장봇(chief-report.js)
+// 1단계(team-summaries.json) + 2단계(committee-result.json)를 최종 취합해서
+// chief-report-result.md 생성 -> 워크플로우에서 이슈등록 + 이메일 발송
 const fs = require('fs');
 
-function loadJson(path, fallback) {
-  try {
-    return JSON.parse(fs.readFileSync(path, 'utf-8'));
-  } catch (e) {
-    console.log(`${path} 읽기 실패 - 기본값 사용: ${e.message}`);
-    return fallback;
-  }
-}
-
 function main() {
-  const teamSummaries = loadJson('team-summaries.json', {});
-  const committeeResult = loadJson('committee-result.json', { agendaCount: 0, teams: {} });
-
-  const teamNames = Object.keys(teamSummaries);
-  const agendaTeams = teamNames.filter(t => (teamSummaries[t].issueCount || 0) > 0);
-  const totalIssues = teamNames.reduce((s, t) => s + (teamSummaries[t].issueCount || 0), 0);
-
-  const risk = { '위험': [], '주의': [], '안정': [] };
-  let urgentCount = 0;
-
-  for (const team of agendaTeams) {
-    const c = committeeResult.teams && committeeResult.teams[team];
-    if (!c) {
-      risk['안정'].push(team);
-      continue;
-    }
-    if (c.opposeCount > c.approveCount) {
-      risk['위험'].push(team);
-      urgentCount++;
-    } else if (c.opposeCount === c.approveCount) {
-      risk['주의'].push(team);
-    } else {
-      risk['안정'].push(team);
-    }
+  const teamSummaries = JSON.parse(fs.readFileSync('team-summaries.json', 'utf-8'));
+  let committeeResult = { agendaCount: 0, teams: {}, note: null };
+  if (fs.existsSync('committee-result.json')) {
+    committeeResult = JSON.parse(fs.readFileSync('committee-result.json', 'utf-8'));
   }
 
   const lines = [];
-  lines.push('## 📋 총괄실장 주간 보고');
-  lines.push('');
-  lines.push(`- 전체 이슈 총 개수: ${totalIssues}건`);
-  lines.push(`- 위원회 안건 상정 팀 수: ${agendaTeams.length}개`);
-  lines.push(`- 즉시처리 필요(위원회 반대 다수) 건수: ${urgentCount}건`);
-  lines.push('');
-  lines.push('### 위험등급별 항목');
-  lines.push(`- 🔴 위험(위원회 반대 다수): ${risk['위험'].join(', ') || '없음'}`);
-  lines.push(`- 🟡 주의(찬반 동수): ${risk['주의'].join(', ') || '없음'}`);
-  lines.push(`- 🟢 안정(찬성 다수 또는 안건 없음): ${risk['안정'].join(', ') || '없음'}`);
+  lines.push('## 🏢 주간 총괄 리포트 (총괄실장)');
   lines.push('');
 
-  if (agendaTeams.length === 0) {
-    lines.push('이번 주 이슈가 등록된 팀이 없어 위원회 안건도 없습니다.');
-  } else {
-    lines.push('### 팀별 상세');
-    for (const team of agendaTeams) {
-      const t = teamSummaries[team];
-      lines.push('');
-      lines.push(`#### ${team} (이슈 ${t.issueCount}건)`);
-      lines.push(t.summary || '(팀장 코멘트 없음)');
-      const c = committeeResult.teams && committeeResult.teams[team];
-      if (c) {
-        lines.push('');
-        lines.push(`- 위원회 표결: 찬성 ${c.approveCount} : 반대 ${c.opposeCount}`);
-        lines.push(`- 위원회 권고: ${c.recommendation}`);
-        lines.push('- 위원별 의견:');
-        for (const o of c.opinions) {
-          lines.push(`  - ${o.persona}: ${o.verdict} - ${o.reason}`);
-        }
-      } else {
-        lines.push('');
-        lines.push('- 위원회 표결 결과 없음(위원회 단계 오류 또는 응답 실패로 추정)');
-      }
+  const teamEntries = Object.entries(teamSummaries);
+  const totalIssues = teamEntries.reduce((sum, [, v]) => sum + (v.issueCount || 0), 0);
+  const activeTeams = teamEntries.filter(([, v]) => v.issueCount > 0);
+
+  const immediateTeams = [];
+  const normalTeams = [];
+  for (const [team, v] of Object.entries(committeeResult.teams || {})) {
+    if (v.opposeCount > v.approveCount) {
+      immediateTeams.push(team);
+    } else {
+      normalTeams.push(team);
     }
   }
 
-  fs.writeFileSync('chief-result.md', lines.join('\n'));
-  console.log(lines.join('\n'));
+  lines.push('### 📊 요약');
+  lines.push(`- 전체 이슈 총 개수: ${totalIssues}건`);
+  lines.push(`- 이슈가 있었던 팀 수: ${activeTeams.length}개`);
+  lines.push(`- 위원회 심의 안건 수: ${committeeResult.agendaCount || 0}건`);
+  lines.push(`- ⚠️ 즉시처리 필요(위원회 반대 우세) 팀 수: ${immediateTeams.length}개`);
+  lines.push('');
+
+  if (committeeResult.note) {
+    lines.push(committeeResult.note);
+    lines.push('');
+  }
+
+  if (immediateTeams.length > 0) {
+    lines.push('### 🚨 위험등급 상 - 즉시처리 필요');
+    for (const team of immediateTeams) {
+      const v = committeeResult.teams[team];
+      lines.push(`- **${team}** (찬성 ${v.approveCount} : 반대 ${v.opposeCount}) - ${v.recommendation}`);
+    }
+    lines.push('');
+  }
+
+  if (normalTeams.length > 0) {
+    lines.push('### ✅ 위험등급 하 - 정상 진행');
+    for (const team of normalTeams) {
+      const v = committeeResult.teams[team];
+      lines.push(`- **${team}** (찬성 ${v.approveCount} : 반대 ${v.opposeCount}) - ${v.recommendation}`);
+    }
+    lines.push('');
+  }
+
+  lines.push('### 📋 팀별 상세 (이번 주 이슈 있었던 팀만)');
+  for (const [team, v] of activeTeams) {
+    lines.push(`#### ${team} (이슈 ${v.issueCount}건)`);
+    lines.push(v.summary);
+    const cv = committeeResult.teams && committeeResult.teams[team];
+    if (cv) {
+      lines.push('');
+      lines.push(`**위원회 의견** (찬성 ${cv.approveCount} : 반대 ${cv.opposeCount})`);
+      for (const op of cv.opinions) {
+        lines.push(`- [${op.verdict}] ${op.persona}: ${op.reason}`);
+      }
+    }
+    lines.push('');
+  }
+
+  fs.writeFileSync('chief-report-result.md', lines.join('\n'));
+  console.log('chief-report-result.md 저장 완료');
 }
 
 main();
