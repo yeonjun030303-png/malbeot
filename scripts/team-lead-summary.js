@@ -1,9 +1,11 @@
-// 1단계: 팀장취합봇 - 지난 1주일 GitHub 이슈를 6개 팀별로 그룹핑하고 Gemini로 팀장 코멘트 생성
+// 1단계: 팀장취합봇 - 지난 1주일 GitHub 이슈를 6개팀으로 그룹핑 후 Gemini에 "한 번만" 호출해
+// 팀 전체 요약(팀장 코멘트)을 받아옴(429 quota 절약을 위해 팀별 개별호출 → 배치 1회 호출로 변경)
 const fs = require('fs');
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const REPO = process.env.GITHUB_REPOSITORY; // owner/repo, Actions가 자동 제공
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const REPO = process.env.GITHUB_REPOSITORY;
+const GEMINI_KEYS = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_2, process.env.GEMINI_API_KEY_3].filter(Boolean);
+let keyIndex = 0;
 
 const TEAM_LABEL_MAP = {
   '개발팀': ['daily-review'],
@@ -49,7 +51,8 @@ function groupByTeam(issues) {
 }
 
 async function callGemini(prompt, model) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+  const key = GEMINI_KEYS[keyIndex % GEMINI_KEYS.length];
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60000);
   try {
@@ -59,9 +62,14 @@ async function callGemini(prompt, model) {
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
       signal: controller.signal,
     });
+    if (res.status === 429) {
+      const err = new Error('Gemini API 오류 429');
+      err.status = 429;
+      throw err;
+    }
     if (!res.ok) throw new Error(`Gemini API 오류 ${res.status}`);
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '(응답 없음)';
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   } finally {
     clearTimeout(timeout);
   }
@@ -73,6 +81,12 @@ async function callGeminiWithRetry(prompt) {
     try {
       return await callGemini(prompt, GEMINI_MODEL_PRIMARY);
     } catch (e) {
+      if (e.status === 429 && GEMINI_KEYS.length > 1) {
+        keyIndex++;
+        console.log(`주 모델 429 - 키 로테이션(${(keyIndex % GEMINI_KEYS.length) + 1}/${GEMINI_KEYS.length}번째 키)`);
+        await sleep(2000);
+        continue;
+      }
       console.log(`주 모델 시도 ${i + 1} 실패: ${e.message}`);
       await sleep(backoffs[i]);
     }
@@ -81,6 +95,12 @@ async function callGeminiWithRetry(prompt) {
     try {
       return await callGemini(prompt, GEMINI_MODEL_FALLBACK);
     } catch (e) {
+      if (e.status === 429 && GEMINI_KEYS.length > 1) {
+        keyIndex++;
+        console.log(`대체 모델 429 - 키 로테이션(${(keyIndex % GEMINI_KEYS.length) + 1}/${GEMINI_KEYS.length}번째 키)`);
+        await sleep(2000);
+        continue;
+      }
       console.log(`대체 모델 시도 ${i + 1} 실패: ${e.message}`);
       await sleep(15000);
     }
@@ -88,9 +108,34 @@ async function callGeminiWithRetry(prompt) {
   return null;
 }
 
-function buildPrompt(team, issues) {
-  const list = issues.map(i => `- [${i.labels.join(',')}] ${i.title}`).join('\n');
-  return `당신은 "${team}" 팀장입니다. 아래는 지난 1주일간 팀 산하 자동화 봇들이 등록한 이슈 목록입니다.\n\n${list}\n\n이 내용을 검토해서 다음 형식으로 답하세요:\n1) 이번 주 팀 현황 3줄 요약\n2) 팀장으로서의 코멘트(이슈들 중 중요하거나 반복되는 문제가 있으면 지적)\n3) 실장에게 보고할 핵심 포인트 1~2개`;
+function parseJsonArray(text) {
+  if (!text) return null;
+  const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (e) {
+    console.log('JSON 파싱 실패:', e.message);
+    return null;
+  }
+}
+
+function buildBatchPrompt(teamsWithIssues) {
+  const teamText = teamsWithIssues.map(({ team, issues }) => {
+    const list = issues.map(i => `- [${i.labels.join(',')}] ${i.title}`).join('\n');
+    return `### ${team} (이슈 ${issues.length}건)\n${list}`;
+  }).join('\n\n');
+
+  return `당신은 각 팀의 팀장들입니다. 아래는 지난 1주일간 각 팀 소속 자동화 봇이 생성한 이슈 목록입니다.
+팀별로 아래 형식을 지켜 팀장 코멘트를 작성해주세요. 각 팀마다 이번 주 상황 요약과 다음 액션 우선순위를 담아 팀장다운 어투로 작성해주세요.
+
+${teamText}
+
+반드시 아래 JSON 배열 형태로만 응답해주세요. 다른 설명이나 마크다운 없이 JSON만 출력해야 합니다.
+[
+  {"team": "팀 이름", "summary": "팀장 코멘트 전체 텍스트(여러 문단 가능, \\n으로 줄바꿈)"}
+]
+응답은 팀 이름이 위와 정확히 일치해야 하며, 목록에 없는 팀은 포함하지 마세요.`;
 }
 
 async function main() {
@@ -98,19 +143,30 @@ async function main() {
   const grouped = groupByTeam(issues);
   const summaries = {};
 
-  for (const [team, teamIssues] of Object.entries(grouped)) {
-    if (teamIssues.length === 0) {
+  const teamsWithIssues = Object.entries(grouped)
+    .filter(([, teamIssues]) => teamIssues.length > 0)
+    .map(([team, teamIssues]) => ({ team, issues: teamIssues }));
+
+  for (const team of Object.keys(grouped)) {
+    if (grouped[team].length === 0) {
       summaries[team] = { issueCount: 0, summary: '이번 주 등록된 이슈 없음', issues: [] };
-      continue;
     }
-    console.log(`${team} 처리 중 (${teamIssues.length}건)...`);
-    const prompt = buildPrompt(team, teamIssues);
-    const result = await callGeminiWithRetry(prompt);
-    summaries[team] = {
-      issueCount: teamIssues.length,
-      summary: result || '(Gemini 응답 실패 - 이슈 목록만 첨부)',
-      issues: teamIssues,
-    };
+  }
+
+  if (teamsWithIssues.length > 0) {
+    console.log(`${teamsWithIssues.length}개 팀 배치 요약 요청 중(1회 호출)...`);
+    const prompt = buildBatchPrompt(teamsWithIssues);
+    const responseText = await callGeminiWithRetry(prompt);
+    const parsed = parseJsonArray(responseText);
+
+    for (const { team, issues } of teamsWithIssues) {
+      const found = parsed && parsed.find(p => p.team === team);
+      summaries[team] = {
+        issueCount: issues.length,
+        summary: found ? found.summary : '(Gemini 응답 실패 - 이슈 목록만 첨부)',
+        issues,
+      };
+    }
   }
 
   fs.writeFileSync('team-summaries.json', JSON.stringify(summaries, null, 2));
