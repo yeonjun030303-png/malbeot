@@ -95,6 +95,12 @@ app.get('/health', (req, res) => res.status(200).send('ok'));
 app.get('/api/push/vapid-public-key', (req, res) => {
   res.json({ publicKey: VAPID_PUBLIC_KEY });
 });
+
+// [임시 테스트용] 웹푸시 동작 확인 후 삭제할 것
+app.get('/api/push/test/:userId', (req, res) => {
+  sendWebPush(req.params.userId, { title: '테스트 알림', body: '푸시 정상 작동 확인용', type: 'test' });
+  res.json({ ok: true });
+});
 app.post('/api/push/subscribe', async (req, res) => {
   try {
     const { userId, subscription } = req.body;
