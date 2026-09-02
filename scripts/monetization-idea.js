@@ -1,7 +1,6 @@
-// 아이디어제안 담당 봇 (기획예산팀, 수익화·예산 한정) - 매주 화 17:00
+// 수익화아이디어 담당 봇 (기획예산팀, 요일미정) - 매주 목 17:00
 // 무리한 개발 없이 적용 가능한 수익화 아이디어를 Gemini로 제안
 // 503/429 재시도: 지수백오프(20/40/80/80s) 후 대체모델로 2회(15초 간격) 재시도
-
 const fs = require('fs');
 
 const PRIMARY_MODEL = 'gemini-flash-latest';
@@ -14,17 +13,14 @@ async function callGemini(model, prompt) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
   let res;
   try {
-    console.log('[진단] fetch 호출 직전: ' + model + ' / ' + new Date().toISOString());
     res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
       signal: AbortSignal.timeout(60000)
     });
-    console.log('[진단] fetch 완료, status: ' + res.status + ' / ' + new Date().toISOString());
   } catch (e) {
-    console.log('[진단] catch 진입: ' + e.name + ' / ' + e.message + ' / ' + new Date().toISOString());
-    const err = new Error('Gemini ' + model + ' 타임아웃/네트워크 오류: ' + e.message);
+    const err = new Error('Gemini ' + model + ' 호출 중 네트워크 오류: ' + e.message);
     err.status = 503;
     throw err;
   }
@@ -58,16 +54,16 @@ async function callWithRetry(prompt) {
 }
 
 async function main() {
-  const prompt = '너는 소규모 1인 개발 데이팅/말벗형 채팅 앱의 수익화 컨설턴트야. 개발 리소스와 예산이 매우 한정된 상황을 전제로,\n' +
+  const prompt = '너는 1인 개발 데이터 말벗(채팅 앱)의 수익화 컨설턴트야. 개발 리소스는 적고 예산도 매우 제한된 상황을 전제로.\n' +
     '이번 주에 바로 검토 가능한 수익화 아이디어 3개를 제안해줘 (예: 구독 등급 조정, 소액 인앱결제 아이템, 광고 삽입 지점 등).\n' +
-    '형식: 마크다운, "## 💰 수익화 아이디어" 제목으로 시작, 아이디어마다 (1)내용 (2)예상 구현 난이도 (3)예상 효과를 정리해줘.';
+    '형식: 마크다운, "## 💰 수익화 아이디어" 제목으로 시작, 아이디어마다 (1)내용 (2)예상 구현 시간 (3)예상 효과를 정리해줘.';
 
   try {
     const text = await callWithRetry(prompt);
     fs.writeFileSync('monetization-result.md', text);
     console.log(text);
   } catch (e) {
-    console.error('수익화 아이디어 제안 실패(재시도 소진):', e.message);
+    console.error('수익화 아이디어 제안 실패(재시도 포함):', e.message);
     fs.writeFileSync('monetization-result.md', '⚠️ 이번 주 수익화 아이디어 생성 실패 (Gemini API 응답 없음)');
   }
 }
