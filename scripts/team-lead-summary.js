@@ -1,4 +1,4 @@
-// 1단계: 팀장취합봇 - 지난 1주일 GitHub 이슈를 6개팀으로 그룹핑 후 Gemini에 "한 번만" 호출해
+// 1단계: 팀장취합봇 - 지난 1주일 GitHub 이슈를 7개팀(감찰팀 회원관리/봇감사 세분화)으로 그룹핑 후 Gemini에 "한 번만" 호출해
 // 팀 전체 요약(팀장 코멘트)을 받아옴(429 quota 절약을 위해 팀별 개별호출 → 배치 1회 호출로 변경)
 const fs = require('fs');
 
@@ -13,7 +13,8 @@ const TEAM_LABEL_MAP = {
   '운영팀': ['inquiry-monitor', 'review-monitor', 'report-review'],
   '기획예산팀': ['budget-report', 'metrics', 'monetization-idea', 'benchmark-research'],
   '행정법무팀': ['policy-check', 'license-audit'],
-  '감찰팀': ['bot-quality-audit', 'abuse-detection', 'security-audit'],
+  '감찰팀-회원관리': ['abuse-detection'],
+  '감찰팀-봇감사': ['bot-quality-audit', 'security-audit'],
 };
 
 const GEMINI_MODEL_PRIMARY = 'gemini-flash-latest';
