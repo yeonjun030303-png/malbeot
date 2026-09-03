@@ -6,7 +6,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -65,6 +65,15 @@ jobs:
         with:
           name: committee-result
           path: committee-result.json
+
+      - name: committee-history.json 저장소에 커밋
+        run: |
+          git config user.name "committee-bot"
+          git config user.email "actions@github.com"
+          git add committee-history.json
+          git diff --cached --quiet && echo "이력 변경 없음 - 커밋 스킵" || git commit -m "chore: 위원회 판단 이력 갱신 [skip ci]"
+          git pull --rebase origin main
+          git push
 
   chief-report:
     needs: committee-review

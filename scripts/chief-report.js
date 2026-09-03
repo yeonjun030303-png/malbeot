@@ -1,6 +1,7 @@
 // 3단계: 총괄실장봇(chief-report.js)
 // 1단계(team-summaries.json) + 2단계(committee-result.json)를 최종 취합해서
 // chief-report-result.md 생성 -> 워크플로우에서 이슈등록 + 이메일 발송
+// 0-84: 팀별 요약 표 추가
 const fs = require('fs');
 
 function main() {
@@ -37,6 +38,19 @@ function main() {
 
   if (committeeResult.note) {
     lines.push(committeeResult.note);
+    lines.push('');
+  }
+
+  if (activeTeams.length > 0) {
+    lines.push('### 📋 팀별 요약 표');
+    lines.push('| 팀 | 이슈 수 | 찬성:반대 | 등급 |');
+    lines.push('|---|---|---|---|');
+    for (const [team, v] of activeTeams) {
+      const cv = committeeResult.teams && committeeResult.teams[team];
+      const grade = !cv ? '심의없음' : (cv.opposeCount > cv.approveCount ? '🚨위험' : '✅정상');
+      const votes = cv ? `${cv.approveCount}:${cv.opposeCount}` : '-';
+      lines.push(`| ${team} | ${v.issueCount}건 | ${votes} | ${grade} |`);
+    }
     lines.push('');
   }
 
