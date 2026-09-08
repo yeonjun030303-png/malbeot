@@ -12,8 +12,17 @@ workflows:
       vars:
         XCODE_PROJECT: "malbeot-app/ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
+        BUNDLE_ID: "com.cnsstudiokorea.malbeot"
     scripts:
-      - name: Set up code signing
+      - name: Fetch signing files
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Set up signing certificate
+        script: |
+          keychain add-certificates
+      - name: Set up code signing settings
         script: |
           xcode-project use-profiles
       - name: Build ipa
