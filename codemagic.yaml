@@ -1,0 +1,29 @@
+workflows:
+  ios-workflow:
+    name: 말벗 iOS Build
+    max_build_duration: 60
+    integrations:
+      app_store_connect: malbeot_asc
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.cnsstudiokorea.malbeot
+      xcode: latest
+      vars:
+        XCODE_PROJECT: "malbeot-app/ios/App/App.xcodeproj"
+        XCODE_SCHEME: "App"
+    scripts:
+      - name: Set up code signing
+        script: |
+          xcode-project use-profiles
+      - name: Build ipa
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
