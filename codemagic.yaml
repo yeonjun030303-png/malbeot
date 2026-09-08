@@ -14,6 +14,9 @@ workflows:
         XCODE_SCHEME: "App"
         BUNDLE_ID: "com.cnsstudiokorea.malbeot"
     scripts:
+      - name: Set up keychain
+        script: |
+          keychain initialize
       - name: Fetch signing files
         script: |
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
