@@ -1,4 +1,4 @@
-workflows:
+﻿workflows:
   ios-workflow:
     name: 말벗 iOS Build
     max_build_duration: 60
@@ -22,6 +22,12 @@ workflows:
         script: |
           cd malbeot-app
           npx cap sync ios
+      - name: Debug - check Info.plist
+        script: |
+          echo "=== Info.plist tail ==="
+          tail -15 malbeot-app/ios/App/App/Info.plist
+          echo "=== capacitor.config.json in ios folder ==="
+          cat malbeot-app/ios/App/App/capacitor.config.json
       - name: Set up keychain
         script: |
           keychain initialize
