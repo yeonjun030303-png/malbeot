@@ -46,6 +46,13 @@
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME"
+      - name: Debug - check actool asset catalog compilation log
+        script: |
+          echo "=== Searching raw xcodebuild log for asset catalog compilation ==="
+          LOG_FILE=
+          echo "Log file: $LOG_FILE"
+          echo "--- Lines mentioning Assets.xcassets / actool / CompileAssetCatalog ---"
+          grep -i -B2 -A15 "CompileAssetCatalog\|actool\|Assets.xcassets" "$LOG_FILE" || echo "NO MATCHES FOUND - actool never ran on Assets.xcassets"
       - name: Debug - inspect built IPA contents
         script: |
           IPA_PATH=$(find build/ios/ipa -name "*.ipa" | head -1)
@@ -66,3 +73,4 @@
       app_store_connect:
         auth: integration
         submit_to_testflight: true
+
