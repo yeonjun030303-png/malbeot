@@ -31,8 +31,7 @@ workflows:
       - name: Set up code signing settings
         script: |
           xcode-project use-profiles \
-            --project "$XCODE_PROJECT" \
-            --target "App"
+            --project "$XCODE_PROJECT"
       - name: Build ipa
         script: |
           xcode-project build-ipa \
