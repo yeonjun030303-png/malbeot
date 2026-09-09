@@ -22,12 +22,6 @@
         script: |
           cd malbeot-app
           npx cap sync ios
-      - name: Debug - check Info.plist
-        script: |
-          echo "=== Info.plist tail ==="
-          tail -15 malbeot-app/ios/App/App/Info.plist
-          echo "=== capacitor.config.json in ios folder ==="
-          cat malbeot-app/ios/App/App/capacitor.config.json
       - name: Set up keychain
         script: |
           keychain initialize
@@ -52,6 +46,18 @@
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME"
+      - name: Debug - inspect built IPA contents
+        script: |
+          IPA_PATH=$(find build/ios/ipa -name "*.ipa" | head -1)
+          echo "IPA path: $IPA_PATH"
+          mkdir -p /tmp/ipa_extract
+          unzip -o "$IPA_PATH" -d /tmp/ipa_extract > /dev/null
+          APP_DIR=$(find /tmp/ipa_extract/Payload -name "*.app" -type d | head -1)
+          echo "App bundle: $APP_DIR"
+          echo "=== Info.plist icon-related keys ==="
+          plutil -p "$APP_DIR/Info.plist" | grep -i -A2 icon
+          echo "=== AppIcon files actually inside .app ==="
+          find "$APP_DIR" -iname "*appicon*"
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
