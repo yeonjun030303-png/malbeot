@@ -5,9 +5,6 @@ workflows:
     integrations:
       app_store_connect: malbeot_asc
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.cnsstudiokorea.malbeot
       xcode: latest
       vars:
         XCODE_PROJECT: "malbeot-app/ios/App/App.xcodeproj"
