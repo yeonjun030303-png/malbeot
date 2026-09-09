@@ -8,7 +8,7 @@ workflows:
       groups:
         - ios_signing
       xcode: latest
-      node: 20
+      node: 22
       vars:
         XCODE_PROJECT: "malbeot-app/ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
