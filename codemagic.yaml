@@ -8,11 +8,20 @@ workflows:
       groups:
         - ios_signing
       xcode: latest
+      node: 20
       vars:
         XCODE_PROJECT: "malbeot-app/ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
         BUNDLE_ID: "com.cnsstudiokorea.malbeot"
     scripts:
+      - name: Install npm dependencies
+        script: |
+          cd malbeot-app
+          npm install
+      - name: Capacitor sync iOS
+        script: |
+          cd malbeot-app
+          npx cap sync ios
       - name: Set up keychain
         script: |
           keychain initialize
