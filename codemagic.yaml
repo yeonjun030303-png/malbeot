@@ -56,8 +56,10 @@
           echo "App bundle: $APP_DIR"
           echo "=== Info.plist icon-related keys ==="
           plutil -p "$APP_DIR/Info.plist" | grep -i -A2 icon
-          echo "=== AppIcon files actually inside .app ==="
-          find "$APP_DIR" -iname "*appicon*"
+          echo "=== Assets.car exists? ==="
+          find "$APP_DIR" -iname "Assets.car" -exec ls -la {} \;
+          echo "=== AppIcon entries inside compiled Assets.car ==="
+          xcrun --sdk iphoneos assetutil --info "$APP_DIR/Assets.car" 2>&1 | grep -i -B2 -A8 "AppIcon"
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
