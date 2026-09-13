@@ -4,7 +4,7 @@ android {
     namespace = "com.malbeot.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.malbeot.app"
+        applicationId "com.cnsstudiokorea.malbeot"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

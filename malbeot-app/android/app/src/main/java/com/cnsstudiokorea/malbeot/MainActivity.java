@@ -1,4 +1,4 @@
-package com.malbeot.app;
+package com.cnsstudiokorea.malbeot;
 
 import com.getcapacitor.BridgeActivity;
 
