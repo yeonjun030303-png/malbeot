@@ -1,4 +1,6 @@
-<!DOCTYPE html>
+import os
+
+content = '''<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -43,3 +45,10 @@ h2 { font-size: 18px; margin-top: 32px; }
 
 </body>
 </html>
+'''
+
+path = os.path.join("public", "child-safety-standards.html")
+with open(path, "w", encoding="utf-8") as f:
+    f.write(content)
+
+print(f"저장 완료: {path}")
