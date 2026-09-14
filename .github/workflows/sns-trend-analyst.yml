@@ -1,0 +1,49 @@
+name: SNS트렌드분석관 (일일)
+
+on:
+  schedule:
+    - cron: '0 22 * * *'  # 매일 07:00 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/sns-trend-analyst.js
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_BUSINESS_ACCOUNT_ID: ${{ secrets.IG_BUSINESS_ACCOUNT_ID }}
+      - name: 결과 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sns-trend-report.md sns-trend-history.json
+          git commit -m "SNS트렌드분석관 리포트 업데이트" || echo "변경사항 없음"
+          git push
+      - run: node scripts/md-to-html.js sns-trend-report.md report.html
+      - uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "SNS트렌드분석관 일일 리포트"
+          content-filepath: sns-trend-report.md
+          labels: SNS트렌드분석관,bot
+      - uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: "[말벗] SNS트렌드분석관 일일 리포트"
+          to: ${{ secrets.MAIL_TO }}
+          from: 말벗 자동화봇
+          attachments: report.html

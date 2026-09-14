@@ -1,0 +1,45 @@
+name: 불편함조사관 (주간)
+
+on:
+  schedule:
+    - cron: '0 8 * * 4'  # 매주 목요일 17:00 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/pain-point-scout.js
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: 결과 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pain-point-report.md
+          git commit -m "불편함조사관 리포트 업데이트" || echo "변경사항 없음"
+          git push
+      - run: node scripts/md-to-html.js pain-point-report.md report.html
+      - uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "불편함조사관 주간 리포트"
+          content-filepath: pain-point-report.md
+          labels: 불편함조사관,bot
+      - uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USER }}
+          password: ${{ secrets.MAIL_PASS }}
+          subject: "[말벗] 불편함조사관 주간 리포트"
+          to: ${{ secrets.MAIL_TO }}
+          from: 말벗 자동화봇
+          attachments: report.html
