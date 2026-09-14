@@ -79,6 +79,8 @@ async function checkYesterdayPerformance() {
 }
 
 async function main() {
+  fs.mkdirSync(path.dirname(IMAGE_ABS_PATH), { recursive: true });
+
   const trendReportPath = path.join(__dirname, '..', 'sns-trend-report.md');
   const trendGuide = fs.existsSync(trendReportPath) ? fs.readFileSync(trendReportPath, 'utf8') : '';
 
