@@ -1,3 +1,4 @@
 ﻿.env
 *.json
 !ios/App/App/Assets.xcassets/**/*.json
+!android/app/google-services.json

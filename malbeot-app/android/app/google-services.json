@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "263752958081",
+    "firebase_url": "https://malbeot-test-e6b54-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "malbeot-test-e6b54",
+    "storage_bucket": "malbeot-test-e6b54.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:263752958081:android:7e09042a790df21669cd80",
+        "android_client_info": {
+          "package_name": "com.cnsstudiokorea.malbeot"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyASW_Ug-3Cz0sv9CxyjSI4bsIl7uwUkB7s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
