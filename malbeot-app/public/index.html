@@ -45,7 +45,7 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 #notifyBanner .nb-title{font-weight:800;font-size:15px;margin-bottom:2px;}
 #notifyBanner .nb-body{font-size:13px;color:#f1f3f5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
-.app-header{height:56px;background:#fff;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:10;flex-shrink:0;}
+.app-header{min-height:56px;background:#fff;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;padding:env(safe-area-inset-top) 16px 0 16px;z-index:10;flex-shrink:0;}
 .header-title{font-size:17px;font-weight:800;color:var(--text-main);}
 .header-right{display:flex;align-items:center;gap:10px;}
 .user-points-badge{background:var(--primary-light);color:var(--primary);padding:5px 12px;border-radius:var(--radius-full);font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px;}
@@ -2670,6 +2670,15 @@ let uiBackStack = [];
 // 카운터 방식으로 바꿔서 동시에 몇 개가 닫히든 정확히 그 개수만큼만 상쇄되도록 함.
 let expectedPopstates = 0;
 const uiOverlayObserver = new MutationObserver(muts=>{
+  // 0-68: 같은 동기 실행 흐름 안에서 모달이 "닫히면서 동시에 다른 모달이 열리는" 경우
+  // (예: 신고 사유 모달을 닫고 곧바로 완료 알림을 여는 confirmSubmitReport())
+  // 기존 코드는 mutation을 하나씩 즉시 처리해서 history.back()(비동기)과 history.pushState()(동기)가
+  // 뒤섞여 히스토리 깊이가 어긋났고, 그 어긋남이 누적되어 이후 아무 화면에서나 뒤로가기 1번에 여러 단계가
+  // 한꺼번에 닫히며 landingScreen까지 노출되는 버그로 이어졌음.
+  // → 배치 안의 모든 변화를 먼저 집계해서 "순변화(net)"만 반영. 닫힘+열림이 같은 배치에 섞여 순변화가 0이면
+  //   history를 아예 건드리지 않음(상쇄) - back()과 pushState()가 뒤섞이는 상황 자체를 없앰.
+  let opened = [];
+  let closedCount = 0;
   muts.forEach(m=>{
     if (m.attributeName !== 'class') return;
     const el = m.target;
@@ -2677,16 +2686,28 @@ const uiOverlayObserver = new MutationObserver(muts=>{
     const isActive = el.classList.contains('active');
     const idx = uiBackStack.indexOf(el);
     if (isActive && idx === -1){
+      opened.push(el);
+    } else if (!isActive && idx !== -1){
+      uiBackStack.splice(idx, 1);
+      closedCount++;
+    }
+  });
+  const net = opened.length - closedCount;
+  if (net > 0){
+    opened.forEach(el=>{
       uiBackStack.push(el);
       history.pushState({ uiOverlay: uiBackStack.length }, '');
-    } else if (!isActive && idx !== -1){
-      // 프로그램(closeModal 등)이 스스로 닫은 경우에만 여기로 들어옴. 실제 뒤로가기(popstate)로 닫힌
-      // 경우엔 아래 popstate 핸들러가 스택에서 먼저 빼놓기 때문에 idx가 이미 -1이라 이 분기를 타지 않음.
-      uiBackStack.splice(idx, 1);
+    });
+  } else if (net < 0){
+    for (let i=0; i<-net; i++){
       expectedPopstates++;
       try{ history.back(); }catch(e){ expectedPopstates--; }
     }
-  });
+    opened.forEach(el=> uiBackStack.push(el));
+  } else {
+    // 순변화 0: 히스토리 그대로 두고 스택 배열만 정리
+    opened.forEach(el=> uiBackStack.push(el));
+  }
 });
 document.querySelectorAll('.full-screen-overlay, .modal-overlay').forEach(el=> uiOverlayObserver.observe(el, {attributes:true}));
 window.addEventListener('popstate', ()=>{
