@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>말벗 - 실시간으로 마음을 나누는 소통 커뮤니티</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#5c7cfa">
@@ -204,7 +204,7 @@ body.dark-mode .search-matched-comment-line{color:var(--text-main);}
 .chat-row-time{font-size:11px;color:var(--text-muted);flex-shrink:0;}
 
 .chat-window-card{height:100%;padding:0;}
-.chat-header-row{height:56px;flex-shrink:0;display:flex;align-items:center;padding:0 10px;border-bottom:1px solid #d8e6f2;gap:8px;}
+.chat-header-row{min-height:56px;flex-shrink:0;display:flex;align-items:center;padding:env(safe-area-inset-top) 10px 0 10px;border-bottom:1px solid #d8e6f2;gap:8px;}
 .chat-header-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--blue-light);}
 .chat-header-nick{font-size:14px;font-weight:700;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .chat-warning-banner{background:#495057;color:#fff;font-size:11px;padding:10px 12px;line-height:1.5;}
@@ -220,7 +220,7 @@ body.dark-mode .search-matched-comment-line{color:var(--text-main);}
 .msg-bubble img{max-width:160px;border-radius:8px;display:block;}
 .msg-time{font-size:10px;color:#868e96;margin-top:2px;}
 .msg-system{align-self:center;background:rgba(0,0,0,.06);color:var(--text-muted);font-size:11px;border-radius:99px;padding:4px 14px;}
-.chat-input-bar{padding:10px;background:#fff;display:flex;gap:8px;align-items:center;flex-shrink:0;}
+.chat-input-bar{padding:10px 10px calc(10px + env(safe-area-inset-bottom)) 10px;background:#fff;display:flex;gap:8px;align-items:center;flex-shrink:0;}
 .chat-reply-preview-bar{padding:8px 12px;background:var(--bg-subtle);border-top:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0;}
 .reply-preview-text{font-size:12px;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
 .reply-preview-close{cursor:pointer;color:var(--text-muted);font-size:13px;padding:2px 4px;}
