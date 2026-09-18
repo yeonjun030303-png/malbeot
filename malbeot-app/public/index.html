@@ -6608,14 +6608,21 @@ function triggerLogout(){
     var vp = window.visualViewport;
     var h = vp ? vp.height : window.innerHeight;
     var ratio = window.innerWidth >= 500 ? 0.92 : 1;
-    container.style.height = Math.round(h * ratio) + 'px';
+    var newHeight = Math.round(h * ratio);
+    var prev = parseInt(container.style.height, 10) || 0;
+    if (Math.abs(newHeight - prev) < 20) return;
+    container.style.height = newHeight + 'px';
   }
 
-  window.addEventListener('resize', setAppViewportHeight);
-  window.addEventListener('orientationchange', setAppViewportHeight);
+  var vphRaf = null;
+  function scheduleSetAppViewportHeight(){
+    if (vphRaf) cancelAnimationFrame(vphRaf);
+    vphRaf = requestAnimationFrame(function(){ vphRaf = null; setAppViewportHeight(); });
+  }
+  window.addEventListener('resize', scheduleSetAppViewportHeight);
+  window.addEventListener('orientationchange', scheduleSetAppViewportHeight);
   if (window.visualViewport){
-    window.visualViewport.addEventListener('resize', setAppViewportHeight);
-    window.visualViewport.addEventListener('scroll', setAppViewportHeight);
+    window.visualViewport.addEventListener('resize', scheduleSetAppViewportHeight);
   }
   document.addEventListener('DOMContentLoaded', setAppViewportHeight);
   window.addEventListener('load', setAppViewportHeight);
