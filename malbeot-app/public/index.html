@@ -777,7 +777,8 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
   <div id="phoneSetupModal" class="modal-overlay">
     <div class="mini-alert-card">
       <h3 style="margin-bottom:10px;"><i class="fa-solid fa-phone"></i> 전화번호 등록</h3>
-      <p style="font-size:13px;color:#495057;line-height:1.6;margin-bottom:12px;">서비스 이용을 위해 본인의 전화번호를 등록해주세요. 등록 후에는 직접 수정할 수 없고, 변경이 필요하면 고객센터로 문의해주세요.</p>
+      <p style="font-size:13px;color:#495057;line-height:1.6;margin-bottom:6px;">서비스 이용을 위해 본인의 전화번호를 등록해주세요. 등록 후에는 직접 수정할 수 없고, 변경이 필요하면 고객센터로 문의해주세요.</p>
+      <p style="font-size:12px;color:#868e96;line-height:1.5;margin-bottom:12px;">스캠 방지를 위해 실제 사용 중인 번호를 입력하시는 것을 권장드립니다. 원하지 않으실 경우 010-0000-0000과 같은 형식으로 입력하셔도 됩니다.</p>
       <input type="tel" id="phoneSetupInput" class="form-input" placeholder="010-0000-0000" maxlength="13">
       <div id="phoneSetupError" style="font-size:12px;color:var(--danger);margin-top:6px;display:none;"></div>
       <div style="display:flex;margin-top:14px;">
@@ -4012,7 +4013,9 @@ function sendFirstMessage(){
     }
     currentUser.points = res.points; updateUserUI(); saveSession();
     closeMessageComposeScreen(); closeProfileDetailScreen();
-    switchTab('tab-chat'); loadChatRoomList();
+    switchTab('tab-chat');
+    loadChatRoomList();
+    if (res.roomId) openChatRoomById(res.roomId);
   });
 }
 function closeRiceChargeScreen(){ closeFullScreen('riceChargeScreen'); }
@@ -4064,11 +4067,12 @@ function reportMessage(roomId, messageId, otherUserId, previewText){
   openReportCategoryModal();
 }
 function handleBlockAction(){
-  // 0-47: 네이티브 confirm() 대신 앱 자체 확인창 사용 + 취소 시엔 blockReportModal을 닫지 않고 그대로 유지
+  // 0-79: 신고하기와 동일하게, 확인창을 띄우기 전에 먼저 메뉴(blockReportModal)를 닫아서
+  // 두 모달이 겹쳐 렌더링되며 커서/포커스가 꼬이던 문제를 방지함
+  closeModal('blockReportModal');
   showMiniAlert('이 사용자를 차단하시겠습니까? 차단하면 서로 연락을 주고받을 수 없습니다.', [
     {label:'취소'},
     {label:'차단', danger:true, onClick:()=>{
-      closeModal('blockReportModal');
       let targetId = blockReportContext.id;
       if (blockReportContext.type==='post' && currentPostCache) targetId = currentPostCache.authorId;
       if (blockReportContext.type==='comment' && blockReportContext.authorId) targetId = blockReportContext.authorId;
@@ -6553,7 +6557,7 @@ function confirmUnblock(targetId, nickname){
 }
 /* ===================== 회원탈퇴 ===================== */
 function triggerWithdraw(){
-  showMiniAlert('정말 탈퇴하시겠습니까? 작성한 게시글/스토리/릴스가 모두 삭제되며 되돌릴 수 없습니다.', [
+  showMiniAlert('정말 탈퇴하시겠습니까? 작성한 게시글/스토리/릴스가 모두 삭제되며 되돌릴 수 없습니다. 탈퇴 처리된 개인정보는 30일 이내에 안전하게 폐기됩니다.', [
     {label:'취소', primary:false},
     {label:'탈퇴하기', primary:true, onClick:()=>{
       socket.emit('account:withdraw', {}, (res)=>{
