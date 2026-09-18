@@ -36,6 +36,12 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 #splashScreen.fade-out{opacity:0;pointer-events:none;}
 #splashScreen .splash-logo{font-size:34px;font-weight:900;color:var(--primary);letter-spacing:2px;text-align:center;}
 #splashScreen .splash-sub{font-size:12px;color:var(--text-muted);margin-top:8px;text-align:center;}
+#splashScreen .splash-status{font-size:12px;color:var(--text-muted);margin-top:14px;text-align:center;min-height:16px;}
+#splashScreen .splash-dots{position:relative;width:64px;height:10px;margin:10px auto 0 auto;overflow:hidden;}
+#splashScreen .splash-dots span{position:absolute;top:1px;left:0;width:8px;height:8px;border-radius:50%;background:var(--primary);opacity:0;animation:splashDotMove 1.3s ease-in-out infinite;}
+#splashScreen .splash-dots span:nth-child(2){animation-delay:.22s;}
+#splashScreen .splash-dots span:nth-child(3){animation-delay:.44s;}
+@keyframes splashDotMove{0%{left:0;opacity:0;}18%{opacity:1;}82%{opacity:1;}100%{left:56px;opacity:0;}}
 
 #notifyBanner{position:absolute;top:0;left:0;right:0;background:#212529;color:#fff;padding:14px 18px;z-index:500;transform:translateY(-100%);transition:transform .25s ease;line-height:1.4;cursor:pointer;display:flex;align-items:center;gap:10px;}
 #notifyBanner.show{transform:translateY(0);}
@@ -391,6 +397,8 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </svg>
     <div class="splash-logo">말벗</div>
     <div class="splash-sub">지금 이 순간, 실시간으로 이어지는 편안한 대화</div>
+    <div class="splash-dots"><span></span><span></span><span></span></div>
+    <div class="splash-status" id="splashStatusText">대화상대를 준비하고 있어요...</div>
   </div>
 </div>
 
@@ -1502,7 +1510,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const socket = io();
-let currentUser = JSON.parse(sessionStorage.getItem('malbeot_session')) || null;
+let currentUser = JSON.parse(localStorage.getItem('malbeot_session')) || null;
 // 단체채팅방 초대링크(/join/코드)로 들어온 경우, 로그인 완료 후 initApp()에서 자동 입장 처리
 let pendingInviteCode = (function(){
   const m = location.pathname.match(/^\/join\/([A-Za-z0-9]+)/);
@@ -1513,7 +1521,7 @@ let pendingInviteCode = (function(){
   if (saved) sessionStorage.removeItem('malbeot_pending_invite_code');
   return saved || null;
 })();
-let sessionToken = sessionStorage.getItem('malbeot_token') || null;
+let sessionToken = localStorage.getItem('malbeot_token') || null;
 let currentChatRooms = [];
 let currentGroupChatRooms = [];
 let groupSearchDebounce = null;
@@ -1665,13 +1673,13 @@ applySettingsToDom(getEffectiveSettings());
 // 로그인 성공 시 항상 이 함수로 세션(유저정보+토큰)을 같이 저장해야 함.
 // 토큰은 7일간 유효하며, 소켓이 재연결될 때마다 이 토큰으로 자동 로그인(auth:session_resume)을 시도함.
 function saveSession(token){
-  if (token) { sessionToken = token; sessionStorage.setItem('malbeot_token', token); }
-  sessionStorage.setItem('malbeot_session', JSON.stringify(currentUser));
+  if (token) { sessionToken = token; localStorage.setItem('malbeot_token', token); }
+  localStorage.setItem('malbeot_session', JSON.stringify(currentUser));
 }
 function clearSession(){
   currentUser = null; sessionToken = null;
-  sessionStorage.removeItem('malbeot_session');
-  sessionStorage.removeItem('malbeot_token');
+  localStorage.removeItem('malbeot_session');
+  localStorage.removeItem('malbeot_token');
 }
 function closeModal(id){ document.getElementById(id).classList.remove('active'); }
 function openModal(id){ document.getElementById(id).classList.add('active'); }
@@ -2344,12 +2352,38 @@ function applyAgeFilter(){
 }
 updateAgeFilterBtnLabel();
 
+/* 스플래시(로딩) 화면: 저장된 세션이 있으면 자동로그인 결과가 나올 때까지 유지했다가
+   바로 앱으로 진입시킴(로그인 화면이 잠깐 스쳐 보이고 다시 앱으로 넘어가는 깜빡임 방지) */
+let splashHidden = false;
+function hideSplash(){
+  if (splashHidden) return;
+  splashHidden = true;
+  const splash = document.getElementById('splashScreen');
+  if (!splash) return;
+  splash.classList.add('fade-out');
+  setTimeout(()=>splash.remove(), 450);
+}
+(function(){
+  const msgs = ['대화상대를 준비하고 있어요...', '말벗에 접속하는 중이에요...', '조금만 기다려주세요...'];
+  let i = 0;
+  const timer = setInterval(()=>{
+    if (splashHidden) { clearInterval(timer); return; }
+    const el = document.getElementById('splashStatusText');
+    if (!el) { clearInterval(timer); return; }
+    i = (i + 1) % msgs.length;
+    el.textContent = msgs[i];
+  }, 1400);
+})();
 window.addEventListener('load', ()=>{
-  setTimeout(()=>{
-    const splash = document.getElementById('splashScreen');
-    splash.classList.add('fade-out');
-    setTimeout(()=>splash.remove(), 450);
-  }, 900);
+  const hasSavedSession = !!(currentUser && sessionToken);
+  if (!hasSavedSession){
+    // 저장된 세션이 없는 최초 방문 -> 브랜드만 잠깐 보여주고 바로 로그인 화면 노출
+    setTimeout(hideSplash, 700);
+  } else {
+    // 자동로그인 시도 결과는 attemptSessionResume()의 각 분기에서 hideSplash()를 호출함.
+    // 네트워크 문제 등으로 결과가 끝내 안 오는 경우를 대비한 최대 대기시간(안전장치)
+    setTimeout(hideSplash, 6000);
+  }
 });
 
 
@@ -2369,6 +2403,7 @@ function attemptSessionResume(){
       currentUser = res.user; saveSession(res.token);
       closeModal('landingScreen'); closeModal('authModal');
       initApp();
+      hideSplash();
       if (res.rewardNotify){
         showMiniAlert(`어제의 인기 투표로 선정되셔서 포인트 ${res.rewardNotify.amount}개를 지급했어요!`, [{label:'확인', primary:true}]);
       }
@@ -2387,6 +2422,7 @@ function attemptSessionResume(){
       sessionResumeRetryCount = 0;
       clearSession();
       resetToLandingScreen();
+      hideSplash();
       if (res.banned) showWarningModal(res.message || '이용이 제한된 계정입니다.');
     } else {
       // 일시적 오류(서버 재시작 등으로 추정) - 로그아웃시키지 않고 잠시 후 재시도
@@ -2397,6 +2433,7 @@ function attemptSessionResume(){
         sessionResumeRetryCount = 0;
         clearSession();
         resetToLandingScreen();
+        hideSplash();
       }
     }
   });
@@ -3993,8 +4030,8 @@ function openMessageComposeScreen(){
   openFullScreen('messageComposeScreen');
 }
 function closeMessageComposeScreen(){ closeFullScreen('messageComposeScreen'); }
-document.getElementById('msgComposeInput').addEventListener('keydown', (e)=>{
-  if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendFirstMessage(); }
+document.getElementById('msgComposeInput').addEventListener('keyup', (e)=>{
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); sendFirstMessage(); }
 });
 function sendFirstMessage(){
   const text = document.getElementById('msgComposeInput').value.trim();
@@ -4618,8 +4655,8 @@ btnSendGroupMsgEl.onclick = ()=>{
   groupChatInputTextEl.focus();
   clearGroupReplyPreview();
 };
-document.getElementById('groupChatInputText').addEventListener('keydown', (e)=>{
-  if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); document.getElementById('btnSendGroupMsg').click(); }
+document.getElementById('groupChatInputText').addEventListener('keyup', (e)=>{
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); document.getElementById('btnSendGroupMsg').click(); }
 });
 function triggerGroupChatImageInput(){ document.getElementById('groupChatImageInput').click(); }
 async function handleGroupChatImageUpload(e){
@@ -5484,8 +5521,8 @@ btnSendMsgEl.onclick = ()=>{
   chatInputTextEl.focus();
   clearReplyPreview();
 };
-document.getElementById('chatInputText').addEventListener('keydown', (e)=>{
-  if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); document.getElementById('btnSendMsg').click(); }
+document.getElementById('chatInputText').addEventListener('keyup', (e)=>{
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); document.getElementById('btnSendMsg').click(); }
 });
 function triggerChatImageInput(){ document.getElementById('chatImageInput').click(); }
 async function handleChatImageUpload(e){
@@ -6602,6 +6639,7 @@ function triggerLogout(){
            대비해 앱 진입/복귀 시 배율을 1로 되돌리는 안전장치를 추가함
 */
 (function(){
+  var coldStartGraceUntil = Date.now() + 2500; // 콜드스타트 직후 2.5초간은 값이 안 안정된 상태이므로 무조건 재적용
   function setAppViewportHeight(){
     var container = document.getElementById('appContainer');
     if(!container) return;
@@ -6610,7 +6648,8 @@ function triggerLogout(){
     var ratio = window.innerWidth >= 500 ? 0.92 : 1;
     var newHeight = Math.round(h * ratio);
     var prev = parseInt(container.style.height, 10) || 0;
-    if (Math.abs(newHeight - prev) < 20) return;
+    var inGracePeriod = !prev || Date.now() < coldStartGraceUntil;
+    if (!inGracePeriod && Math.abs(newHeight - prev) < 20) return;
     container.style.height = newHeight + 'px';
   }
 
@@ -6625,7 +6664,12 @@ function triggerLogout(){
     window.visualViewport.addEventListener('resize', scheduleSetAppViewportHeight);
   }
   document.addEventListener('DOMContentLoaded', setAppViewportHeight);
-  window.addEventListener('load', setAppViewportHeight);
+  window.addEventListener('load', function(){
+    setAppViewportHeight();
+    // iOS WKWebView는 콜드스타트 직후 visualViewport 값이 곧바로 안정화되지 않아
+    // 첫 측정이 부정확할 수 있음(하단 네비가 화면 밖으로 밀려 안 보이던 원인) -> 잠깐 몇 번 더 재확인
+    [100, 400, 900, 1800].forEach(function(delay){ setTimeout(setAppViewportHeight, delay); });
+  });
   document.addEventListener('visibilitychange', function(){
     if (!document.hidden) setAppViewportHeight();
   });
