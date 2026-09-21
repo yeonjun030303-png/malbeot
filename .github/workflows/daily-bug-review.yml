@@ -37,6 +37,16 @@ jobs:
             echo "has_result=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: 심각도 판정
+        if: steps.check.outputs.has_result == 'true'
+        id: severity
+        run: |
+          if grep -q "CRITICAL" review-result.md; then
+            echo "level=긴급" >> "$GITHUB_OUTPUT"
+          else
+            echo "level=정기" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: 이슈로 등록
         if: steps.check.outputs.has_result == 'true'
         uses: peter-evans/create-issue-from-file@v5
@@ -57,7 +67,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USER }}
           password: ${{ secrets.MAIL_PASS }}
-          subject: "🐛 [말벗] 데일리 버그 리뷰"
+          subject: "[${{ steps.severity.outputs.level }}] 말벗 데일리버그리뷰 보고의 건"
           to: ${{ secrets.MAIL_TO }}
           from: 말벗 버그헌터
           html_body: file://report.html

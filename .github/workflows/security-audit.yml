@@ -39,6 +39,16 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: 긴급 여부 판정
+        if: steps.check.outputs.exists == 'true'
+        id: severity
+        run: |
+          if grep -qE "critical: [1-9]|high: [1-9]" review-result.md; then
+            echo "level=긴급" >> "$GITHUB_OUTPUT"
+          else
+            echo "level=정기" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: 리포트파일 -> HTML 변환
         if: steps.check.outputs.exists == 'true'
         run: node scripts/md-to-html.js review-result.md report.html
@@ -59,7 +69,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USER }}
           password: ${{ secrets.MAIL_PASS }}
-          subject: "🔒 [말벗] 보안 점검 결과"
+          subject: "[${{ steps.severity.outputs.level }}] 말벗 보안점검 보고의 건"
           to: ${{ secrets.MAIL_TO }}
           from: 말벗 자동화봇
           html_body: file://report.html

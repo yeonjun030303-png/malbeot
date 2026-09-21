@@ -51,7 +51,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USER }}
           password: ${{ secrets.MAIL_PASS }}
-          subject: "📊 [말벗] 주간 마케팅 제안"
+          subject: "[정기] 말벗 주간마케팅제안 보고의 건"
           to: ${{ secrets.MAIL_TO }}
           from: 말벗 마케팅어드바이저
           html_body: file://report.html

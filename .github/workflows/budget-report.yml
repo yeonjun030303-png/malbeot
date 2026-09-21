@@ -59,7 +59,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USER }}
           password: ${{ secrets.MAIL_PASS }}
-          subject: "🧾 [말벗] 예산집행 리포트"
+          subject: "[정기] 말벗 예산집행 보고의 건"
           to: ${{ secrets.MAIL_TO }}
           from: 말벗 자동화봇
           html_body: file://report.html
