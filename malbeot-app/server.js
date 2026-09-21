@@ -290,7 +290,7 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'dev_only_insecure_secret_p
 if (!process.env.SESSION_SECRET) {
   console.warn('[경고] SESSION_SECRET이 .env에 설정되어 있지 않습니다. 반드시 설정해주세요 (안 하면 서버 재시작마다 전체 로그아웃됨).');
 }
-const SESSION_MAX_AGE = '7d';
+const SESSION_MAX_AGE = '180d';
 
 function issueSessionToken(userId) {
   return jwt.sign({ uid: userId }, SESSION_SECRET, { expiresIn: SESSION_MAX_AGE });
