@@ -1279,10 +1279,8 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <span class="reply-preview-close" onclick="clearReplyPreview()">✕</span>
     </div>
     <div class="chat-input-bar" style="position:relative;">
-      <div id="chatEmojiPanel" class="emoji-panel"></div>
       <button class="chat-attach-btn" onclick="triggerChatImageInput()"><i class="fa-solid fa-image"></i></button>
       <input type="file" id="chatImageInput" accept="image/*" class="hidden" onchange="handleChatImageUpload(event)">
-      <button class="chat-emoji-btn" onclick="toggleEmojiPanel('chatEmojiPanel','chatInputText')"><i class="fa-regular fa-face-smile"></i></button>
       <input type="text" id="chatInputText" placeholder="메시지를 입력하세요...">
       <button class="chat-send-btn" id="btnSendMsg"><i class="fa-solid fa-paper-plane"></i></button>
     </div>
@@ -1311,10 +1309,8 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <span class="reply-preview-close" onclick="clearGroupReplyPreview()">✕</span>
     </div>
     <div class="chat-input-bar" style="position:relative;">
-      <div id="groupChatEmojiPanel" class="emoji-panel"></div>
       <button class="chat-attach-btn" onclick="triggerGroupChatImageInput()"><i class="fa-solid fa-image"></i></button>
       <input type="file" id="groupChatImageInput" accept="image/*" class="hidden" onchange="handleGroupChatImageUpload(event)">
-      <button class="chat-emoji-btn" onclick="toggleEmojiPanel('groupChatEmojiPanel','groupChatInputText')"><i class="fa-regular fa-face-smile"></i></button>
       <input type="text" id="groupChatInputText" placeholder="메시지를 입력하세요...">
       <button class="chat-send-btn" id="btnSendGroupMsg"><i class="fa-solid fa-paper-plane"></i></button>
     </div>
@@ -6651,6 +6647,10 @@ function triggerLogout(){
     var inGracePeriod = !prev || Date.now() < coldStartGraceUntil;
     if (!inGracePeriod && Math.abs(newHeight - prev) < 20) return;
     container.style.height = newHeight + 'px';
+    ['chatModal','groupChatModal'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.style.height = newHeight + 'px';
+    });
   }
 
   var vphRaf = null;
