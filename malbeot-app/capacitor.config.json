@@ -1,13 +1,16 @@
-﻿{
+{
   "appId": "com.cnsstudiokorea.malbeot",
   "appName": "malbeot",
   "webDir": "public",
   "server": {
     "url": "https://malbeot-1.onrender.com",
     "cleartext": true,
-    "allowNavigation": ["*.kakao.com", "*.kakaocdn.net"]
+    "allowNavigation": [
+      "*.kakao.com",
+      "*.kakaocdn.net"
+    ]
   },
   "ios": {
-    "contentInset": "automatic"
+    "contentInset": "never"
   }
 }
