@@ -1,0 +1,633 @@
+===== capacitor.config.json =====
+
+﻿{
+  "appId": "com.cnsstudiokorea.malbeot",
+  "appName": "malbeot",
+  "webDir": "public",
+  "server": {
+    "url": "https://malbeot-1.onrender.com",
+    "cleartext": true,
+    "allowNavigation": ["*.kakao.com", "*.kakaocdn.net"]
+  },
+  "ios": {
+    "contentInset": "automatic"
+  }
+}
+
+
+
+===== index.html 관련 구간 =====
+
+
+===== 줄 118 ~ 141 =====
+
+.bottom-nav{position:absolute;bottom:0;left:0;right:0;height:64px;background:#fff;border-top:1px solid var(--border-color);display:flex;justify-content:space-around;align-items:center;z-index:10;transition:transform .25s ease;}
+.bottom-nav.nav-hidden{transform:translateY(100%);}
+.nav-item{background:none;border:none;flex:1;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;font-size:21px;}
+.nav-item.active{color:var(--primary);}
+
+.modal-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:none;justify-content:center;align-items:center;z-index:200;padding:16px;}
+.modal-overlay.active{display:flex;}
+.modal-card{background:#fff;border-radius:var(--radius-md);width:100%;max-width:420px;padding:22px;box-shadow:var(--shadow-lg);max-height:90vh;overflow-y:auto;position:relative;}
+.mini-alert-card{background:#fff;border-radius:14px;width:100%;max-width:300px;padding:24px 20px;text-align:center;}
+
+.full-screen-overlay{position:absolute;inset:0;background:#fff;z-index:150;display:none;flex-direction:column;}
+.full-screen-overlay.active{display:flex;}
+/* 0-69: 채팅방 위에 프로필 화면을 겹쳐 띄울 때만(chatModal이 함께 열려있을 때) profileDetailScreen을 그 위로 올림 */
+#profileDetailScreen.active:has(~ #chatModal.active){z-index:200;}
+.full-screen-overlay.drawer-right{left:auto;width:50%;box-shadow:-6px 0 20px rgba(0,0,0,.18);}
+#groupInfoScreen .chat-row-nick{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#groupInfoScreen .chat-row-fg{padding:9px 2px;gap:8px;}
+#groupInfoScreen .avatar-sm{width:28px;height:28px;}
+#groupInfoScreen #groupInfoTitle{font-size:14px;}
+#groupInfoScreen #groupInfoIntro{font-size:11px;margin-bottom:12px;}
+#groupInfoScreen [style*="font-size:13px;font-weight:700"]{font-size:12px;}
+#groupInfoScreen #groupInfoMemberCount{font-size:11px;}
+#drawerBackdrop{display:none;position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:149;}
+#drawerBackdrop.active{display:block;}
+
+===== 줄 202 ~ 221 =====
+
+
+.chat-row-wrap{position:relative;overflow:hidden;border-bottom:1px solid var(--border-color);}
+.chat-row-delete{position:absolute;top:0;right:0;bottom:0;width:70px;background:var(--danger);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;}
+.chat-row-fg{position:relative;background:#fff;display:flex;gap:12px;align-items:center;padding:12px 4px;cursor:pointer;touch-action:pan-y;}
+.chat-row-mute{position:absolute;top:0;right:70px;width:70px;height:100%;background:var(--bg-subtle);display:flex;align-items:center;justify-content:center;color:var(--text-main);font-size:16px;cursor:pointer;}
+.chat-row-text{flex:1;min-width:0;}
+.chat-row-nick{font-size:14px;font-weight:700;}
+.chat-row-last{font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.chat-row-time{font-size:11px;color:var(--text-muted);flex-shrink:0;}
+
+.chat-window-card{height:100%;padding:0;}
+.chat-header-row{min-height:56px;flex-shrink:0;display:flex;align-items:center;padding:env(safe-area-inset-top) 10px 0 10px;border-bottom:1px solid #d8e6f2;gap:8px;}
+.chat-header-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--blue-light);}
+.chat-header-nick{font-size:14px;font-weight:700;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.chat-warning-banner{background:#495057;color:#fff;font-size:11px;padding:10px 12px;line-height:1.5;}
+.chat-warning-banner b{color:var(--warning);}
+.chat-messages-area{flex:1;padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;background:var(--chat-bg);}
+.chat-date-sep{align-self:center;background:rgba(0,0,0,.08);color:#495057;font-size:11px;border-radius:99px;padding:4px 14px;}
+.msg-row{display:flex;flex-direction:column;max-width:75%;}
+.msg-row.mine{align-self:flex-end;align-items:flex-end;}
+
+===== 줄 270 ~ 289 =====
+
+/* ---- 로고 ---- */
+.brand-logo{display:flex;align-items:center;gap:6px;font-weight:900;font-size:15px !important;color:var(--primary);letter-spacing:.5px;flex-shrink:0;}
+.brand-logo i{font-size:13px !important;color:var(--pink-avatar);}
+#splashScreen .splash-logo{font-size:34px !important;}
+#landingScreen h1{font-size:36px !important;}
+#authModal h1{font-size:26px !important;}
+
+/* ---- 다크 모드 (채팅 화면 색상은 그대로 유지) ---- */
+body.dark-mode{ --bg-app:#15171c; --bg-card:#1c1f26; --bg-subtle:#232630; --text-main:#e9ecef; --text-muted:#9aa1ab; --border-color:#2c313a; --primary-light:#20264a; }
+body.dark-mode{background:#000;}
+body.dark-mode .app-header,body.dark-mode .sub-category-bar,body.dark-mode .bottom-nav,body.dark-mode .modal-card,body.dark-mode .mini-alert-card,body.dark-mode .full-screen-overlay,body.dark-mode .fs-header{background:var(--bg-app);color:var(--text-main);border-color:var(--border-color);}
+body.dark-mode .icon-round-btn{background:var(--bg-subtle);}
+body.dark-mode .category-item{background:var(--bg-subtle);color:var(--text-main);}
+body.dark-mode .form-group input,body.dark-mode .form-group select,body.dark-mode .form-group textarea,body.dark-mode .filter-item select,body.dark-mode .filter-item button{background:var(--bg-subtle);color:var(--text-main);border-color:var(--border-color);}
+body.dark-mode .btn-secondary{background:var(--bg-subtle);color:var(--text-main);border-color:var(--border-color);}
+/* 컨텐츠 영역(홈/커뮤니티/채팅/마이페이지)이 흰 배경으로 남지 않도록 보정 */
+body.dark-mode .app-container,body.dark-mode .content-area{background:var(--bg-app);color:var(--text-main);}
+body.dark-mode .user-card,body.dark-mode .post-row,body.dark-mode .chat-row-fg,body.dark-mode .settings-card,body.dark-mode .profile-bio-box,body.dark-mode .compose-textarea{background:var(--bg-card);color:var(--text-main);border-color:var(--border-color);}
+body.dark-mode .post-preview,body.dark-mode .user-card p{color:var(--text-main);}
+/* 지역/성별/나이 배지(태그)는 다크모드에서 흰 배경 + 검은 글씨로 표시해서 눈에 띄게 함 */
+
+===== 줄 809 ~ 828 =====
+
+    <div class="modal-card">
+      <h3 style="margin-bottom:8px;">설정</h3>
+      <div class="category-list">
+        <div class="category-item" onclick="handleBlockAction()"><i class="fa-solid fa-ban"></i> 차단하기</div>
+        <div class="category-item" onclick="openReportCategoryModal()"><i class="fa-solid fa-flag"></i> 신고하기</div>
+        <div class="category-item" style="text-align:center;color:var(--text-muted);" onclick="closeModal('blockReportModal')">취소</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="composeScreen" class="full-screen-overlay">
+    <div class="fs-header">
+      <button class="back-btn" onclick="closeComposeScreen()"><i class="fa-solid fa-xmark"></i></button>
+      <div class="fs-title" id="composeTitle">이야기 올리기</div>
+    </div>
+    <div class="fs-body" style="display:flex;flex-direction:column;">
+      <div class="compose-photo-box" onclick="triggerComposePhotoInput()" id="composePhotoBox">
+        <i class="fa-solid fa-camera fa-lg"></i><span style="margin-top:4px;">사진 등록하기</span>
+      </div>
+      <input type="file" id="composePhotoInput" accept="image/*,video/*" class="hidden" onchange="handleComposePhotoUpload(event)">
+
+===== 줄 841 ~ 870 =====
+
+        <div style="text-align:right;padding:0 16px 10px 16px;font-size:11px;color:var(--text-muted);"><span id="composeCharCount">0</span>/100</div>
+      </div>
+      <div id="composePollBox" class="hidden" style="padding:0 16px 10px 16px;"></div>
+    </div>
+    <div class="compose-footer">
+      <button class="btn btn-secondary" style="flex:1;" onclick="closeComposeScreen()">취소</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="submitCompose()">등록</button>
+    </div>
+  </div>
+
+  <div id="postDetailScreen" class="full-screen-overlay">
+    <div class="fs-header">
+      <button class="back-btn" onclick="closePostDetailScreen()"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="fs-title">자유게시판</div>
+      <div class="fs-right"><button class="icon-round-btn" onclick="openPostDetailMenu()"><i class="fa-solid fa-ellipsis"></i></button></div>
+    </div>
+    <div class="fs-body" id="postDetailBody" style="padding:16px;"></div>
+  </div>
+
+  <!-- 말벗릴스 (인스타 릴스 스타일 풀스크린 뷰어) -->
+  <div id="storyViewerScreen" class="full-screen-overlay" style="background:#000;">
+    <div id="storyMediaWrap" onclick="handleStoryMediaTap(event)" style="position:relative;flex:1;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;">
+      <div id="storyMediaInner" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"></div>
+
+      <button class="back-btn" style="position:absolute;top:12px;left:12px;color:#fff;z-index:6;background:rgba(0,0,0,.35);border-radius:50%;width:34px;height:34px;" onclick="event.stopPropagation();closeStoryViewer()"><i class="fa-solid fa-arrow-left"></i></button>
+
+      <button id="storyMuteBtn" class="hidden" style="position:absolute;top:12px;right:52px;z-index:6;background:rgba(0,0,0,.35);border:none;color:#fff;width:34px;height:34px;border-radius:50%;" onclick="event.stopPropagation();toggleStoryMute()"><i id="storyMuteIcon" class="fa-solid fa-volume-xmark"></i></button>
+      <button style="position:absolute;top:12px;right:12px;z-index:6;background:rgba(0,0,0,.35);border:none;color:#fff;width:34px;height:34px;border-radius:50%;" onclick="event.stopPropagation();openStoryComposeScreen()"><i class="fa-solid fa-plus"></i></button>
+
+      <div id="storyActionButtons" style="position:absolute;right:10px;bottom:100px;display:flex;flex-direction:column;gap:18px;align-items:center;z-index:6;">
+
+===== 줄 901 ~ 940 =====
+
+        <span id="storyCommentSheetTitle" style="font-weight:700;font-size:14px;">댓글</span>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:12px 14px;" id="storyCommentSheetBody"></div>
+      <div style="display:flex;gap:8px;padding:10px;border-top:1px solid var(--border-color);flex-shrink:0;">
+        <input type="text" id="storyNewCommentInput" placeholder="댓글을 남겨보세요..." style="flex:1;padding:14px 16px;font-size:16px;border:1px solid var(--border-color);border-radius:10px;">
+        <button class="btn btn-primary" style="padding:12px 20px;font-size:15px;" onclick="addCommentToPost(currentPostId, null)">작성</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="profileDetailScreen" class="full-screen-overlay">
+    <div class="fs-header" style="position:absolute;top:0;left:0;right:0;background:transparent;border:none;z-index:5;">
+      <button class="back-btn" style="color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5);" onclick="closeProfileDetailScreen()"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="fs-title" id="profileDetailTitle" style="color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5);">프로필</div>
+      <div class="fs-right"><button class="icon-round-btn" style="background:rgba(255,255,255,.85);" onclick="openBlockReportModal('user')"><i class="fa-solid fa-ellipsis"></i></button></div>
+    </div>
+    <div class="fs-body" id="profileDetailBody"></div>
+  </div>
+
+  <div id="messageComposeScreen" class="full-screen-overlay msg-compose-screen">
+    <div class="fs-header" style="background:transparent;border:none;">
+      <button class="back-btn" style="color:#fff;" onclick="closeMessageComposeScreen()"><i class="fa-solid fa-arrow-left"></i></button>
+    </div>
+    <div class="msg-compose-body" id="msgComposeBody"></div>
+    <div class="msg-compose-input-row">
+      <input type="text" id="msgComposeInput" placeholder="메시지를 입력하세요...">
+      <button onclick="sendFirstMessage()">전송하기</button>
+    </div>
+  </div>
+
+  <div id="riceChargeScreen" class="full-screen-overlay">
+    <div class="fs-header"><button class="back-btn" onclick="closeRiceChargeScreen()"><i class="fa-solid fa-arrow-left"></i></button><div class="fs-title">쌀 충전 · 구독</div></div>
+    <div class="fs-body" style="padding:20px 16px 40px;">
+      <div style="text-align:center;margin-bottom:18px;">
+        <div style="font-size:13px;color:var(--text-muted);">보유 쌀</div>
+        <div style="font-size:26px;font-weight:800;color:var(--primary);"><i class="fa-solid fa-bowl-rice" style="color:var(--warning);"></i> <span id="rechargeScreenBalance">0</span>개</div>
+      </div>
+
+      <div style="font-weight:800;font-size:15px;margin-bottom:2px;">🎁 회원님을 위한 추천 혜택</div>
+      <div id="subscriptionCurrentStatus" style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:10px;"></div>
+
+===== 줄 944 ~ 968 =====
+
+      <div id="ricePackageGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"></div>
+
+      <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:18px;line-height:1.6;">
+        결제는 Google Play / App Store 인앱결제로 안전하게 처리됩니다.<br>
+        쌀은 충전 즉시 사용 가능하며, 일부라도 사용 시 환불이 제한됩니다.<br>부적절한 언행으로 이용정지·회원탈퇴 처리될 경우 환불이 불가합니다.<br>
+        구독 상품은 자동 결제(정기결제)가 아닌 1회성 결제이며, 만료되면 자동으로 연장되지 않습니다. 남은 기간이 있는 상태에서 다시 구매하면 이어서 연장됩니다.
+      </p>
+    </div>
+  </div>
+
+  <div id="photoLikersScreen" class="full-screen-overlay">
+    <div class="fs-header"><button class="back-btn" onclick="closeFullScreen('photoLikersScreen')"><i class="fa-solid fa-arrow-left"></i></button><div class="fs-title">좋아요 누른 사람</div></div>
+    <div class="fs-body" id="photoLikersBody" style="padding:8px 16px;"></div>
+  </div>
+
+  <div id="settingsScreen" class="full-screen-overlay">
+    <div class="fs-header">
+      <button class="back-btn" onclick="handleSettingsBack()"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="fs-title">설정</div>
+      <button class="back-btn" style="margin-left:auto;" onclick="refreshAppData()" title="새로고침"><i class="fa-solid fa-rotate-right"></i></button>
+    </div>
+    <div class="fs-body" style="padding:6px 18px 100px 18px;">
+      <div class="settings-list-item" id="adminModeRow" style="display:none;">
+        <div><div class="sli-label">관리자 모드</div><div class="sli-sub">본인 계정에만 표시됩니다</div></div>
+        <div class="toggle-switch" id="toggleAdminMode" onclick="toggleAdminMode()"><div class="knob"></div></div>
+
+===== 줄 1074 ~ 1093 =====
+
+        <div class="sli-label">버전 정보</div>
+        <div class="sli-right" id="appVersionLabel">v1.0.0</div>
+      </div>
+      </div>
+    </div>
+    <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 18px;background:var(--bg-app);border-top:1px solid var(--border-color);">
+      <button class="btn btn-primary btn-block" onclick="saveSettings(true)"><i class="fa-solid fa-floppy-disk"></i> 저장</button>
+    </div>
+  </div>
+
+  <div id="customerServiceScreen" class="full-screen-overlay">
+    <div class="fs-header">
+      <button class="back-btn" onclick="closeFullScreen('customerServiceScreen')"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="fs-title">고객센터</div>
+    </div>
+    <div class="fs-body" style="padding:18px;">
+      <div class="settings-list-item" onclick="openSupportChatScreen()" style="border:1px solid var(--border-color);border-radius:12px;padding:16px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:40px;height:40px;border-radius:50%;background:var(--primary,#4a90e2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;"><i class="fa-solid fa-robot"></i></div>
+          <div><div class="sli-label">챗봇 고객센터</div><div class="sli-sub">자주 묻는 질문을 바로 확인해보세요</div></div>
+
+===== 줄 1104 ~ 1131 =====
+
+      <div class="settings-list-item" onclick="requestPhoneChange()" style="border:1px solid var(--border-color);border-radius:12px;padding:16px;margin-top:12px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:40px;height:40px;border-radius:50%;background:var(--bg-subtle);display:flex;align-items:center;justify-content:center;font-size:18px;"><i class="fa-solid fa-phone"></i></div>
+          <div><div class="sli-label">전화번호 변경 요청</div><div class="sli-sub">관리자 승인 후 새 번호를 등록할 수 있어요</div></div>
+        </div>
+        <div class="sli-right"><i class="fa-solid fa-chevron-right"></i></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="supportChatScreen" class="full-screen-overlay">
+    <div class="fs-header">
+      <button class="back-btn" onclick="closeFullScreen('supportChatScreen')"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="fs-title">챗봇 고객센터</div>
+    </div>
+    <div class="fs-body" id="supportChatArea" style="padding:14px 14px 100px 14px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;"></div>
+  </div>
+
+  <div id="adminScreen" class="full-screen-overlay">
+    <div class="fs-header">
+      <button class="back-btn" onclick="closeAdminScreen()"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="fs-title">관리자 모드</div>
+    </div>
+    <div class="fs-body" style="padding:12px 18px 100px 18px;">
+      <div style="display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;padding-bottom:2px;">
+        <button id="adminTabReportsBtn" class="btn btn-secondary" style="flex:0 0 auto;white-space:nowrap;" onclick="switchAdminTab('reports')">신고 관리</button>
+        <button id="adminTabChatsBtn" class="btn btn-secondary" style="flex:0 0 auto;white-space:nowrap;" onclick="switchAdminTab('chats')">전체 채팅방</button>
+        <button id="adminTabAbuseBtn" class="btn btn-secondary" style="flex:0 0 auto;white-space:nowrap;" onclick="switchAdminTab('abuse')">어뷰징 의심</button>
+
+===== 줄 1206 ~ 1241 =====
+
+            <div id="statResolveRate" style="font-size:22px;font-weight:700;">-</div>
+            <div style="font-size:12px;color:var(--text-muted);">신고 처리율</div>
+          </div>
+        </div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">최근 7일 신규가입</div>
+        <div id="statSignupChart" style="display:flex;align-items:flex-end;gap:6px;height:100px;padding:0 4px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="blockedListScreen" class="full-screen-overlay">
+    <div class="fs-header">
+      <button class="back-btn" onclick="closeFullScreen('blockedListScreen')"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="fs-title">차단한 회원</div>
+    </div>
+    <div class="fs-body" id="blockedListBody" style="padding:8px 16px;"></div>
+  </div>
+
+  <div id="purchaseHistoryScreen" class="full-screen-overlay">
+    <div class="fs-header">
+      <button class="back-btn" onclick="closeFullScreen('purchaseHistoryScreen')"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="fs-title">결제 내역</div>
+    </div>
+    <div class="fs-body" id="purchaseHistoryBody" style="padding:8px 16px;"></div>
+  </div>
+
+  <div id="profileVisitorsScreen" class="full-screen-overlay">
+    <div class="fs-header">
+      <button class="back-btn" onclick="closeFullScreen('profileVisitorsScreen')"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="fs-title">오늘 방문자</div>
+    </div>
+    <div class="fs-body" id="profileVisitorsBody" style="padding:8px 16px;"></div>
+  </div>
+
+  <div id="adModal" class="modal-overlay">
+    <div class="modal-card" style="text-align:center;">
+
+===== 줄 1243 ~ 1262 =====
+
+      <p style="font-size:12px;color:var(--text-muted);">광고 <strong>3개</strong>를 끝까지 시청하시면 쌀 50개가 충전됩니다.</p>
+      <div class="ad-video-box">
+        <div><span style="font-size:16px;font-weight:700;" id="adStageText">1번째 광고 재생 중...</span><p style="font-size:12px;color:#adb5bd;margin-top:4px;" id="adTimeRemaining">남은 시간: 3초</p></div>
+        <div class="ad-progress-bar"><div id="adProgressFill" class="ad-progress-fill"></div></div>
+      </div>
+      <button id="btnCompleteAd" class="btn btn-block" disabled style="background:var(--success);color:#fff;"><i class="fa-solid fa-gift"></i> 쌀 받기</button>
+      <button id="btnCloseAd" class="btn btn-secondary btn-block" style="margin-top:8px;">닫기</button>
+    </div>
+  </div>
+
+  <div id="chatModal" class="full-screen-overlay chat-window-card">
+    <div class="chat-header-row">
+      <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeChatModal()"><i class="fa-solid fa-arrow-left"></i></button>
+      <img id="chatHeaderAvatar" class="chat-header-avatar" src="" alt="" style="cursor:pointer;" onclick="openProfileFromChatHeader()">
+      <span id="chatHeaderAvatarDefault" class="chat-header-avatar" style="cursor:pointer;display:none;align-items:center;justify-content:center;" onclick="openProfileFromChatHeader()"></span>
+      <div class="chat-header-nick" id="chatTargetName" style="cursor:pointer;" onclick="openProfileFromChatHeader()">말벗</div>
+      <div style="margin-left:auto;display:flex;gap:4px;">
+        <button class="icon-round-btn" onclick="openChatSearchBar()"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <button class="icon-round-btn" onclick="openChatInfoScreen()"><i class="fa-solid fa-bars"></i></button>
+      </div>
+
+===== 줄 1281 ~ 1300 =====
+
+    <div class="chat-input-bar" style="position:relative;">
+      <div id="chatEmojiPanel" class="emoji-panel"></div>
+      <button class="chat-attach-btn" onclick="triggerChatImageInput()"><i class="fa-solid fa-image"></i></button>
+      <input type="file" id="chatImageInput" accept="image/*" class="hidden" onchange="handleChatImageUpload(event)">
+      <button class="chat-emoji-btn" onclick="toggleEmojiPanel('chatEmojiPanel','chatInputText')"><i class="fa-regular fa-face-smile"></i></button>
+      <input type="text" id="chatInputText" placeholder="메시지를 입력하세요...">
+      <button class="chat-send-btn" id="btnSendMsg"><i class="fa-solid fa-paper-plane"></i></button>
+    </div>
+  </div>
+
+  <div id="groupChatModal" class="full-screen-overlay chat-window-card">
+    <div class="chat-header-row">
+      <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeGroupChatModal()"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="chat-header-nick" style="cursor:default;"><span id="groupChatTitle">단체채팅방</span> <span id="groupChatMemberCount" style="color:var(--text-muted);font-weight:400;font-size:12px;"></span></div>
+      <div style="margin-left:auto;display:flex;gap:4px;">
+        <button class="icon-round-btn" onclick="openGroupChatSearchBar()"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <button class="icon-round-btn" onclick="openGroupInfoScreen()"><i class="fa-solid fa-bars"></i></button>
+      </div>
+    </div>
+    <div id="groupChatSearchBar" class="chat-search-bar hidden">
+
+===== 줄 1314 ~ 1333 =====
+
+      <div id="groupChatEmojiPanel" class="emoji-panel"></div>
+      <button class="chat-attach-btn" onclick="triggerGroupChatImageInput()"><i class="fa-solid fa-image"></i></button>
+      <input type="file" id="groupChatImageInput" accept="image/*" class="hidden" onchange="handleGroupChatImageUpload(event)">
+      <button class="chat-emoji-btn" onclick="toggleEmojiPanel('groupChatEmojiPanel','groupChatInputText')"><i class="fa-regular fa-face-smile"></i></button>
+      <input type="text" id="groupChatInputText" placeholder="메시지를 입력하세요...">
+      <button class="chat-send-btn" id="btnSendGroupMsg"><i class="fa-solid fa-paper-plane"></i></button>
+    </div>
+  </div>
+
+  <div id="drawerBackdrop" onclick="closeAnyDrawer()"></div>
+  <div id="groupInfoScreen" class="full-screen-overlay drawer-right">
+    <div class="chat-header-row">
+      <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeFullScreen('groupInfoScreen')"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="chat-header-nick" style="cursor:default;">채팅방 정보</div>
+    </div>
+    <div style="padding:10px;overflow-y:auto;flex:1;">
+      <h3 id="groupInfoTitle" style="margin:0 0 4px;"></h3>
+      <p id="groupInfoIntro" style="font-size:13px;color:var(--text-muted);margin:0 0 16px;"></p>
+
+      <div style="margin-bottom:18px;">
+
+===== 줄 1344 ~ 1372 =====
+
+      </div>
+
+      <div style="display:flex;justify-content:space-around;padding:14px 0;border-top:1px solid var(--border-color);">
+        <button type="button" style="background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--text-main);" onclick="shareGroupInvite()"><i class="fa-solid fa-share-nodes" style="font-size:17px;"></i><span style="font-size:11px;">공유</span></button>
+        <button type="button" style="background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--text-main);" onclick="toggleGroupMute()"><i id="groupMuteIcon" class="fa-solid fa-bell" style="font-size:17px;"></i><span style="font-size:11px;">알림</span></button>
+        <button type="button" style="background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--danger);" onclick="leaveGroupRoomFromInfo()"><i class="fa-solid fa-right-from-bracket" style="font-size:17px;"></i><span style="font-size:11px;">나가기</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="groupGalleryScreen" class="full-screen-overlay drawer-right">
+    <div class="chat-header-row">
+      <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeFullScreen('groupGalleryScreen')"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="chat-header-nick" style="cursor:default;">사진/동영상</div>
+    </div>
+    <div id="groupGalleryFullGrid" style="padding:10px;overflow-y:auto;flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;"></div>
+  </div>
+
+  <!-- 0-55: 1:1 채팅방 정보 화면(그룹채팅 정보화면과 동일한 형태) -->
+  <div id="chatInfoScreen" class="full-screen-overlay drawer-right">
+    <div class="chat-header-row">
+      <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeFullScreen('chatInfoScreen')"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="chat-header-nick" style="cursor:default;">채팅방 정보</div>
+    </div>
+    <div style="padding:10px;overflow-y:auto;flex:1;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;cursor:pointer;" onclick="openProfileFromChatHeader()">
+        <img id="chatInfoAvatar" class="avatar-sm" src="" alt="" style="display:none;width:44px;height:44px;border-radius:50%;object-fit:cover;">
+        <span id="chatInfoAvatarDefault" class="avatar-sm" style="display:none;width:44px;height:44px;border-radius:50%;align-items:center;justify-content:center;"></span>
+        <div style="font-size:15px;font-weight:700;" id="chatInfoNick"></div>
+
+===== 줄 1379 ~ 1398 =====
+
+        <div id="chatInfoGallery" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-around;padding:14px 0;border-top:1px solid var(--border-color);">
+        <button type="button" style="background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--text-main);" onclick="toggleChatMuteFromInfo()"><i id="chatInfoMuteIcon" class="fa-solid fa-bell" style="font-size:17px;"></i><span style="font-size:11px;">알림</span></button>
+        <button type="button" style="background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--text-main);" onclick="openBlockReportModal('chat', activeRoomId)"><i class="fa-solid fa-ban" style="font-size:17px;"></i><span style="font-size:11px;">차단/신고</span></button>
+        <button type="button" style="background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--danger);" onclick="closeFullScreen('chatInfoScreen');triggerExitChat();"><i class="fa-solid fa-right-from-bracket" style="font-size:17px;"></i><span style="font-size:11px;">나가기</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="chatGalleryScreen" class="full-screen-overlay drawer-right">
+    <div class="chat-header-row">
+      <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeFullScreen('chatGalleryScreen')"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="chat-header-nick" style="cursor:default;">사진/동영상</div>
+    </div>
+    <div id="chatGalleryFullGrid" style="padding:10px;overflow-y:auto;flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;"></div>
+  </div>
+
+  <div id="imageLightboxOverlay" class="modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;" onclick="closeImageLightbox()">
+    <img id="imageLightboxImg" src="" style="max-width:94%;max-height:88%;object-fit:contain;">
+
+===== 줄 1402 ~ 1421 =====
+
+    <div onclick="closePhotoViewer()" style="position:absolute;top:16px;left:16px;z-index:2;color:#fff;font-size:22px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-xmark"></i></div>
+    <div id="photoViewerCounter" style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,.45);padding:5px 14px;border-radius:14px;z-index:2;"></div>
+    <div id="photoViewerPrevBtn" onclick="photoViewerPrev()" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);z-index:2;color:#fff;font-size:18px;width:38px;height:38px;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-chevron-left"></i></div>
+    <div id="photoViewerNextBtn" onclick="photoViewerNext()" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);z-index:2;color:#fff;font-size:18px;width:38px;height:38px;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-chevron-right"></i></div>
+    <img id="photoViewerImg" src="" ontouchstart="pvTouchStart(event)" ontouchend="pvTouchEnd(event)" onclick="pvHandleTap(event)" onwheel="pvHandleWheel(event)" style="max-width:100%;max-height:100%;object-fit:contain;touch-action:pan-y;transition:transform .08s ease-out;">
+    <div id="photoViewerHeartPop" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:88px;color:#ff4d6d;pointer-events:none;opacity:0;z-index:2;"><i class="fa-regular fa-heart"></i></div>
+  </div>
+
+  <!-- 0-40: 채팅 사진 전송 전 미리보기 + 편집(회전/블러/펜/지우개) 화면 -->
+  <!-- 0-52: 프로필 사진 등록시에도 동일 화면 재사용(mode=profile) -->
+  <div id="photoPreviewScreen" class="full-screen-overlay" style="background:#000;z-index:300;">
+    <div class="chat-header-row" style="background:#000;border:none;">
+      <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;color:#fff;" onclick="closePhotoPreview()"><i class="fa-solid fa-arrow-left"></i></button>
+      <div style="margin-left:auto;">
+        <button id="photoPreviewSendBtn" class="btn btn-primary btn-sm" onclick="sendPreviewedPhoto()">전송</button>
+      </div>
+    </div>
+    <div id="profilePreviewMetaBar" class="hidden" style="display:none;align-items:center;justify-content:space-between;padding:6px 16px 10px;">
+      <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+        <div style="width:38px;height:38px;border-radius:50%;overflow:hidden;background:#333;flex-shrink:0;border:1px solid rgba(255,255,255,.25);"><img id="profilePreviewAvatarImg" src="" style="width:100%;height:100%;object-fit:cover;"></div>
+
+===== 줄 1695 ~ 1714 =====
+
+  const el = document.getElementById(id);
+  el.classList.remove('active');
+  if (el.classList.contains('drawer-right')){
+    const backdrop = el.parentElement.querySelector('#drawerBackdrop');
+    if (backdrop) backdrop.classList.remove('active');
+  }
+}
+// 0-39: drawer-right 형태 화면이 여러 개(채팅방 정보/사진갤러리)로 늘어나면서, 뒷배경(drawerBackdrop) 클릭 시
+// 특정 화면만 닫도록 고정되어 있던 걸 "현재 열려있는 drawer를 전부 닫기"로 일반화함
+function closeAnyDrawer(){
+  document.querySelectorAll('.full-screen-overlay.drawer-right.active').forEach(el=> closeFullScreen(el.id));
+}
+
+/* ===================== 상단 알림 배너 ===================== */
+let notifyBannerTimer = null;
+let notifyBannerOnClick = null;
+function showNotifyBanner({title, body, avatarHtml, onClick}){
+  const el = document.getElementById('notifyBanner');
+  const textHtml = (title ? `<div class="nb-title">${escapeHtml(title)}</div>` : '') + (body ? `<div class="nb-body">${escapeHtml(body)}</div>` : '');
+  el.innerHTML = (avatarHtml ? `<div class="nb-avatar">${avatarHtml}</div>` : '') + `<div class="nb-text">${textHtml}</div>`;
+
+===== 줄 1720 ~ 1739 =====
+
+function hideNotifyBanner(){
+  document.getElementById('notifyBanner').classList.remove('show');
+  clearTimeout(notifyBannerTimer);
+  if (notifyBannerOnClick){ const cb = notifyBannerOnClick; notifyBannerOnClick = null; cb(); }
+}
+function hideNotifyBanner(){ document.getElementById('notifyBanner').classList.remove('show'); clearTimeout(notifyBannerTimer); }
+
+/* 로그인 세션이 끊겼을 때, 지금 보고 있던 화면 위에 로그인 화면이 겹쳐 뜨지 않도록
+   열려 있던 모든 모달/전체화면을 닫고 최초 화면(landingScreen)만 보이게 함 */
+function resetToLandingScreen(){
+  document.querySelectorAll('.modal-overlay.active, .full-screen-overlay.active').forEach(el=>{
+    if (el.id !== 'landingScreen') el.classList.remove('active');
+  });
+  openModal('landingScreen');
+}
+
+/* 현재 열려 있는 화면/모달 중 가장 위에 뜬 것을 닫음 (ESC 키, 좌측 가장자리 오른쪽 스와이프에서 공통으로 사용) */
+/* 피드(쓰레드 등)를 아래로 스크롤하면 하단 네비를 잠깐 숨겨 화면을 크게 보여주고,
+   스크롤을 멈추거나 위로 스크롤하면 다시 나타나게 함 */
+(function initBottomNavAutoHide(){
+
+===== 줄 2690 ~ 2709 =====
+
+  if (window.linkIAPUser && currentUser) window.linkIAPUser(currentUser.id);
+  // 초대링크(/join/코드)로 들어온 경우 자동 입장
+  if (pendingInviteCode){
+    const code = pendingInviteCode; pendingInviteCode = null;
+    history.replaceState(null, '', '/');
+    joinGroupByInviteCode(code);
+    switchTab('tab-chat');
+  }
+}
+/* ===================== 뒤로가기(백스페이스/기기 back) 지원 =====================
+   화면 전체(.full-screen-overlay)나 모달(.modal-overlay)이 열릴 때마다 자동으로 감지해서
+   히스토리에 한 단계씩 쌓아두고, 뒤로가기를 누르면 앱을 벗어나지 않고 가장 최근에 연 화면만 닫히게 처리함. */
+let uiBackStack = [];
+// 0-65: 기존엔 uiPopping이 참/거짓 플래그 하나였는데, 한 번의 클릭 처리 안에서 모달 2개가 동시에
+// 닫히는 경우(예: 확인창을 닫으면서 그 아래 설정창도 같이 닫는 버튼) 첫 번째 닫힘만 플래그로 상쇄되고
+// 두 번째 닫힘은 history.back()이 호출되지 않아 앱 내부 스택과 브라우저 히스토리 깊이가 어긋났음.
+// 그 어긋남이 누적되면 이후 아무 모달에서나 "취소/뒤로가기"를 눌러도 여러 단계가 한꺼번에 닫히면서
+// 결국 홈까지 밀려나가는 버그로 이어졌음(설정→차단/신고 취소 시 홈으로 나가지는 버그의 원인).
+// 카운터 방식으로 바꿔서 동시에 몇 개가 닫히든 정확히 그 개수만큼만 상쇄되도록 함.
+let expectedPopstates = 0;
+
+===== 줄 2713 ~ 2732 =====
+
+  // 기존 코드는 mutation을 하나씩 즉시 처리해서 history.back()(비동기)과 history.pushState()(동기)가
+  // 뒤섞여 히스토리 깊이가 어긋났고, 그 어긋남이 누적되어 이후 아무 화면에서나 뒤로가기 1번에 여러 단계가
+  // 한꺼번에 닫히며 landingScreen까지 노출되는 버그로 이어졌음.
+  // → 배치 안의 모든 변화를 먼저 집계해서 "순변화(net)"만 반영. 닫힘+열림이 같은 배치에 섞여 순변화가 0이면
+  //   history를 아예 건드리지 않음(상쇄) - back()과 pushState()가 뒤섞이는 상황 자체를 없앰.
+  let opened = [];
+  let closedCount = 0;
+  muts.forEach(m=>{
+    if (m.attributeName !== 'class') return;
+    const el = m.target;
+    if (!(el.classList.contains('full-screen-overlay') || el.classList.contains('modal-overlay'))) return;
+    const isActive = el.classList.contains('active');
+    const idx = uiBackStack.indexOf(el);
+    if (isActive && idx === -1){
+      opened.push(el);
+    } else if (!isActive && idx !== -1){
+      uiBackStack.splice(idx, 1);
+      closedCount++;
+    }
+  });
+
+===== 줄 2740 ~ 2759 =====
+
+    for (let i=0; i<-net; i++){
+      expectedPopstates++;
+      try{ history.back(); }catch(e){ expectedPopstates--; }
+    }
+    opened.forEach(el=> uiBackStack.push(el));
+  } else {
+    // 순변화 0: 히스토리 그대로 두고 스택 배열만 정리
+    opened.forEach(el=> uiBackStack.push(el));
+  }
+});
+document.querySelectorAll('.full-screen-overlay, .modal-overlay').forEach(el=> uiOverlayObserver.observe(el, {attributes:true}));
+window.addEventListener('popstate', ()=>{
+  // 프로그램이 스스로 유발한 back()으로 인한 popstate는 개수만큼 소비만 하고 아무것도 하지 않음
+  if (expectedPopstates > 0){ expectedPopstates--; return; }
+  // 여기부터는 사용자가 진짜로 기기/브라우저 뒤로가기를 누른 경우
+  if (uiBackStack.length > 0){
+    const el = uiBackStack.pop(); // observer가 이 클래스 변경을 또 다른 닫힘으로 오인해 이중 처리하지 않도록 먼저 스택에서 제거
+    el.classList.remove('active');
+  }
+});
+
+===== 줄 6624 ~ 6678 =====
+
+}
+</script>
+<script src="/report-button.js"></script>
+<script src="/iap-client.js"></script>
+<script>
+/* ===================== 뷰포트/키보드/핀치줌 안정화 (2026-09-17) =====================
+   문제 1) iOS WKWebView에서 키보드가 뜰 때 100dvh가 곧바로 줄어들지 않아 .app-container
+           전체가 실제 화면보다 커져서 채팅 입력창(전송 버튼)이 화면 밖으로 밀리던 현상
+   문제 2) 프로필 등 화면 최초 진입 시 콜드스타트 직후 100dvh 값이 아직 안정화되기 전에
+           렌더링되어 화면이 위로 쏠리고 렉이 걸리던 현상
+   → window.visualViewport의 실제 픽셀 높이를 JS로 직접 읽어 .app-container 높이에
+     인라인으로 강제 적용. dvh 단위 하나에만 의존하지 않게 해서 타이밍 문제를 없앰.
+   문제 3) 채팅창에서 실수로 두 손가락 터치 등으로 화면이 확대된 채 고정되고
+           페이지를 이동해도 축소가 안 되던 현상 → viewport meta에서 이미 확대 자체를
+           막아뒀고(user-scalable=no), 예전에 이미 확대된 상태로 남아있을 가능성에
+           대비해 앱 진입/복귀 시 배율을 1로 되돌리는 안전장치를 추가함
+*/
+(function(){
+  var coldStartGraceUntil = Date.now() + 2500; // 콜드스타트 직후 2.5초간은 값이 안 안정된 상태이므로 무조건 재적용
+  function setAppViewportHeight(){
+    var container = document.getElementById('appContainer');
+    if(!container) return;
+    var vp = window.visualViewport;
+    var h = vp ? vp.height : window.innerHeight;
+    var ratio = window.innerWidth >= 500 ? 0.92 : 1;
+    var newHeight = Math.round(h * ratio);
+    var prev = parseInt(container.style.height, 10) || 0;
+    var inGracePeriod = !prev || Date.now() < coldStartGraceUntil;
+    if (!inGracePeriod && Math.abs(newHeight - prev) < 20) return;
+    container.style.height = newHeight + 'px';
+  }
+
+  var vphRaf = null;
+  function scheduleSetAppViewportHeight(){
+    if (vphRaf) cancelAnimationFrame(vphRaf);
+    vphRaf = requestAnimationFrame(function(){ vphRaf = null; setAppViewportHeight(); });
+  }
+  window.addEventListener('resize', scheduleSetAppViewportHeight);
+  window.addEventListener('orientationchange', scheduleSetAppViewportHeight);
+  if (window.visualViewport){
+    window.visualViewport.addEventListener('resize', scheduleSetAppViewportHeight);
+  }
+  document.addEventListener('DOMContentLoaded', setAppViewportHeight);
+  window.addEventListener('load', function(){
+    setAppViewportHeight();
+    // iOS WKWebView는 콜드스타트 직후 visualViewport 값이 곧바로 안정화되지 않아
+    // 첫 측정이 부정확할 수 있음(하단 네비가 화면 밖으로 밀려 안 보이던 원인) -> 잠깐 몇 번 더 재확인
+    [100, 400, 900, 1800].forEach(function(delay){ setTimeout(setAppViewportHeight, delay); });
+  });
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden) setAppViewportHeight();
+  });
+  // 콜드스타트 직후 값이 늦게 잡히는 경우 대비해 잠깐 뒤에 한 번 더 재계산
+  setTimeout(setAppViewportHeight, 50);
+  setTimeout(setAppViewportHeight, 300);

@@ -1,0 +1,477 @@
+
+===== 줄 214 ~ 264 =====
+
+.chat-header-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--blue-light);}
+.chat-header-nick{font-size:14px;font-weight:700;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.chat-warning-banner{background:#495057;color:#fff;font-size:11px;padding:10px 12px;line-height:1.5;}
+.chat-warning-banner b{color:var(--warning);}
+.chat-messages-area{flex:1;padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;background:var(--chat-bg);}
+.chat-date-sep{align-self:center;background:rgba(0,0,0,.08);color:#495057;font-size:11px;border-radius:99px;padding:4px 14px;}
+.msg-row{display:flex;flex-direction:column;max-width:75%;}
+.msg-row.mine{align-self:flex-end;align-items:flex-end;}
+.msg-row.other{align-self:flex-start;align-items:flex-start;}
+.msg-bubble{padding:9px 13px;border-radius:14px;font-size:13px;line-height:1.4;color:#000;}
+.msg-row.mine .msg-bubble{background:var(--chat-mine);border-bottom-right-radius:4px;}
+.msg-row.other .msg-bubble{background:#fff;border:1px solid #d8e6f2;border-bottom-left-radius:4px;}
+.msg-bubble img{max-width:160px;border-radius:8px;display:block;}
+.msg-time{font-size:10px;color:#868e96;margin-top:2px;}
+.msg-system{align-self:center;background:rgba(0,0,0,.06);color:var(--text-muted);font-size:11px;border-radius:99px;padding:4px 14px;}
+.chat-input-bar{padding:10px 10px calc(10px + env(safe-area-inset-bottom)) 10px;background:#fff;display:flex;gap:8px;align-items:center;flex-shrink:0;}
+.chat-reply-preview-bar{padding:8px 12px;background:var(--bg-subtle);border-top:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0;}
+.reply-preview-text{font-size:12px;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
+.reply-preview-close{cursor:pointer;color:var(--text-muted);font-size:13px;padding:2px 4px;}
+.msg-reply-quote{font-size:11px;color:var(--text-muted);background:rgba(0,0,0,0.05);border-left:2px solid var(--primary);padding:4px 6px;margin-bottom:4px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.msg-bubble.msg-deleted{color:var(--text-muted);font-style:italic;background:var(--bg-subtle)!important;}
+.support-chip-wrap{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+.support-chip{padding:9px 12px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-app);color:var(--text-main);font-size:13px;text-align:left;cursor:pointer;}
+.support-chip:active{background:var(--bg-subtle);}
+.msg-context-menu{position:fixed;z-index:2000;background:#fff;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,0.18);padding:4px 0;min-width:130px;overflow:hidden;}
+.msg-context-item{padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.msg-context-item:active{background:var(--bg-subtle);}
+.msg-context-item.danger{color:var(--danger);}
+.msg-context-menu-sep{height:1px;background:var(--border-color);margin:2px 0;}
+.forward-target-row{display:flex;align-items:center;gap:10px;padding:10px 4px;cursor:pointer;border-bottom:1px solid var(--border-color);}
+.forward-target-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.chat-input-bar input[type=text]{flex:1;border:1px solid var(--border-color);border-radius:99px;padding:9px 14px;outline:none;font-size:16px;}
+.chat-attach-btn,.chat-send-btn,.chat-emoji-btn{background:none;border:none;color:var(--primary);font-size:19px;cursor:pointer;padding:4px 8px;}
+.emoji-panel{position:absolute;left:0;right:0;bottom:100%;max-height:220px;overflow-y:auto;background:var(--bg-card);border-top:1px solid var(--border-color);padding:8px;display:none;grid-template-columns:repeat(8,1fr);gap:2px;z-index:5;}
+.emoji-panel.open{display:grid;}
+.emoji-panel-item{font-size:22px;text-align:center;padding:6px 0;cursor:pointer;border-radius:8px;}
+.emoji-panel-item:active{background:var(--bg-subtle);}
+
+.compose-photo-box{width:120px;height:120px;margin:20px auto 10px auto;border:2px dashed var(--border-color);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;cursor:pointer;overflow:hidden;}
+.compose-textarea{flex:1;border:none;outline:none;resize:none;padding:16px;font-size:14px;width:100%;}
+.compose-footer{display:flex;gap:10px;padding:14px;border-top:1px solid var(--border-color);}
+
+.ad-video-box{background:#000;color:#fff;height:150px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:14px 0;text-align:center;}
+.ad-progress-bar{width:80%;height:6px;background:#333;border-radius:3px;margin-top:12px;overflow:hidden;}
+.ad-progress-fill{height:100%;width:0;background:var(--primary);transition:width 1s linear;}
+
+/* 마이페이지 - 스크롤 없이 한눈에 보이도록 압축 */
+#tab-mypage .settings-card{padding:12px;border-radius:14px;}
+#tab-mypage h2{font-size:14px;margin-bottom:6px;}
+#tab-mypage h3{font-size:13px;}
+#tab-mypage .form-group{margin-bottom:8px;}
+
+===== 줄 1266 ~ 1333 =====
+
+      <input type="text" id="chatSearchInput" placeholder="대화 내용 검색" oninput="onChatSearchInput()">
+      <span id="chatSearchCounter" class="chat-search-counter">0/0</span>
+      <button class="chat-search-nav-btn" onclick="navigateChatSearch(1)"><i class="fa-solid fa-chevron-up"></i></button>
+      <button class="chat-search-nav-btn" onclick="navigateChatSearch(-1)"><i class="fa-solid fa-chevron-down"></i></button>
+      <button class="chat-search-nav-btn" onclick="closeChatSearchBar()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="chat-warning-banner">
+      <b>성매매·성추행·성희롱</b> 등 범죄 관련 대화, <b>아동 대상 간음·성적 알선</b> 발생 시 수사기관에 신고될 수 있습니다. 사진 전송, 외부 링크 클릭, 카톡 아이디·전화번호 등 <b>개인정보 유출을 미끼로 금전을 요구</b>하는 피싱 범죄에 주의하세요.
+    </div>
+    <div id="chatMessageArea" class="chat-messages-area"></div>
+    <div id="chatNewMsgPill" class="chat-new-msg-pill hidden" onclick="scrollChatToBottom()"><i class="fa-solid fa-arrow-down"></i> 새 메시지</div>
+    <div id="chatReplyPreviewBar" class="chat-reply-preview-bar" style="display:none;">
+      <span id="chatReplyPreviewText" class="reply-preview-text"></span>
+      <span class="reply-preview-close" onclick="clearReplyPreview()">✕</span>
+    </div>
+    <div class="chat-input-bar" style="position:relative;">
+      <div id="chatEmojiPanel" class="emoji-panel"></div>
+      <button class="chat-attach-btn" onclick="triggerChatImageInput()"><i class="fa-solid fa-image"></i></button>
+      <input type="file" id="chatImageInput" accept="image/*" class="hidden" onchange="handleChatImageUpload(event)">
+      <button class="chat-emoji-btn" onclick="toggleEmojiPanel('chatEmojiPanel','chatInputText')"><i class="fa-regular fa-face-smile"></i></button>
+      <input type="text" id="chatInputText" placeholder="메시지를 입력하세요...">
+      <button class="chat-send-btn" id="btnSendMsg"><i class="fa-solid fa-paper-plane"></i></button>
+    </div>
+  </div>
+
+  <div id="groupChatModal" class="full-screen-overlay chat-window-card">
+    <div class="chat-header-row">
+      <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeGroupChatModal()"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="chat-header-nick" style="cursor:default;"><span id="groupChatTitle">단체채팅방</span> <span id="groupChatMemberCount" style="color:var(--text-muted);font-weight:400;font-size:12px;"></span></div>
+      <div style="margin-left:auto;display:flex;gap:4px;">
+        <button class="icon-round-btn" onclick="openGroupChatSearchBar()"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <button class="icon-round-btn" onclick="openGroupInfoScreen()"><i class="fa-solid fa-bars"></i></button>
+      </div>
+    </div>
+    <div id="groupChatSearchBar" class="chat-search-bar hidden">
+      <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);font-size:13px;"></i>
+      <input type="text" id="groupChatSearchInput" placeholder="대화 내용 검색" oninput="onGroupChatSearchInput()">
+      <span id="groupChatSearchCounter" class="chat-search-counter">0/0</span>
+      <button class="chat-search-nav-btn" onclick="navigateGroupChatSearch(1)"><i class="fa-solid fa-chevron-up"></i></button>
+      <button class="chat-search-nav-btn" onclick="navigateGroupChatSearch(-1)"><i class="fa-solid fa-chevron-down"></i></button>
+      <button class="chat-search-nav-btn" onclick="closeGroupChatSearchBar()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="groupChatMessageArea" class="chat-messages-area"></div>
+    <div id="groupChatReplyPreviewBar" class="chat-reply-preview-bar" style="display:none;">
+      <span id="groupChatReplyPreviewText" class="reply-preview-text"></span>
+      <span class="reply-preview-close" onclick="clearGroupReplyPreview()">✕</span>
+    </div>
+    <div class="chat-input-bar" style="position:relative;">
+      <div id="groupChatEmojiPanel" class="emoji-panel"></div>
+      <button class="chat-attach-btn" onclick="triggerGroupChatImageInput()"><i class="fa-solid fa-image"></i></button>
+      <input type="file" id="groupChatImageInput" accept="image/*" class="hidden" onchange="handleGroupChatImageUpload(event)">
+      <button class="chat-emoji-btn" onclick="toggleEmojiPanel('groupChatEmojiPanel','groupChatInputText')"><i class="fa-regular fa-face-smile"></i></button>
+      <input type="text" id="groupChatInputText" placeholder="메시지를 입력하세요...">
+      <button class="chat-send-btn" id="btnSendGroupMsg"><i class="fa-solid fa-paper-plane"></i></button>
+    </div>
+  </div>
+
+  <div id="drawerBackdrop" onclick="closeAnyDrawer()"></div>
+  <div id="groupInfoScreen" class="full-screen-overlay drawer-right">
+    <div class="chat-header-row">
+      <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeFullScreen('groupInfoScreen')"><i class="fa-solid fa-arrow-left"></i></button>
+      <div class="chat-header-nick" style="cursor:default;">채팅방 정보</div>
+    </div>
+    <div style="padding:10px;overflow-y:auto;flex:1;">
+      <h3 id="groupInfoTitle" style="margin:0 0 4px;"></h3>
+      <p id="groupInfoIntro" style="font-size:13px;color:var(--text-muted);margin:0 0 16px;"></p>
+
+      <div style="margin-bottom:18px;">
+
+===== 줄 1401 ~ 1430 =====
+
+  <div id="photoViewerOverlay" class="modal-overlay" style="position:fixed;inset:0;background:#000;z-index:10000;align-items:center;justify-content:center;overflow:hidden;">
+    <div onclick="closePhotoViewer()" style="position:absolute;top:16px;left:16px;z-index:2;color:#fff;font-size:22px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-xmark"></i></div>
+    <div id="photoViewerCounter" style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,.45);padding:5px 14px;border-radius:14px;z-index:2;"></div>
+    <div id="photoViewerPrevBtn" onclick="photoViewerPrev()" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);z-index:2;color:#fff;font-size:18px;width:38px;height:38px;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-chevron-left"></i></div>
+    <div id="photoViewerNextBtn" onclick="photoViewerNext()" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);z-index:2;color:#fff;font-size:18px;width:38px;height:38px;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-chevron-right"></i></div>
+    <img id="photoViewerImg" src="" ontouchstart="pvTouchStart(event)" ontouchend="pvTouchEnd(event)" onclick="pvHandleTap(event)" onwheel="pvHandleWheel(event)" style="max-width:100%;max-height:100%;object-fit:contain;touch-action:pan-y;transition:transform .08s ease-out;">
+    <div id="photoViewerHeartPop" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:88px;color:#ff4d6d;pointer-events:none;opacity:0;z-index:2;"><i class="fa-regular fa-heart"></i></div>
+  </div>
+
+  <!-- 0-40: 채팅 사진 전송 전 미리보기 + 편집(회전/블러/펜/지우개) 화면 -->
+  <!-- 0-52: 프로필 사진 등록시에도 동일 화면 재사용(mode=profile) -->
+  <div id="photoPreviewScreen" class="full-screen-overlay" style="background:#000;z-index:300;">
+    <div class="chat-header-row" style="background:#000;border:none;">
+      <button class="back-btn" style="background:none;border:none;font-size:18px;cursor:pointer;color:#fff;" onclick="closePhotoPreview()"><i class="fa-solid fa-arrow-left"></i></button>
+      <div style="margin-left:auto;">
+        <button id="photoPreviewSendBtn" class="btn btn-primary btn-sm" onclick="sendPreviewedPhoto()">전송</button>
+      </div>
+    </div>
+    <div id="profilePreviewMetaBar" class="hidden" style="display:none;align-items:center;justify-content:space-between;padding:6px 16px 10px;">
+      <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+        <div style="width:38px;height:38px;border-radius:50%;overflow:hidden;background:#333;flex-shrink:0;border:1px solid rgba(255,255,255,.25);"><img id="profilePreviewAvatarImg" src="" style="width:100%;height:100%;object-fit:cover;"></div>
+        <div style="min-width:0;">
+          <div id="profilePreviewNickname" style="font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+          <div style="font-size:10.5px;color:rgba(255,255,255,.55);">실제 프로필에 이렇게 표시돼요</div>
+        </div>
+      </div>
+      <div id="photoPreviewCounter" style="font-size:11px;color:rgba(255,255,255,.85);background:rgba(255,255,255,.14);padding:3px 10px;border-radius:12px;flex-shrink:0;margin-left:8px;"></div>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;">
+      <canvas id="photoPreviewCanvas"></canvas>
+
+===== 줄 1880 ~ 1922 =====
+
+    previewCanvas.width = Math.round(img.width * scale);
+    previewCanvas.height = Math.round(img.height * scale);
+    previewCtx = previewCanvas.getContext('2d');
+    previewCtx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+  };
+  img.src = dataUrl;
+}
+function openPhotoPreview(dataUrl, isGroup, roomId){
+  photoPreviewMeta = {mode:'chat', isGroup, roomId, currentDataUrl: dataUrl};
+  loadPreviewImageToCanvas(dataUrl);
+  document.getElementById('photoEditBar').classList.add('hidden');
+  document.getElementById('profilePreviewMetaBar').classList.add('hidden');
+  document.getElementById('profilePreviewMetaBar').style.display = 'none';
+  document.getElementById('profilePreviewThumbStrip').classList.add('hidden');
+  document.getElementById('profilePreviewThumbStrip').style.display = 'none';
+  document.getElementById('photoPreviewSendBtn').textContent = '전송';
+  openFullScreen('photoPreviewScreen');
+}
+// 0-52: 프로필 사진(대표/추가) 등록·재편집도 동일한 미리보기+편집 화면을 재사용
+// slotIndex: 0=대표사진, 1~4=추가사진(1번째 추가사진=slotIndex 1)
+function openProfilePhotoPreview(dataUrl, slotIndex){
+  photoPreviewMeta = {mode:'profile', slotIndex, currentDataUrl: dataUrl};
+  loadPreviewImageToCanvas(dataUrl);
+  document.getElementById('photoEditBar').classList.add('hidden');
+  document.getElementById('profilePreviewMetaBar').classList.remove('hidden');
+  document.getElementById('profilePreviewMetaBar').style.display = 'flex';
+  document.getElementById('profilePreviewThumbStrip').classList.remove('hidden');
+  document.getElementById('profilePreviewThumbStrip').style.display = 'flex';
+  document.getElementById('photoPreviewSendBtn').textContent = '저장';
+  renderProfilePreviewMeta();
+  renderProfilePreviewThumbStrip();
+  openFullScreen('photoPreviewScreen');
+}
+function reeditMainPhoto(){
+  if (!editPhotoBase64) return;
+  openProfilePhotoPreview(editPhotoBase64, 0);
+}
+function reeditExtraPhoto(i){
+  if (!editExtraPhotos[i]) return;
+  openProfilePhotoPreview(editExtraPhotos[i], i + 1);
+}
+function renderProfilePreviewMeta(){
+  if (!photoPreviewMeta || photoPreviewMeta.mode !== 'profile') return;
+
+===== 줄 3655 ~ 3684 =====
+
+
+/* ===================== 프로필 상세 ===================== */
+function openProfileDetailScreen(userId){
+  currentProfileUserId = userId; profilePhotoIndex = 0;
+  socket.emit('profile:record_visit', {targetUserId: userId});
+  let fetchedUser = null, userLoaded = false, roomsLoaded = false;
+  function tryOpenProfile(){
+    if (!userLoaded || !roomsLoaded || !fetchedUser) return;
+    currentProfileUserCache = fetchedUser;
+    renderProfileDetail(fetchedUser);
+    openFullScreen('profileDetailScreen');
+  }
+  socket.emit('users:get_one', {userId}, (res)=>{
+    fetchedUser = res && res.user; userLoaded = true; tryOpenProfile();
+  });
+  // 메시지 버튼을 "메시지 보내기"(신규)/"채팅창으로 이동하기"(기존 채팅방 있음)로 정확히 나누기 위해 최신 채팅목록을 함께 불러옴
+  socket.emit('chat:get_list', (res)=>{
+    if (res && res.success) currentChatRooms = res.rooms;
+    roomsLoaded = true; tryOpenProfile();
+  });
+}
+function refreshOpenProfileIfNeeded(){
+  if (!document.getElementById('profileDetailScreen').classList.contains('active') || !currentProfileUserId) return;
+  socket.emit('users:get_one', {userId:currentProfileUserId}, (res)=>{
+    const user = res && res.user;
+    if (user){ currentProfileUserCache = user; renderProfileDetail(user); }
+  });
+}
+function closeProfileDetailScreen(){ closeFullScreen('profileDetailScreen'); }
+function changeProfilePhoto(i){ profilePhotoIndex = i; if (currentProfileUserCache) renderProfileDetail(currentProfileUserCache); }
+
+===== 줄 3787 ~ 3816 =====
+
+        <span id="profileBioText">${escapeHtml(user.bio||'등록된 자기소개가 없습니다.')}</span>
+        ${isMe?'<i class="fa-solid fa-pen" style="margin-left:8px;color:var(--text-muted);font-size:12px;cursor:pointer;" onclick="startInlineBioEdit()"></i>':''}
+      </div>
+      ${isMe?`<div id="profileBioEditBox" class="hidden" style="margin-top:-4px;margin-bottom:12px;">
+        <textarea id="profileBioEditTextarea" rows="3" style="width:100%;padding:10px 12px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-input);color:var(--text-main);font-size:13px;box-sizing:border-box;" placeholder="자신만의 이야기를 편하게 소개해주세요."></textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="cancelInlineBioEdit()">취소</button>
+          <button class="btn btn-primary btn-sm" style="flex:1;" onclick="saveInlineBioEdit()">저장</button>
+        </div>
+      </div>`:''}
+      ${isMe?'':`<button class="btn ${isFollowing?'btn-secondary':'btn-primary'} btn-block" style="margin-bottom:8px;${isFollowing?'color:var(--primary);':''}" onclick="toggleFollowUser('${user.id}')"><i class="fa-solid fa-user${isFollowing?'-check':'-plus'}"></i> ${isFollowing?'팔로잉':'팔로우'}</button>`}
+      ${isMe?'':(function(){
+        const existingRoom = (currentChatRooms||[]).find(r=>r.targetUser && r.targetUser.id===user.id);
+        return existingRoom
+          ? '<button class="btn btn-secondary btn-block" style="color:var(--primary);" onclick="handleSendMessageClick()"><i class="fa-solid fa-comment-dots"></i> 채팅창으로 이동하기</button>'
+          : '<button class="btn btn-primary btn-block" onclick="handleSendMessageClick()"><i class="fa-solid fa-comments"></i> 메시지 보내기</button>';
+      })()}
+      <div class="profile-posts-title profile-section-header" id="profilePostsScrollHeader" onclick="toggleProfileMiniList('profilePostsScroll')">
+        <span>작성한 글 <span class="profile-count" id="profilePostsScrollCount">(0개)</span></span>
+        <i class="fa-solid fa-chevron-down accordion-arrow" id="profilePostsScrollArrow" style="display:none;"></i>
+      </div>
+      <div class="profile-posts-scroll" id="profilePostsScroll"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
+      <div class="profile-posts-title profile-section-header" id="profileStoriesScrollHeader" onclick="toggleProfileMiniList('profileStoriesScroll')">
+        <span>내 스토리 <span class="profile-count" id="profileStoriesScrollCount">(0개)</span></span>
+        <i class="fa-solid fa-chevron-down accordion-arrow" id="profileStoriesScrollArrow" style="display:none;"></i>
+      </div>
+      <div class="profile-posts-scroll" id="profileStoriesScroll"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
+      <div class="profile-posts-title profile-section-header" id="profileCommentsScrollHeader" onclick="toggleProfileMiniList('profileCommentsScroll')">
+        <span>작성한 댓글 <span class="profile-count" id="profileCommentsScrollCount">(0개)</span></span>
+        <i class="fa-solid fa-chevron-down accordion-arrow" id="profileCommentsScrollArrow" style="display:none;"></i>
+
+===== 줄 4615 ~ 4672 =====
+
+  if (cached && cached.messages){
+    const msg = cached.messages.find(x=>x.id===data.messageId);
+    if (msg && data.mode==='everyone'){ msg.deletedForEveryone = true; msg.text=''; msg.data=null; }
+  }
+  if (activeGroupRoomId === data.roomId && data.mode==='everyone'){
+    const row = document.querySelector(`#groupChatMessageArea .msg-row[data-msgid="${data.messageId}"]`);
+    if (row){
+      const bubble = row.querySelector('.msg-bubble');
+      if (bubble){ bubble.classList.add('msg-deleted'); bubble.textContent = '메시지가 삭제되었습니다'; }
+    }
+  }
+});
+function startGroupReplyTo(m){
+  pendingGroupReplyTo = { id: m.id, preview: (m.type==='image' ? '(사진)' : (m.text||'')).slice(0,60) };
+  renderGroupReplyPreviewBar();
+  groupChatInputTextEl.focus();
+}
+function clearGroupReplyPreview(){
+  pendingGroupReplyTo = null;
+  renderGroupReplyPreviewBar();
+}
+function renderGroupReplyPreviewBar(){
+  const bar = document.getElementById('groupChatReplyPreviewBar');
+  if (!bar) return;
+  if (!pendingGroupReplyTo){ bar.style.display='none'; return; }
+  document.getElementById('groupChatReplyPreviewText').textContent = '답장: ' + pendingGroupReplyTo.preview;
+  bar.style.display = 'flex';
+}
+const btnSendGroupMsgEl = document.getElementById('btnSendGroupMsg');
+const groupChatInputTextEl = document.getElementById('groupChatInputText');
+['mousedown','touchstart'].forEach(evt=>{
+  btnSendGroupMsgEl.addEventListener(evt, (e)=>{ e.preventDefault(); }, {passive:false});
+});
+btnSendGroupMsgEl.onclick = ()=>{
+  const text = groupChatInputTextEl.value.trim();
+  if (!text || !activeGroupRoomId) return;
+  const payload = {roomId:activeGroupRoomId, text};
+  if (pendingGroupReplyTo) payload.replyTo = pendingGroupReplyTo;
+  socket.emit('group:send_message', payload);
+  groupChatInputTextEl.value='';
+  groupChatInputTextEl.focus();
+  clearGroupReplyPreview();
+};
+document.getElementById('groupChatInputText').addEventListener('keyup', (e)=>{
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); document.getElementById('btnSendGroupMsg').click(); }
+});
+function triggerGroupChatImageInput(){ document.getElementById('groupChatImageInput').click(); }
+async function handleGroupChatImageUpload(e){
+  const file = e.target.files[0]; if(!file || !activeGroupRoomId) return;
+  let image;
+  try {
+    image = await compressImageFile(file);
+  } catch (err) {
+    console.error('사진 처리 실패:', err);
+    showMiniAlert('이 사진은 불러올 수 없어요. 다른 사진으로 다시 시도해주세요.', [{label:'확인', primary:true}]);
+    e.target.value = '';
+    return;
+  }
+
+===== 줄 4816 ~ 4845 =====
+
+    return `<div class="chat-row-wrap"><div class="chat-row-fg" style="justify-content:space-between;" onclick="openProfileDetailScreen('${mem.id}')">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+        <div style="position:relative;">${crown}${avatarHtml}</div>
+        <div class="chat-row-text"><div class="chat-row-nick">${escapeHtml(mem.nickname)}${isBlocked?' <span style="font-size:11px;color:var(--danger);">(차단됨)</span>':''}</div></div>
+      </div>
+      ${canManage?`<button type="button" style="background:none;border:none;color:var(--text-muted);font-size:15px;padding:8px;cursor:pointer;flex-shrink:0;" onclick="event.stopPropagation();openGroupMemberActions('${mem.id}','${mem.role}',${isBlocked})"><i class="fa-solid fa-ellipsis-vertical"></i></button>`:''}
+    </div></div>`;
+  }).join('');
+}
+function openGroupMemberActions(targetId, role, isBlocked){
+  const buttons = [];
+  const isOwner = activeGroupRoomMeta && activeGroupRoomMeta.myRole === 'owner';
+  if (isOwner){
+    if (role==='subowner') buttons.push({label:'부방장 해제', onClick:()=>{ socket.emit('group:revoke_subowner', {roomId:activeGroupRoomId, targetId}, ()=>{ openGroupInfoScreen(); }); }});
+    else buttons.push({label:'부방장 임명', onClick:()=>{ socket.emit('group:appoint_subowner', {roomId:activeGroupRoomId, targetId}, (res)=>{ if (res && !res.success && res.message) showMiniAlert(res.message,[{label:'확인',primary:true}]); openGroupInfoScreen(); }); }});
+    buttons.push({label:'내보내기', danger:true, onClick:()=>{ socket.emit('group:kick', {roomId:activeGroupRoomId, targetId, banRejoin:false}, ()=>{ openGroupInfoScreen(); }); }});
+    buttons.push({label:'내보내고 재입장 금지', danger:true, onClick:()=>{ socket.emit('group:kick', {roomId:activeGroupRoomId, targetId, banRejoin:true}, ()=>{ openGroupInfoScreen(); }); }});
+  }
+  buttons.push({label:isBlocked?'차단 해제':'차단하기', danger:!isBlocked, onClick:()=>{ socket.emit('group:toggle_block', {roomId:activeGroupRoomId, targetId}, (res)=>{ if (res && res.success) openGroupInfoScreen(); }); }});
+  buttons.push({label:'취소'});
+  showMiniAlert('이 참여자에게 적용할 동작을 선택하세요.', buttons);
+}
+function openGroupGalleryScreen(){
+  if (!activeGroupRoomMeta) return;
+  const grid = document.getElementById('groupGalleryFullGrid');
+  grid.innerHTML = (activeGroupRoomMeta.gallery||[]).map(g=>`<div style="aspect-ratio:1;border-radius:8px;overflow:hidden;background:#eee;cursor:pointer;" onclick="openImageLightbox('${g.data}')"><img src="${g.data}" style="width:100%;height:100%;object-fit:cover;"></div>`).join('') || `<div style="grid-column:1/-1;color:var(--text-muted);font-size:13px;text-align:center;padding:30px 0;">등록된 사진/동영상이 없습니다.</div>`;
+  openFullScreen('groupGalleryScreen');
+}
+function openImageLightbox(url){
+  document.getElementById('imageLightboxImg').src = url;
+
+===== 줄 5388 ~ 5417 =====
+
+  let left = Math.min(Math.max(8, x-mw/2), window.innerWidth-mw-8);
+  let top = y-mh-12;
+  if (top < 8) top = Math.min(y+16, window.innerHeight-mh-8);
+  menu.style.left = left+'px';
+  menu.style.top = top+'px';
+  setTimeout(()=>document.addEventListener('click', closeMsgContextMenuOutside, true), 0);
+}
+function copyMsgText(m){
+  const text = m.text||'';
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text);
+  else { const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+}
+function startReplyTo(m){
+  pendingReplyTo = { id: m.id, preview: (m.type==='image' ? '(사진)' : (m.text||'')).slice(0,60) };
+  renderReplyPreviewBar();
+  chatInputTextEl.focus();
+}
+function clearReplyPreview(){
+  pendingReplyTo = null;
+  renderReplyPreviewBar();
+}
+function renderReplyPreviewBar(){
+  const bar = document.getElementById('chatReplyPreviewBar');
+  if (!bar) return;
+  if (!pendingReplyTo){ bar.style.display='none'; return; }
+  document.getElementById('chatReplyPreviewText').textContent = '답장: ' + pendingReplyTo.preview;
+  bar.style.display = 'flex';
+}
+function requestDeleteMessage(m, mode){
+  const text = mode==='everyone' ? '이 메시지를 모두에게서 삭제하시겠습니까?' : '이 메시지를 나에게만 삭제하시겠습니까? 내 화면에서만 사라집니다.';
+
+===== 줄 5462 ~ 5538 =====
+
+      closeModal('forwardTargetModal');
+      showMiniAlert('전달했습니다.', [{label:'확인', primary:true}]);
+    } else if (res && res.needPoints){
+      closeModal('forwardTargetModal');
+      showMiniAlert('쌀이 부족해 새 대화를 시작할 수 없습니다.', [{label:'확인', primary:true}]);
+    } else {
+      showMiniAlert((res && res.message) || '전달에 실패했습니다.', [{label:'확인', primary:true}]);
+    }
+  });
+}
+let forwardContext = null;
+
+// 버튼을 탭하면 입력창(input)이 포커스를 잃으면서(blur) 모바일 키보드가 내려가는 것이 기본 동작이라,
+// mousedown/touchstart 시점에 preventDefault로 포커스 이동 자체를 막아 카톡처럼 키보드가 유지되도록 함.
+const btnSendMsgEl = document.getElementById('btnSendMsg');
+/* ===================== 이모지 키보드 ===================== */
+const EMOJI_LIST = ['😀','😁','😂','🤣','😊','😍','😘','😉','😎','🤩','🥳','😇','🙂','😅','😢','😭','😡','🤬','😱','😴','🤔','🙄','😏','😜','🥰','😆','😳','🥺','😔','😤','👍','👎','👏','🙏','💪','🙌','👋','✌️','🤝','❤️','💕','💔','💯','🔥','✨','⭐','🎉','🎊','🎁','💰','⏰','📷','🍀','☀️','🌙','☕','🍔','🍕','🍺','🎵','⚽','😷','🤒','😪'];
+let activeEmojiPanel = null;
+function toggleEmojiPanel(panelId, inputId){
+  const panel = document.getElementById(panelId);
+  if (panel.classList.contains('open')){
+    panel.classList.remove('open'); activeEmojiPanel = null; return;
+  }
+  document.querySelectorAll('.emoji-panel.open').forEach(p=>p.classList.remove('open'));
+  if (!panel.dataset.built){
+    panel.innerHTML = EMOJI_LIST.map(e=>`<div class="emoji-panel-item" onclick="insertEmoji('${inputId}','${e}')">${e}</div>`).join('');
+    panel.dataset.built = '1';
+  }
+  panel.classList.add('open');
+  activeEmojiPanel = panel;
+}
+function insertEmoji(inputId, emoji){
+  const el = document.getElementById(inputId);
+  const start = el.selectionStart ?? el.value.length;
+  const end = el.selectionEnd ?? el.value.length;
+  el.value = el.value.slice(0, start) + emoji + el.value.slice(end);
+  const newPos = start + emoji.length;
+  el.focus();
+  el.setSelectionRange(newPos, newPos);
+}
+document.addEventListener('click', (e)=>{
+  if (!activeEmojiPanel) return;
+  if (activeEmojiPanel.contains(e.target)) return;
+  if (e.target.closest('.chat-emoji-btn')) return;
+  activeEmojiPanel.classList.remove('open');
+  activeEmojiPanel = null;
+});
+
+const chatInputTextEl = document.getElementById('chatInputText');
+['mousedown','touchstart'].forEach(evt=>{
+  btnSendMsgEl.addEventListener(evt, (e)=>{ e.preventDefault(); }, {passive:false});
+});
+btnSendMsgEl.onclick = ()=>{
+  const text = chatInputTextEl.value.trim();
+  if (!text || !activeRoomId) return;
+  const payload = {roomId:activeRoomId, text};
+  if (pendingReplyTo) payload.replyTo = pendingReplyTo;
+  socket.emit('chat:send_message', payload);
+  chatInputTextEl.value='';
+  chatInputTextEl.focus();
+  clearReplyPreview();
+};
+document.getElementById('chatInputText').addEventListener('keyup', (e)=>{
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); document.getElementById('btnSendMsg').click(); }
+});
+function triggerChatImageInput(){ document.getElementById('chatImageInput').click(); }
+async function handleChatImageUpload(e){
+  const file = e.target.files[0]; if(!file || !activeRoomId) return;
+  let image;
+  try {
+    image = await compressImageFile(file);
+  } catch (err) {
+    console.error('사진 처리 실패:', err);
+    showMiniAlert('이 사진은 불러올 수 없어요. 다른 사진으로 다시 시도해주세요.', [{label:'확인', primary:true}]);
+    e.target.value = '';
+    return;
+  }
