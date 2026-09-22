@@ -91,6 +91,10 @@ app.use('/api/reports', reportsRouter);
 // 호스팅 서비스가 무접속 상태에서 슬립 모드로 전환되는 것을 막는 데 사용할 수 있음)
 app.get('/health', (req, res) => res.status(200).send('ok'));
 
+app.get('/api/online-count', (req, res) => {
+  res.status(200).json({ count: Object.keys(userToSocket).length });
+});
+
 // ===== 웹 푸시 구독 관리 API =====
 app.get('/api/push/vapid-public-key', (req, res) => {
   res.json({ publicKey: VAPID_PUBLIC_KEY });

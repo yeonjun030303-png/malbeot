@@ -36,7 +36,31 @@ async function checkHealth() {
   }
 }
 
+async function checkOnlineCount() {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const base = TARGET_URL.replace(/\/$/, '"'"''"'"');
+    const res = await fetch(base + '"'"'/api/online-count'"'"', { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data.count === '"'"'number'"'"' ? data.count : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function main() {
+  const onlineCount = await checkOnlineCount();
+
+  if (onlineCount !== null && onlineCount > 0) {
+    console.log(`접속자 ${onlineCount}명 있음 - 가벼운 체크만 하고 종료`);
+    process.exit(0);
+  }
+
+  console.log(onlineCount === 0 ? '"'"'접속자 0명 - 전체 점검 진행'"'"' : '"'"'접속자 수 확인 실패 - 안전하게 전체 점검 진행'"'"');
+
   let result = await checkHealth();
 
   // 일시적 지연/블립으로 인한 오탐 방지: 1차 실패 시 10초 대기 후 재확인, 그때도 실패해야 진짜 알림
