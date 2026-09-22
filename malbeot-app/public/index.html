@@ -227,6 +227,7 @@ body.dark-mode .search-matched-comment-line{color:var(--text-main);}
 .msg-time{font-size:10px;color:#868e96;margin-top:2px;}
 .msg-system{align-self:center;background:rgba(0,0,0,.06);color:var(--text-muted);font-size:11px;border-radius:99px;padding:4px 14px;}
 .chat-input-bar{padding:10px 10px calc(10px + env(safe-area-inset-bottom)) 10px;background:#fff;display:flex;gap:8px;align-items:center;flex-shrink:0;}
+body.keyboard-open .chat-input-bar{padding-bottom:10px;}
 .chat-reply-preview-bar{padding:8px 12px;background:var(--bg-subtle);border-top:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0;}
 .reply-preview-text{font-size:12px;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
 .reply-preview-close{cursor:pointer;color:var(--text-muted);font-size:13px;padding:2px 4px;}
@@ -6645,14 +6646,26 @@ function triggerLogout(){
     var newHeight = Math.round(h * ratio);
     var prev = parseInt(container.style.height, 10) || 0;
     var inGracePeriod = !prev || Date.now() < coldStartGraceUntil;
-    if (!inGracePeriod && Math.abs(newHeight - prev) < 20) return;
+    if (!inGracePeriod && Math.abs(newHeight - prev) < 20){ updateKeyboardOpenState(); return; }
     container.style.height = newHeight + 'px';
     ['chatModal','groupChatModal'].forEach(function(id){
       var el = document.getElementById(id);
       if (el) el.style.height = newHeight + 'px';
     });
+    updateKeyboardOpenState();
   }
 
+  var lastKeyboardOpen = false;
+  function updateKeyboardOpenState(){
+    var vp = window.visualViewport;
+    if (!vp) return;
+    var gap = window.innerHeight - vp.height;
+    var isOpen = gap > 100; // 키보드 뜨면 최소 100px 이상 줄어듦(홈인디케이터 34px보다 확실히 큰 값)
+    if (isOpen !== lastKeyboardOpen){
+      lastKeyboardOpen = isOpen;
+      document.body.classList.toggle('keyboard-open', isOpen);
+    }
+  }
   var vphRaf = null;
   function scheduleSetAppViewportHeight(){
     if (vphRaf) cancelAnimationFrame(vphRaf);
