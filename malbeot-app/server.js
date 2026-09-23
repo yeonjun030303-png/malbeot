@@ -380,12 +380,6 @@ async function getRoomUserIds(roomId) {
   const snap = await db.ref(`chats/${roomId}/userIds`).once('value');
   return snap.val();
 }
-// 0-85: 프로필 화면 등에서 "이 사람과 채팅방이 있는지"만 확인할 때 메시지 전체를
-// 불러오지 않도록 userIds 필드만 가볍게 조회하는 함수 (프로필/채팅방 렉 원인 수정)
-async function getRoomUserIds(roomId) {
-  const snap = await db.ref(`chats/${roomId}/userIds`).once('value');
-  return snap.val();
-}
 async function saveRoomMeta(roomId, meta) {
   await db.ref(`chats/${roomId}`).update(meta);
 }
@@ -1711,24 +1705,6 @@ io.on('connection', (socket) => {
         const unreadCount = messages.filter(m => m.senderId !== userId && m.senderId !== 'system' && !m.read).length;
         const muted = !!(room.muted && room.muted[userId]);
         rooms.push({ roomId, targetUser, messages, unreadCount, lastReadAt: room.lastReadAt || {}, muted });
-      }
-      cb({ success: true, rooms });
-    } catch (e) { console.error(e); cb({ success: false, rooms: [] }); }
-  });
-
-  // 0-85: chat:get_list의 가벼운 버전. 메시지 전체를 불러오지 않고 "상대 id + roomId"만 반환.
-  // 프로필 화면에서 메시지버튼 분기("메시지 보내기" / "채팅창으로 이동하기")에만 사용.
-  socket.on('chat:get_room_index', async (cb) => {
-    try {
-      const userId = socketToUser[socket.id];
-      const idxSnap = await db.ref(`userChats/${userId}`).once('value');
-      const myRoomIds = Object.keys(idxSnap.val() || {});
-      const rooms = [];
-      for (const roomId of myRoomIds) {
-        const userIds = await getRoomUserIds(roomId);
-        if (!userIds || !userIds.includes(userId)) continue;
-        const otherId = userIds.find(id => id !== userId);
-        rooms.push({ roomId, targetUser: { id: otherId } });
       }
       cb({ success: true, rooms });
     } catch (e) { console.error(e); cb({ success: false, rooms: [] }); }
