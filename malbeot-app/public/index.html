@@ -118,7 +118,7 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 .bottom-nav{position:absolute;bottom:0;left:0;right:0;height:64px;background:#fff;border-top:1px solid var(--border-color);display:flex;justify-content:space-around;align-items:center;z-index:10;transition:transform .25s ease;}
 .bottom-nav.nav-hidden{transform:translateY(100%);}
 .nav-item{background:none;border:none;flex:1;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;font-size:21px;}
-.nav-icon-svg{width:22px;height:22px;display:block;}
+.nav-icon-svg{width:27px;height:27px;display:block;}
 .nav-item.active{color:var(--primary);}
 
 .modal-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:none;justify-content:center;align-items:center;z-index:200;padding:16px;}
@@ -2840,6 +2840,7 @@ function switchTab(tab){
   if (activeRoomId) closeChatModal();
   document.querySelectorAll('.bottom-nav .nav-item').forEach(n=>n.classList.toggle('active', n.dataset.tab===tab));
   document.querySelectorAll('.tab-content').forEach(c=>c.classList.toggle('active', c.id===tab));
+  if (window.malbeotUpdateAdBannerForTab) window.malbeotUpdateAdBannerForTab(tab);
   updateHeaderForTab(tab);
   const homeSearchInput = document.getElementById('homeSearchInput');
   const communitySearchInput = document.getElementById('communitySearchInput');
@@ -3450,7 +3451,7 @@ function submitComposeCreate(confirmed){
 }
 
 let commentUIContext = 'detail'; // 'detail'(게시글 상세화면) 또는 'story'(말벗스토리 댓글시트)
-function openPostDetailScreen(id, focusComment){ currentPostId=id; commentUIContext='detail'; refreshPostDetail(focusComment); openFullScreen('postDetailScreen'); }
+function openPostDetailScreen(id, focusComment){ currentPostId=id; commentUIContext='detail'; refreshPostDetail(focusComment); openFullScreen('postDetailScreen'); if (window.malbeotMaybeShowInterstitial) window.malbeotMaybeShowInterstitial(); }
 function closePostDetailScreen(){ closeFullScreen('postDetailScreen'); loadCommunityPosts(); }
 function refreshCommentsUI(focusComment){
   if (commentUIContext === 'story') refreshStoryComments();
@@ -6698,47 +6699,6 @@ function triggerLogout(){
     if (!document.hidden) setAppViewportHeight();
   });
 
-  // ===== 임시 디버그 오버레이 (문제 진단용, 나중에 제거 예정) =====
-  // 화면 좌상단에 실시간 값을 표시해서, 문제 재현 시 캡쳐만 하면
-  // 실제 원인을 정확히 파악할 수 있게 함
-  var dbg = document.createElement('div');
-  dbg.id = 'malbeotDebugOverlay';
-  dbg.style.cssText = 'position:fixed;left:4px;top:4px;z-index:999999;background:rgba(0,0,0,.8);color:#0f0;font-size:9px;font-family:monospace;padding:5px 7px;border-radius:5px;line-height:1.5;pointer-events:none;white-space:pre;max-width:94vw;';
-  document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(dbg); });
-  function updateDebugOverlay(){
-    if (!dbg.parentNode) return;
-    var vp = window.visualViewport;
-    var nav = document.querySelector('.bottom-nav');
-    var container = document.getElementById('appContainer');
-    var chatModal = document.getElementById('chatModal');
-    var inputBar = document.querySelector('.chat-input-bar');
-    var lines = [];
-    lines.push('innerH:' + window.innerHeight + ' vpH:' + (vp ? Math.round(vp.height) : '-') + ' gap:' + (vp ? Math.round(window.innerHeight - vp.height) : '-'));
-    lines.push('body.keyboard-open: ' + document.body.classList.contains('keyboard-open'));
-    lines.push('appContainer style.h:' + (container ? container.style.height : '-') + ' rect.h:' + (container ? Math.round(container.getBoundingClientRect().height) : '-'));
-    lines.push('chatModal style.h:' + (chatModal ? chatModal.style.height : '-') + ' active:' + (chatModal ? chatModal.classList.contains('active') : '-'));
-    if (inputBar){
-      var ibRect = inputBar.getBoundingClientRect();
-      lines.push('inputBar bottom:' + Math.round(ibRect.bottom) + ' (innerH=' + window.innerHeight + ')');
-    }
-    if (nav){
-      var r = nav.getBoundingClientRect();
-      var cs = getComputedStyle(nav);
-      lines.push('nav rect top:' + Math.round(r.top) + ' h:' + Math.round(r.height) + ' bottom:' + Math.round(r.bottom));
-      lines.push('nav display:' + cs.display + ' vis:' + cs.visibility + ' opac:' + cs.opacity + ' pe:' + cs.pointerEvents + ' z:' + cs.zIndex);
-      lines.push('nav classList:' + nav.className);
-    } else {
-      lines.push('nav: 요소를 못찾음(null)');
-    }
-    dbg.textContent = lines.join('\n');
-  }
-  setInterval(updateDebugOverlay, 300);
-  window.addEventListener('resize', updateDebugOverlay);
-  window.addEventListener('orientationchange', updateDebugOverlay);
-  if (window.visualViewport) window.visualViewport.addEventListener('resize', updateDebugOverlay);
-  document.addEventListener('DOMContentLoaded', updateDebugOverlay);
-  window.addEventListener('load', updateDebugOverlay);
-  // ===== 디버그 오버레이 끝 =====
   // 콜드스타트 직후 값이 늦게 잡히는 경우 대비해 잠깐 뒤에 한 번 더 재계산
   setTimeout(setAppViewportHeight, 50);
   setTimeout(setAppViewportHeight, 300);
@@ -6756,6 +6716,107 @@ function triggerLogout(){
     if (!document.hidden) resetPinchZoom();
   });
   window.addEventListener('pageshow', resetPinchZoom);
+})();
+</script>
+</body>
+<script>
+(function(){
+  var MALBEOT_BANNER_ID = 'ca-app-pub-1897610037138449/6722836306';
+  var MALBEOT_INTERSTITIAL_ID = 'ca-app-pub-1897610037138449/5653297216';
+  var MALBEOT_INTERSTITIAL_COOLDOWN_MS = 60 * 60 * 1000; // 1시간
+
+  function isNative(){
+    return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  }
+  function getAdMob(){
+    return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob;
+  }
+
+  var admobReady = false;
+  var interstitialLoaded = false;
+  var currentAdTab = null;
+
+  function hasAdFreeSubscription(){
+    var sub = window.currentUser && window.currentUser.subscription;
+    return !!(sub && sub.tier && sub.expiresAt && sub.expiresAt > Date.now());
+  }
+
+  async function prepareInterstitial(){
+    var AdMob = getAdMob();
+    if (!AdMob || !admobReady) return;
+    try {
+      await AdMob.prepareInterstitial({ adId: MALBEOT_INTERSTITIAL_ID, isTesting: false });
+      interstitialLoaded = true;
+    } catch(e){ interstitialLoaded = false; console.warn('[AdMob] 전면광고 준비 실패', e); }
+  }
+
+  async function initAdMob(){
+    if (!isNative()) return;
+    var AdMob = getAdMob();
+    if (!AdMob) return;
+    try {
+      var trackingInfo = await AdMob.trackingAuthorizationStatus();
+      if (trackingInfo && trackingInfo.status === 'notDetermined') {
+        await AdMob.requestTrackingAuthorization();
+      }
+    } catch(e){ console.warn('[AdMob] ATT 권한 요청 실패', e); }
+    try {
+      await AdMob.initialize({ initializeForTesting: false });
+      admobReady = true;
+      prepareInterstitial();
+    } catch(e){ console.warn('[AdMob] 초기화 실패', e); }
+  }
+
+  // ===== 배너: 홈/채팅 탭 상단, 구독자(골드/플래티넘)는 제외 =====
+  async function malbeotUpdateAdBannerForTab(tab){
+    if (!isNative() || !admobReady) return;
+    var AdMob = getAdMob();
+    if (!AdMob) return;
+    var shouldShow = (tab === 'tab-home' || tab === 'tab-chat') && !hasAdFreeSubscription();
+    if (shouldShow){
+      if (currentAdTab === tab) return;
+      try {
+        await AdMob.showBanner({ adId: MALBEOT_BANNER_ID, adSize: 'ADAPTIVE_BANNER', position: 'TOP_CENTER', isTesting: false });
+        currentAdTab = tab;
+      } catch(e){ console.warn('[AdMob] 배너 표시 실패', e); }
+    } else if (currentAdTab){
+      try { await AdMob.hideBanner(); } catch(e){}
+      currentAdTab = null;
+    }
+  }
+  window.malbeotUpdateAdBannerForTab = malbeotUpdateAdBannerForTab;
+
+  // ===== 전면광고: 게시물 상세 진입 시, 시간당 최대 1회, 구독자 제외 =====
+  async function malbeotMaybeShowInterstitial(){
+    if (!isNative() || !admobReady || !interstitialLoaded) return;
+    if (hasAdFreeSubscription()) return;
+    var last = Number(localStorage.getItem('malbeotLastInterstitialAt') || 0);
+    if (Date.now() - last < MALBEOT_INTERSTITIAL_COOLDOWN_MS) return;
+    var AdMob = getAdMob();
+    try {
+      await AdMob.showInterstitial();
+      localStorage.setItem('malbeotLastInterstitialAt', String(Date.now()));
+      interstitialLoaded = false;
+    } catch(e){ console.warn('[AdMob] 전면광고 표시 실패', e); }
+  }
+  window.malbeotMaybeShowInterstitial = malbeotMaybeShowInterstitial;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    initAdMob().then(function(){
+      var AdMob = getAdMob();
+      if (!AdMob) return;
+      try {
+        AdMob.addListener('interstitialAdDismissed', function(){ prepareInterstitial(); });
+        AdMob.addListener('interstitialAdFailedToLoad', function(){ interstitialLoaded = false; });
+        AdMob.addListener('bannerAdSizeChanged', function(info){
+          var h = (info && info.height) || 0;
+          document.querySelectorAll('#homeAdBannerRow, #chatAdBannerRow').forEach(function(el){
+            if (h) el.style.height = h + 'px';
+          });
+        });
+      } catch(e){}
+    });
+  });
 })();
 </script>
 </body>

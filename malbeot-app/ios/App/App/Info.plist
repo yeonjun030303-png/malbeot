@@ -70,5 +70,9 @@
 	<string>AppIcon</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-1897610037138449~2107611900</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>맞춤형 광고를 제공하기 위해 사용됩니다.</string>
 </dict>
 </plist>
