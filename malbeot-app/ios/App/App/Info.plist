@@ -74,5 +74,11 @@
 	<string>ca-app-pub-1897610037138449~2107611900</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>맞춤형 광고를 제공하기 위해 사용됩니다.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>프로필 사진 촬영 및 채팅 사진 전송을 위해 카메라 접근이 필요합니다.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>프로필 사진 등록 및 채팅 사진 전송을 위해 사진 라이브러리 접근이 필요합니다.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>촬영하거나 편집한 사진을 저장하기 위해 사진 라이브러리 접근이 필요합니다.</string>
 </dict>
 </plist>

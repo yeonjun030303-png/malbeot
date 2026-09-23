@@ -140,7 +140,7 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 #groupInfoScreen #groupInfoMemberCount{font-size:11px;}
 #drawerBackdrop{display:none;position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:149;}
 #drawerBackdrop.active{display:block;}
-.fs-header{height:52px;flex-shrink:0;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--border-color);position:relative;}
+.fs-header{min-height:52px;flex-shrink:0;display:flex;align-items:center;padding:env(safe-area-inset-top, 0px) 12px 0 12px;border-bottom:1px solid var(--border-color);position:relative;}
 .fs-header .back-btn{background:none;border:none;font-size:20px;color:var(--text-main);cursor:pointer;padding:6px;}
 .fs-header .fs-title{position:absolute;left:50%;transform:translateX(-50%);font-size:15px;font-weight:700;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;}
 .fs-header .fs-right{margin-left:auto;display:flex;gap:8px;align-items:center;}
@@ -864,10 +864,10 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     <div id="storyMediaWrap" onclick="handleStoryMediaTap(event)" style="position:relative;flex:1;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;">
       <div id="storyMediaInner" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"></div>
 
-      <button class="back-btn" style="position:absolute;top:12px;left:12px;color:#fff;z-index:6;background:rgba(0,0,0,.35);border-radius:50%;width:34px;height:34px;" onclick="event.stopPropagation();closeStoryViewer()"><i class="fa-solid fa-arrow-left"></i></button>
+      <button class="back-btn" style="position:absolute;top:calc(12px + env(safe-area-inset-top, 0px));left:12px;color:#fff;z-index:6;background:rgba(0,0,0,.35);border-radius:50%;width:34px;height:34px;" onclick="event.stopPropagation();closeStoryViewer()"><i class="fa-solid fa-arrow-left"></i></button>
 
-      <button id="storyMuteBtn" class="hidden" style="position:absolute;top:12px;right:52px;z-index:6;background:rgba(0,0,0,.35);border:none;color:#fff;width:34px;height:34px;border-radius:50%;" onclick="event.stopPropagation();toggleStoryMute()"><i id="storyMuteIcon" class="fa-solid fa-volume-xmark"></i></button>
-      <button style="position:absolute;top:12px;right:12px;z-index:6;background:rgba(0,0,0,.35);border:none;color:#fff;width:34px;height:34px;border-radius:50%;" onclick="event.stopPropagation();openStoryComposeScreen()"><i class="fa-solid fa-plus"></i></button>
+      <button id="storyMuteBtn" class="hidden" style="position:absolute;top:calc(12px + env(safe-area-inset-top, 0px));right:52px;z-index:6;background:rgba(0,0,0,.35);border:none;color:#fff;width:34px;height:34px;border-radius:50%;" onclick="event.stopPropagation();toggleStoryMute()"><i id="storyMuteIcon" class="fa-solid fa-volume-xmark"></i></button>
+      <button style="position:absolute;top:calc(12px + env(safe-area-inset-top, 0px));right:12px;z-index:6;background:rgba(0,0,0,.35);border:none;color:#fff;width:34px;height:34px;border-radius:50%;" onclick="event.stopPropagation();openStoryComposeScreen()"><i class="fa-solid fa-plus"></i></button>
 
       <div id="storyActionButtons" style="position:absolute;right:10px;bottom:100px;display:flex;flex-direction:column;gap:18px;align-items:center;z-index:6;">
         <button style="background:none;border:none;color:#fff;text-align:center;-webkit-text-stroke:.6px #000;" onclick="event.stopPropagation();toggleLikeStory()">
@@ -1397,7 +1397,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
   </div>
 
   <div id="photoViewerOverlay" class="modal-overlay" style="position:fixed;inset:0;background:#000;z-index:10000;align-items:center;justify-content:center;overflow:hidden;">
-    <div onclick="closePhotoViewer()" style="position:absolute;top:16px;left:16px;z-index:2;color:#fff;font-size:22px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-xmark"></i></div>
+    <div onclick="closePhotoViewer()" style="position:absolute;top:calc(16px + env(safe-area-inset-top, 0px));left:16px;z-index:2;color:#fff;font-size:22px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-xmark"></i></div>
     <div id="photoViewerCounter" style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,.45);padding:5px 14px;border-radius:14px;z-index:2;"></div>
     <div id="photoViewerPrevBtn" onclick="photoViewerPrev()" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);z-index:2;color:#fff;font-size:18px;width:38px;height:38px;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-chevron-left"></i></div>
     <div id="photoViewerNextBtn" onclick="photoViewerNext()" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);z-index:2;color:#fff;font-size:18px;width:38px;height:38px;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-radius:50%;cursor:pointer;"><i class="fa-solid fa-chevron-right"></i></div>
@@ -1521,6 +1521,8 @@ let pendingInviteCode = (function(){
 })();
 let sessionToken = localStorage.getItem('malbeot_token') || null;
 let currentChatRooms = [];
+let currentChatRoomIndex = []; // 0-85: 프로필 등에서 메시지유무만 가볍게 확인할 때 쓰는 인덱스(전체 메시지 미포함)
+let currentChatRoomIndex = []; // 0-85: 프로필 등에서 메시지유무만 가볍게 확인할 때 쓰는 인덱스(전체 메시지 미포함)
 let currentGroupChatRooms = [];
 let groupSearchDebounce = null;
 let lastPublicRoomsForSort = []; // 0-58: 오픈채팅 검색결과 정렬 변경시 재사용
@@ -2136,7 +2138,7 @@ function renderPhotoEdit(){
     peBlurCanvas = document.createElement('canvas');
     peBlurCanvas.width = peCanvas.width; peBlurCanvas.height = peCanvas.height;
     const bctx = peBlurCanvas.getContext('2d');
-    bctx.filter = 'blur(10px)';
+    bctx.filter = 'blur(28px)';
     bctx.drawImage(peOrigImg, 0, 0, peCanvas.width, peCanvas.height);
   }
   peStrokes.forEach(s=>{
@@ -3667,8 +3669,8 @@ function openProfileDetailScreen(userId){
     fetchedUser = res && res.user; userLoaded = true; tryOpenProfile();
   });
   // 메시지 버튼을 "메시지 보내기"(신규)/"채팅창으로 이동하기"(기존 채팅방 있음)로 정확히 나누기 위해 최신 채팅목록을 함께 불러옴
-  socket.emit('chat:get_list', (res)=>{
-    if (res && res.success) currentChatRooms = res.rooms;
+  socket.emit('chat:get_room_index', (res)=>{
+    if (res && res.success) currentChatRoomIndex = res.rooms;
     roomsLoaded = true; tryOpenProfile();
   });
 }
@@ -3795,7 +3797,7 @@ function renderProfileDetail(user){
       </div>`:''}
       ${isMe?'':`<button class="btn ${isFollowing?'btn-secondary':'btn-primary'} btn-block" style="margin-bottom:8px;${isFollowing?'color:var(--primary);':''}" onclick="toggleFollowUser('${user.id}')"><i class="fa-solid fa-user${isFollowing?'-check':'-plus'}"></i> ${isFollowing?'팔로잉':'팔로우'}</button>`}
       ${isMe?'':(function(){
-        const existingRoom = (currentChatRooms||[]).find(r=>r.targetUser && r.targetUser.id===user.id);
+        const existingRoom = (currentChatRoomIndex||[]).find(r=>r.targetUser && r.targetUser.id===user.id);
         return existingRoom
           ? '<button class="btn btn-secondary btn-block" style="color:var(--primary);" onclick="handleSendMessageClick()"><i class="fa-solid fa-comment-dots"></i> 채팅창으로 이동하기</button>'
           : '<button class="btn btn-primary btn-block" onclick="handleSendMessageClick()"><i class="fa-solid fa-comments"></i> 메시지 보내기</button>';
@@ -4002,10 +4004,10 @@ function loadProfilePostsSection(userId){
 // 이미 채팅방이 있는 상대면 작성화면을 건너뛰고 바로 채팅창으로 이동, 없으면 기존처럼 작성화면(쌀 50개 안내) 표시
 function handleSendMessageClick(){
   const targetId = currentProfileUserId; if (!targetId) return;
-  socket.emit('chat:get_list', (res)=>{
+  socket.emit('chat:get_room_index', (res)=>{
     if (res && res.success){
-      currentChatRooms = res.rooms;
-      const existing = currentChatRooms.find(r=>r.targetUser && r.targetUser.id===targetId);
+      currentChatRoomIndex = res.rooms;
+      const existing = currentChatRoomIndex.find(r=>r.targetUser && r.targetUser.id===targetId);
       if (existing){
         closeProfileDetailScreen();
         switchTab('tab-chat');
@@ -4431,8 +4433,8 @@ function openGroupChatRoom(roomId){
   document.getElementById('groupChatMemberCount').textContent = (cached && cached.meta && cached.meta.memberIds) ? cached.meta.memberIds.length : '';
   const area = document.getElementById('groupChatMessageArea'); area.innerHTML=''; area.dataset.lastDate='';
   (cached && cached.messages || []).forEach(m=>appendGroupChatBubble(m));
-  area.scrollTop = area.scrollHeight;
   openFullScreen('groupChatModal');
+  requestAnimationFrame(()=>{ area.scrollTop = area.scrollHeight; });
   socket.emit('group:info', {roomId}, (res)=>{
     if (res && res.success){
       activeGroupRoomMeta = res;
@@ -4641,7 +4643,7 @@ function renderGroupReplyPreviewBar(){
 }
 const btnSendGroupMsgEl = document.getElementById('btnSendGroupMsg');
 const groupChatInputTextEl = document.getElementById('groupChatInputText');
-['mousedown','touchstart'].forEach(evt=>{
+['mousedown'].forEach(evt=>{
   btnSendGroupMsgEl.addEventListener(evt, (e)=>{ e.preventDefault(); }, {passive:false});
 });
 btnSendGroupMsgEl.onclick = ()=>{
@@ -5152,8 +5154,8 @@ function openChatModal(roomId, target, messages){
     }
     appendChatBubble(m, false);
   });
-  area.scrollTop = area.scrollHeight;
   openModal('chatModal');
+  requestAnimationFrame(()=>{ area.scrollTop = area.scrollHeight; });
   // 0-21: 방을 여는 즉시 전체를 읽음 처리하지 않음. 지금 화면에 실제로 보이는 메시지는
   // 위 appendChatBubble에서 건 IntersectionObserver가 알아서 감지해 부분 읽음 처리함.
 }
@@ -5507,7 +5509,7 @@ document.addEventListener('click', (e)=>{
 });
 
 const chatInputTextEl = document.getElementById('chatInputText');
-['mousedown','touchstart'].forEach(evt=>{
+['mousedown'].forEach(evt=>{
   btnSendMsgEl.addEventListener(evt, (e)=>{ e.preventDefault(); }, {passive:false});
 });
 btnSendMsgEl.onclick = ()=>{
