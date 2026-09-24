@@ -12,5 +12,10 @@
   },
   "ios": {
     "contentInset": "never"
+  },
+  "plugins": {
+    "Keyboard": {
+      "resize": "none"
+    }
   }
 }

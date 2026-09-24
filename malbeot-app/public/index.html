@@ -2134,11 +2134,21 @@ function renderPhotoEdit(){
   peCtx.clearRect(0, 0, peCanvas.width, peCanvas.height);
   peCtx.drawImage(peOrigImg, 0, 0, peCanvas.width, peCanvas.height);
   if (peStrokes.some(s=>s.tool==='blur') && !peBlurCanvas){
+    // 0-88: ctx.filter='blur()' 방식은 구형 iOS WKWebView에서 지원이 안 돼 조용히 무시되고
+    // 아무 효과도 안 나던 문제가 있었음 -> 필터 API에 의존하지 않는 순수 픽셀화(모자이크) 방식으로 교체.
+    // 원본을 작게 축소했다가 다시 확대(스무딩 끔)하면 어느 환경에서도 확실하게 모자이크 효과가 남.
     peBlurCanvas = document.createElement('canvas');
     peBlurCanvas.width = peCanvas.width; peBlurCanvas.height = peCanvas.height;
     const bctx = peBlurCanvas.getContext('2d');
-    bctx.filter = 'blur(28px)';
-    bctx.drawImage(peOrigImg, 0, 0, peCanvas.width, peCanvas.height);
+    const pixelSize = Math.max(10, Math.round(Math.min(peCanvas.width, peCanvas.height) / 24));
+    const smallW = Math.max(1, Math.round(peCanvas.width / pixelSize));
+    const smallH = Math.max(1, Math.round(peCanvas.height / pixelSize));
+    const tmp = document.createElement('canvas');
+    tmp.width = smallW; tmp.height = smallH;
+    const tctx = tmp.getContext('2d');
+    tctx.drawImage(peOrigImg, 0, 0, smallW, smallH);
+    bctx.imageSmoothingEnabled = false;
+    bctx.drawImage(tmp, 0, 0, smallW, smallH, 0, 0, peCanvas.width, peCanvas.height);
   }
   peStrokes.forEach(s=>{
     if (!s.points.length) return;
@@ -6717,6 +6727,34 @@ function triggerLogout(){
     if (!document.hidden) resetPinchZoom();
   });
   window.addEventListener('pageshow', resetPinchZoom);
+
+  // 0-88: @capacitor/keyboard 네이티브 플러그인 - 기존 visualViewport 추정 방식은
+  // iOS WKWebView에서 키보드 애니메이션과 타이밍이 안 맞아 "키보드 누르는 순간 잠깐/계속
+  // 간격이 벌어지는" 문제가 반복됐음. 네이티브가 직접 주는 정확한 키보드 높이(px)로
+  // 컨테이너 높이를 맞춰서 추정 오차를 없앰.
+  function applyKeyboardHeight(kbHeight){
+    var container = document.getElementById('appContainer');
+    if (!container) return;
+    var ratio = window.innerWidth >= 500 ? 0.92 : 1;
+    var full = window.innerHeight * ratio;
+    var newHeight = Math.round(kbHeight > 0 ? (full - kbHeight) : full);
+    container.style.height = newHeight + 'px';
+    ['chatModal','groupChatModal'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.style.height = newHeight + 'px';
+    });
+    document.body.classList.toggle('keyboard-open', kbHeight > 0);
+    var navEl = container.querySelector('.bottom-nav');
+    if (navEl){ navEl.style.display = 'none'; void navEl.offsetHeight; navEl.style.display = ''; }
+  }
+  if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() &&
+      window.Capacitor.Plugins && window.Capacitor.Plugins.Keyboard){
+    var MalbeotKeyboard = window.Capacitor.Plugins.Keyboard;
+    MalbeotKeyboard.addListener('keyboardWillShow', function(info){ applyKeyboardHeight((info && info.keyboardHeight) || 0); });
+    MalbeotKeyboard.addListener('keyboardDidShow', function(info){ applyKeyboardHeight((info && info.keyboardHeight) || 0); });
+    MalbeotKeyboard.addListener('keyboardWillHide', function(){ applyKeyboardHeight(0); });
+    MalbeotKeyboard.addListener('keyboardDidHide', function(){ applyKeyboardHeight(0); });
+  }
 })();
 </script>
 </body>
