@@ -233,6 +233,10 @@ body.keyboard-open .chat-input-bar{padding-bottom:10px;}
 .reply-preview-text{font-size:12px;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
 .reply-preview-close{cursor:pointer;color:var(--text-muted);font-size:13px;padding:2px 4px;}
 .msg-reply-quote{font-size:11px;color:var(--text-muted);background:rgba(0,0,0,0.05);border-left:2px solid var(--primary);padding:4px 6px;margin-bottom:4px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.msg-bubble.msg-pressed{position:relative;z-index:5;transform:scale(1.07);box-shadow:0 6px 18px rgba(0,0,0,.22);animation:msgPop .22s ease-out;}
+.msg-row.mine .msg-bubble.msg-pressed{transform-origin:right center;}
+.msg-row.other .msg-bubble.msg-pressed{transform-origin:left center;}
+@keyframes msgPop{0%{transform:scale(1);}55%{transform:scale(1.11);}100%{transform:scale(1.07);}}
 .msg-bubble.msg-deleted{color:var(--text-muted);font-style:italic;background:var(--bg-subtle)!important;}
 .support-chip-wrap{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
 .support-chip{padding:9px 12px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-app);color:var(--text-main);font-size:13px;text-align:left;cursor:pointer;}
@@ -1759,7 +1763,12 @@ function closeTopmostScreen(){
   if (isActive('reportCategoryModal')) return closeModal('reportCategoryModal');
   if (isActive('blockReportModal')) return closeModal('blockReportModal');
   if (isActive('adModal')) return closeModal('adModal');
+  if (isActive('groupGalleryScreen')) return closeFullScreen('groupGalleryScreen');
+  if (isActive('chatGalleryScreen')) return closeFullScreen('chatGalleryScreen');
+  if (isActive('groupInfoScreen')) return closeFullScreen('groupInfoScreen');
+  if (isActive('chatInfoScreen')) return closeFullScreen('chatInfoScreen');
   if (isActive('chatModal')) return closeChatModal();
+  if (isActive('groupChatModal')) return closeGroupChatModal();
   if (isActive('authModal')) { closeModal('authModal'); return openModal('landingScreen'); }
   if (isActive('messageComposeScreen')) return closeFullScreen('messageComposeScreen');
   if (isActive('composeScreen')) return closeComposeScreen();
@@ -2849,6 +2858,7 @@ function switchTab(tab){
   // 채팅방을 보다가 하단 탭으로 이동하면 activeRoomId가 안 지워져서
   // 홈 등 다른 화면에 있어도 새 메시지가 자동 읽음 처리되는 버그가 있었음 -> 탭 이동 시 채팅모달 강제로 닫기
   if (activeRoomId) closeChatModal();
+  if (activeGroupRoomId) closeGroupChatModal();
   document.querySelectorAll('.bottom-nav .nav-item').forEach(n=>n.classList.toggle('active', n.dataset.tab===tab));
   document.querySelectorAll('.tab-content').forEach(c=>c.classList.toggle('active', c.id===tab));
   if (window.malbeotUpdateAdBannerForTab) window.malbeotUpdateAdBannerForTab(tab);
@@ -4461,6 +4471,8 @@ function openGroupChatRoom(roomId){
   // 위 appendGroupChatBubble에서 건 IntersectionObserver가 알아서 감지해 부분 읽음 처리함.
 }
 function closeGroupChatModal(){
+  closeFullScreen('groupGalleryScreen');
+  closeFullScreen('groupInfoScreen');
   closeFullScreen('groupChatModal');
   activeGroupRoomId = null;
   activeGroupRoomMeta = null;
@@ -4562,13 +4574,13 @@ function attachGroupMsgLongPress(bubbleEl, m){
   const startT = (e)=>{
     const t = e.touches && e.touches[0]; if (!t) return;
     const sx=t.clientX, sy=t.clientY;
-    msgPressTimer = setTimeout(()=>{ msgPressTimer=null; if (navigator.vibrate) navigator.vibrate(15); openGroupMsgContextMenuAt(sx, sy, m); }, 450);
+    msgPressTimer = setTimeout(()=>{ msgPressTimer=null; if (navigator.vibrate) navigator.vibrate(15); openGroupMsgContextMenuAt(sx, sy, m); setMsgHighlight(bubbleEl); }, 450);
   };
   const cancelT = ()=>{ if (msgPressTimer){ clearTimeout(msgPressTimer); msgPressTimer=null; } };
   bubbleEl.addEventListener('touchstart', startT, {passive:true});
   bubbleEl.addEventListener('touchend', cancelT);
   bubbleEl.addEventListener('touchmove', cancelT);
-  bubbleEl.addEventListener('contextmenu', (e)=>{ e.preventDefault(); openGroupMsgContextMenuAt(e.clientX, e.clientY, m); });
+  bubbleEl.addEventListener('contextmenu', (e)=>{ e.preventDefault(); openGroupMsgContextMenuAt(e.clientX, e.clientY, m); setMsgHighlight(bubbleEl); });
 }
 function openGroupMsgContextMenuAt(x, y, m){
   closeMsgContextMenu();
@@ -5353,15 +5365,19 @@ function attachMsgLongPress(bubbleEl, m){
   const startT = (e)=>{
     const t = e.touches && e.touches[0]; if (!t) return;
     const sx=t.clientX, sy=t.clientY;
-    msgPressTimer = setTimeout(()=>{ msgPressTimer=null; if (navigator.vibrate) navigator.vibrate(15); openMsgContextMenuAt(sx, sy, m); }, 450);
+    msgPressTimer = setTimeout(()=>{ msgPressTimer=null; if (navigator.vibrate) navigator.vibrate(15); openMsgContextMenuAt(sx, sy, m); setMsgHighlight(bubbleEl); }, 450);
   };
   const cancelT = ()=>{ if (msgPressTimer){ clearTimeout(msgPressTimer); msgPressTimer=null; } };
   bubbleEl.addEventListener('touchstart', startT, {passive:true});
   bubbleEl.addEventListener('touchend', cancelT);
   bubbleEl.addEventListener('touchmove', cancelT);
-  bubbleEl.addEventListener('contextmenu', (e)=>{ e.preventDefault(); openMsgContextMenuAt(e.clientX, e.clientY, m); });
+  bubbleEl.addEventListener('contextmenu', (e)=>{ e.preventDefault(); openMsgContextMenuAt(e.clientX, e.clientY, m); setMsgHighlight(bubbleEl); });
 }
+let msgHighlightedEl = null;
+function setMsgHighlight(el){ clearMsgHighlight(); if (!el) return; el.classList.add('msg-pressed'); msgHighlightedEl = el; }
+function clearMsgHighlight(){ if (msgHighlightedEl){ msgHighlightedEl.classList.remove('msg-pressed'); msgHighlightedEl = null; } }
 function closeMsgContextMenu(){
+  clearMsgHighlight();
   if (msgContextMenuEl){ msgContextMenuEl.remove(); msgContextMenuEl=null; }
   document.removeEventListener('click', closeMsgContextMenuOutside, true);
 }
