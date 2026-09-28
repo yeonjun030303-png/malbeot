@@ -408,6 +408,23 @@ function generateInviteCode() {
   for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
 }
+// 0-90: 추천코드(친구 초대) - 가입 시 코드를 입력하면 가입자/추천인 모두 쌀 지급
+const REFERRAL_REWARD_POINTS = 200;
+const REFERRAL_MAX_PER_USER = 30;
+function generateReferralCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+async function ensureReferralCode(user) {
+  if (user.referralCode) return user.referralCode;
+  let code;
+  do { code = generateReferralCode(); } while ((await db.ref(`referralCodes/${code}`).once('value')).exists());
+  await db.ref(`referralCodes/${code}`).set(user.id);
+  user.referralCode = code;
+  return code;
+}
 async function getGroupRoom(roomId) {
   const snap = await db.ref(`groupChats/${roomId}`).once('value');
   return snap.val();
@@ -1034,6 +1051,20 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb({ success: false }); }
   });
 
+  // 0-90: 내 추천코드 조회(없으면 생성) + 지금까지 추천으로 가입한 인원 수
+  socket.on('referral:get_my_code', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      if (!userId) return cb && cb({ success: false });
+      const user = await getUser(userId);
+      if (!user) return cb && cb({ success: false });
+      const had = !!user.referralCode;
+      const code = await ensureReferralCode(user);
+      if (!had) await saveUser(user);
+      cb && cb({ success: true, code, count: user.referralCount || 0, reward: REFERRAL_REWARD_POINTS });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
+  });
+
   // 회원가입 전 번호 중복 체크
   socket.on('auth:check_phone', async (data, cb) => {
     try {
@@ -1102,6 +1133,21 @@ io.on('connection', (socket) => {
         const nsfwResult = await checkImageNsfw(data.photos[0]);
         if (nsfwResult.isNsfw) return cb({ success: false, message: '부적절한 프로필 사진으로 감지되어 가입할 수 없습니다. 다른 사진을 등록해주세요.' });
       }
+      // 0-90: 추천코드 확인 (입력한 경우에만)
+      let referrer = null;
+      let referralRewarded = false;
+      let referralNote = null;
+      const inputReferralCode = String(data.referralCode || '').trim().toUpperCase();
+      if (inputReferralCode) {
+        const refSnap = await db.ref(`referralCodes/${inputReferralCode}`).once('value');
+        const referrerId = refSnap.val();
+        referrer = referrerId ? await getUser(referrerId) : null;
+        if (!referrer) return cb({ success: false, referralInvalid: true, message: '추천 코드를 찾을 수 없어요. 코드를 다시 확인하거나 비워두고 가입해주세요.' });
+        if (referrer.isBanned) referralNote = '추천인 계정 상태로 인해 추천 보상은 지급되지 않았어요.';
+        else if ((referrer.referralCount || 0) >= REFERRAL_MAX_PER_USER) referralNote = '이 추천코드는 보상 지급 한도에 도달해 보상이 지급되지 않았어요.';
+        else if (deviceDupUsers && deviceDupUsers.length) referralNote = '이미 가입 이력이 있는 기기라 추천 보상은 지급되지 않았어요.';
+        else referralRewarded = true;
+      }
       const user = {
         id: genId('u'), phone: '', kakaoId: payload.kakaoId, nickname: data.nickname,
         nicknameFiltered: containsBannedWord(data.nickname),
@@ -1113,11 +1159,27 @@ io.on('connection', (socket) => {
         deviceId: data.deviceId || null, lastIp: getClientIp(socket),
         followingIds: [], followerIds: [], profileLikedBy: [], notifyKeywords: []
       };
+      if (referralRewarded) { user.points = (user.points || 0) + REFERRAL_REWARD_POINTS; user.referredBy = referrer.id; }
       await saveUser(user);
       socketToUser[socket.id] = user.id;
       userToSocket[user.id] = socket.id;
       const token = issueSessionToken(user.id);
-      cb({ success: true, user: { ...user, isAdmin: false }, token });
+      let referralResult = null;
+      if (referrer) {
+        referralResult = referralRewarded ? { rewarded: true, amount: REFERRAL_REWARD_POINTS } : { rewarded: false, note: referralNote };
+      }
+      cb({ success: true, user: { ...user, isAdmin: false }, token, referralResult });
+      if (referralRewarded) {
+        try {
+          const freshReferrer = await getUser(referrer.id);
+          if (freshReferrer) {
+            freshReferrer.points = (freshReferrer.points || 0) + REFERRAL_REWARD_POINTS;
+            freshReferrer.referralCount = (freshReferrer.referralCount || 0) + 1;
+            await saveUser(freshReferrer);
+            notifyUser(freshReferrer.id, { type: 'referral_reward', title: '초대 보상 도착', body: `${user.nickname}님이 내 추천코드로 가입해서 쌀 ${REFERRAL_REWARD_POINTS}개가 지급되었어요.` });
+          }
+        } catch (e) { console.error('[추천 보상 지급 오류]', e); }
+      }
       broadcastUsers();
       // 경고를 보고도 가입을 강행해 실제로 중복계정이 생긴 경우에만 관리자에게 실시간 알림
       if (deviceDupUsers && deviceDupUsers.length) {

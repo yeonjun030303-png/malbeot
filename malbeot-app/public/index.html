@@ -513,6 +513,10 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
             <select id="regAge"></select>
           </div>
         </div>
+        <div class="form-group">
+          <label>회원 소개로 오셨나요? <span style="font-weight:400;color:var(--text-muted);">(선택 · 추천코드를 입력하면 쌀 200개!)</span></label>
+          <input type="text" id="regReferralCode" placeholder="추천코드 6자리 (없으면 비워두세요)" maxlength="8" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;">
+        </div>
         <div style="background:var(--bg-subtle);border:1px solid var(--border-color);border-radius:8px;padding:12px;margin-bottom:14px;">
           <label style="font-size:11px;cursor:pointer;display:flex;gap:8px;align-items:flex-start;">
             <input type="checkbox" id="agreeLegal" style="margin-top:2px;">
@@ -641,6 +645,15 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <div class="settings-list-item" style="background:linear-gradient(135deg,#fff7e0,#fff1c9);border:1px solid #f0d98a;border-radius:16px;padding:14px 16px;" onclick="openSubscriptionScreen()">
           <div><div class="sli-label"><i class="fa-solid fa-crown" style="color:#c9891a;"></i> 말벗 구독</div><div class="sli-sub" id="mypageSubStatusSub">골드/플래티넘 구독하고 더 많은 기능을 이용해보세요</div></div>
           <div class="sli-right"><i class="fa-solid fa-chevron-right"></i></div>
+        </div>
+        <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <div style="min-width:0;">
+            <div class="sli-label"><i class="fa-solid fa-gift"></i> 내 추천코드</div>
+            <div class="sli-sub" id="myReferralSub">친구가 이 코드로 가입하면 서로 쌀 200개!</div>
+          </div>
+          <button type="button" id="btnCopyReferral" onclick="copyMyReferralCode()" style="flex-shrink:0;display:flex;align-items:center;gap:8px;border:1px dashed var(--border-color);background:var(--bg-subtle);border-radius:12px;padding:10px 14px;font-weight:800;letter-spacing:2px;font-size:16px;cursor:pointer;color:var(--text-main);">
+            <span id="myReferralCode">------</span><i class="fa-regular fa-copy"></i>
+          </button>
         </div>
         <div class="settings-card" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:16px;">
           <div style="margin-bottom:6px;">
@@ -2684,6 +2697,7 @@ function startKakaoLogin(){
 
 /* ===================== 회원가입 (3단계) ===================== */
 function setAuthStep(n){
+  if (n===2){ try{ const refEl=document.getElementById('regReferralCode'); const savedRef=localStorage.getItem('pendingReferralCode'); if (refEl && !refEl.value && savedRef) refEl.value=savedRef; }catch(e){} }
   document.getElementById('authStep2').classList.toggle('hidden', n!==2);
   document.getElementById('authStep3').classList.toggle('hidden', n!==3);
   document.getElementById('authStepIndicator').textContent = {2:'1 / 2 단계 · 기본 정보',3:'2 / 2 단계 · 사진 등록'}[n];
@@ -2715,10 +2729,15 @@ function submitKakaoSignup(confirmed, deviceConfirmed){
     photos: regPhotoBase64 ? [regPhotoBase64] : [],
     confirmed,
     deviceId: getDeviceId(),
-    deviceConfirmed
+    deviceConfirmed,
+    referralCode: ((document.getElementById('regReferralCode')||{}).value || '').trim().toUpperCase()
   };
   socket.emit('auth:kakao_complete_profile', kakaoData, (res)=>{
-    if (res.success){ currentUser = res.user; saveSession(res.token); closeModal('authModal'); initApp(); if (!currentUser.onboardingSeen) setTimeout(showOnboardingTutorial, 400); }
+    if (res.success){ currentUser = res.user; saveSession(res.token); closeModal('authModal'); initApp(); if (!currentUser.onboardingSeen) setTimeout(showOnboardingTutorial, 400);
+      try{ localStorage.removeItem('pendingReferralCode'); }catch(e){}
+      if (res.referralResult){ setTimeout(()=>showMiniAlert(res.referralResult.rewarded ? ('추천 보상으로 쌀 '+res.referralResult.amount+'개가 지급되었어요!') : (res.referralResult.note || '추천 보상이 지급되지 않았어요.'), [{label:'확인', primary:true}]), 900); }
+    }
+    else if (res.referralInvalid){ showMiniAlert(res.message, [{label:'확인', primary:true}]); }
     else if (res.needsConfirm){
       showMiniAlert('닉네임에 부적절한 단어가 발견되었습니다. \"삭제된 닉네임입니다\"로 표기됩니다. 그래도 사용하시겠습니까?', [
         {label:'취소', primary:false},
@@ -5483,6 +5502,36 @@ function openMsgContextMenuAt(x, y, m){
   menu.style.top = top+'px';
   setTimeout(()=>document.addEventListener('click', closeMsgContextMenuOutside, true), 0);
 }
+/* ===== 0-90: 추천코드 ===== */
+(function(){ try { const ref = new URLSearchParams(location.search).get('ref'); if (ref) localStorage.setItem('pendingReferralCode', ref.trim().toUpperCase().slice(0,8)); } catch(e){} })();
+let myReferralCodeValue = '';
+function loadMyReferralCode(){
+  if (!currentUser) return;
+  socket.emit('referral:get_my_code', {}, (res)=>{
+    if (!res || !res.success) return;
+    myReferralCodeValue = res.code;
+    const el = document.getElementById('myReferralCode'); if (el) el.textContent = res.code;
+    const sub = document.getElementById('myReferralSub');
+    if (sub) sub.textContent = '친구가 이 코드로 가입하면 서로 쌀 ' + res.reward + '개! (지금까지 ' + res.count + '명 초대)';
+  });
+}
+function copyMyReferralCode(){
+  if (!myReferralCodeValue) return;
+  const btn = document.getElementById('btnCopyReferral');
+  const icon = btn ? btn.querySelector('i') : null;
+  const done = ()=>{
+    if (!icon) return;
+    icon.className = 'fa-solid fa-check';
+    setTimeout(()=>{ icon.className = 'fa-regular fa-copy'; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(myReferralCodeValue).then(done).catch(()=>{ fallbackCopyReferral(); done(); });
+  } else { fallbackCopyReferral(); done(); }
+}
+function fallbackCopyReferral(){
+  const ta = document.createElement('textarea'); ta.value = myReferralCodeValue;
+  document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch(e){} ta.remove();
+}
 function copyMsgText(m){
   const text = m.text||'';
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text);
@@ -5725,6 +5774,7 @@ async function handleEditExtraPhotoUpload(e){
   openProfilePhotoPreview(image, nextSlotIndex);
 }
 function loadProfileToForm(){
+  try{ loadMyReferralCode(); }catch(e){}
   if (!currentUser) return;
   document.getElementById('editNickname').value = currentUser.nickname;
   document.getElementById('editRegion').value = currentUser.region;
