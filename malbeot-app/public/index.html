@@ -134,6 +134,7 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 .discover-card-name{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .discover-card-count{font-size:14px;color:var(--text-muted);}
 .discover-empty{text-align:center;padding:40px 16px;color:var(--text-muted);font-size:13px;}
+.discover-mine{border:2px solid var(--primary);}
 .discover-listhead{display:flex;align-items:center;gap:10px;padding:12px 14px;}
 .discover-back{background:none;border:none;font-size:18px;color:inherit;cursor:pointer;padding:4px 8px;}
 .discover-listtitle{font-size:17px;font-weight:800;flex:1;}
@@ -3083,6 +3084,33 @@ function discoverIconHtml(item){
     : '<span class="discover-emoji">'+(DISCOVER_ICONS[item.key]||'✨')+'</span>';
   return fb + '<img class="discover-img" src="interests/'+item.key.toLowerCase()+'.png" alt="" style="display:none" onload="this.style.display=\'block\';this.previousElementSibling.style.display=\'none\'" onerror="this.remove()">';
 }
+function discoverIsMine(item){ return !!(currentUser && discoverHas(currentUser, item)); }
+function discoverSortMine(items){
+  const mine = [], rest = [];
+  items.forEach(it=>{ (discoverIsMine(it) ? mine : rest).push(it); });
+  return mine.concat(rest);
+}
+function discoverSharedCount(u){
+  let n = 0;
+  discoverGroups().forEach(gr=>gr.items.forEach(it=>{ if (discoverIsMine(it) && discoverHas(u,it)) n++; }));
+  return n;
+}
+// 왼쪽->오른쪽으로 밀면 리스트에서 카드 화면으로 복귀
+let discoverSwipe = null;
+document.addEventListener('touchstart', function(e){
+  discoverSwipe = null;
+  if (!discoverView || !e.touches || e.touches.length !== 1) return;
+  const tc = document.getElementById('tab-discover');
+  if (!tc || !tc.classList.contains('active') || !tc.contains(e.target)) return;
+  discoverSwipe = {x:e.touches[0].clientX, y:e.touches[0].clientY};
+}, {passive:true});
+document.addEventListener('touchend', function(e){
+  const s = discoverSwipe; discoverSwipe = null;
+  if (!s || !discoverView || !e.changedTouches || !e.changedTouches.length) return;
+  const dx = e.changedTouches[0].clientX - s.x, dy = e.changedTouches[0].clientY - s.y;
+  if (dx > 70 && Math.abs(dy) < 60 && dx > Math.abs(dy) * 2) closeDiscoverCategory();
+}, {passive:true});
+document.addEventListener('touchcancel', function(){ discoverSwipe = null; }, {passive:true});
 function openDiscoverTab(){ discoverView = null; loadDiscover(); }
 function loadDiscover(){
   const root = document.getElementById('discoverRoot'); if (!root) return;
@@ -3099,11 +3127,12 @@ function renderDiscoverGrid(){
   let html = '';
   discoverGroups().forEach(gr=>{
     html += '<div class="discover-sec-title">'+gr.title+'</div><div class="discover-grid">';
-    gr.items.forEach(item=>{
+    discoverSortMine(gr.items).forEach(item=>{
+      const mine = discoverIsMine(item);
       const cnt = users.filter(u=>discoverHas(u,item)).length;
-      html += '<div class="discover-card" onclick="openDiscoverCategory(\''+item.kind+'\',\''+item.key+'\')">'
+      html += '<div class="discover-card'+(mine?' discover-mine':'')+'" onclick="openDiscoverCategory(\''+item.kind+'\',\''+item.key+'\')">'
         + '<div class="discover-card-icon">'+discoverIconHtml(item)+'</div>'
-        + '<div class="discover-card-foot"><span class="discover-card-name">'+escapeHtml(item.label)+'</span><span class="discover-card-count">'+cnt+'</span></div></div>';
+        + '<div class="discover-card-foot"><span class="discover-card-name">'+(mine?'★ ':'')+escapeHtml(item.label)+'</span><span class="discover-card-count">'+cnt+'</span></div></div>';
     });
     html += '</div>';
   });
@@ -3123,7 +3152,7 @@ function renderDiscoverList(view){
   const item = discoverFindItem(view.kind, view.key);
   if (!item){ discoverView = null; renderDiscoverGrid(); return; }
   const list = (discoverUsers||[]).filter(u=>discoverHas(u,item));
-  list.sort((a,b)=> (b.isOnline?1:0)-(a.isOnline?1:0) || (b.lastSeen||0)-(a.lastSeen||0));
+  list.sort((a,b)=> discoverSharedCount(b)-discoverSharedCount(a) || (b.isOnline?1:0)-(a.isOnline?1:0) || (b.lastSeen||0)-(a.lastSeen||0));
   root.innerHTML = '<div class="discover-listhead"><button class="discover-back" onclick="closeDiscoverCategory()"><i class="fa-solid fa-chevron-left"></i></button>'
     + '<span class="discover-listtitle">'+escapeHtml(item.label)+'</span><span class="discover-card-count">'+list.length+'명</span></div>'
     + '<div id="discoverUserList" class="user-cards-grid"></div>';
