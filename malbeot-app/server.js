@@ -1415,6 +1415,8 @@ io.on('connection', (socket) => {
     try {
       const userId = socketToUser[socket.id];
       const now = Date.now();
+      // 0-91: 말벗릴스 종료 - 기존 릴스 데이터는 보존하되 피드는 항상 빈 목록으로 응답
+      if (true) return cb({ success: true, stories: [] });
       let raw = await getRawPosts();
       raw = raw.filter(p => p.logType === 'log' && !p.deleted && !p.filtered && (now - (p.updatedAt || p.createdAt)) < THIRTY_DAYS);
       const shuffled = weightedShuffleStories(raw, userId);
@@ -1499,7 +1501,7 @@ io.on('connection', (socket) => {
       }
       const post = {
         id: genId('p'), authorId: user.id,
-        content: (data.content || '').slice(0, 100), photo: imageBlocked ? '' : (data.photo || ''), logType: data.logType || 'story',
+        content: (data.content || '').slice(0, 100), photo: imageBlocked ? '' : (data.photo || ''), logType: 'story',
         category, pollOptions, pollVotes,
         createdAt: Date.now(), updatedAt: Date.now(), likes: 0, likedBy: [], comments: {},
         viewCount: 0, viewedBy: {},
@@ -1536,7 +1538,7 @@ io.on('connection', (socket) => {
 
       post.content = (data.content || '').slice(0, 100);
       post.photo = imageBlocked ? '' : (data.photo || '');
-      post.logType = data.logType || post.logType || 'story';
+      post.logType = post.logType || 'story'; // 0-91: 말벗릴스 종료로 유형 변경 불가
       post.updatedAt = Date.now();
       post.filtered = isFiltered;
       // 원래 정상이었다가 이번에 새로 걸린 경우에만 3일 타이머 시작.

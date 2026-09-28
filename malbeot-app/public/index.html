@@ -614,10 +614,6 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     </section>
 
     <section id="tab-community" class="tab-content">
-      <div class="community-subtabs">
-        <button type="button" class="community-subtab-btn active" data-logtype="story" onclick="switchCommunitySubtab('story')">일상이야기</button>
-        <button type="button" class="community-subtab-btn" data-logtype="log" onclick="switchCommunitySubtab('log')">말벗릴스</button>
-      </div>
       <div id="communityPostList" class="community-feed"></div>
     </section>
 
@@ -1531,7 +1527,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         </div>
         <div class="onboarding-slide hidden" data-step="1" style="padding:36px 24px 20px;text-align:center;">
           <div style="font-size:48px;margin-bottom:16px;"><i class="fa-solid fa-images" style="color:var(--primary);"></i></div>
-          <div style="font-size:17px;font-weight:700;margin-bottom:10px;">말벗스토리로 일상을 공유해요</div>
+          <div style="font-size:17px;font-weight:700;margin-bottom:10px;">커뮤니티에서 일상을 공유해요</div>
           <div style="font-size:13px;color:var(--text-muted);line-height:1.6;">사진과 글로 일상을 나누고, 다른 사람들과 공감·댓글로 소통해보세요.</div>
         </div>
         <div class="onboarding-slide hidden" data-step="2" style="padding:36px 24px 20px;text-align:center;">
@@ -3878,11 +3874,6 @@ function renderProfileDetail(user){
         <i class="fa-solid fa-chevron-down accordion-arrow" id="profilePostsScrollArrow" style="display:none;"></i>
       </div>
       <div class="profile-posts-scroll" id="profilePostsScroll"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
-      <div class="profile-posts-title profile-section-header" id="profileStoriesScrollHeader" onclick="toggleProfileMiniList('profileStoriesScroll')">
-        <span>내 스토리 <span class="profile-count" id="profileStoriesScrollCount">(0개)</span></span>
-        <i class="fa-solid fa-chevron-down accordion-arrow" id="profileStoriesScrollArrow" style="display:none;"></i>
-      </div>
-      <div class="profile-posts-scroll" id="profileStoriesScroll"><div style="text-align:center;color:var(--text-muted);font-size:12px;padding:16px;">불러오는 중...</div></div>
       <div class="profile-posts-title profile-section-header" id="profileCommentsScrollHeader" onclick="toggleProfileMiniList('profileCommentsScroll')">
         <span>작성한 댓글 <span class="profile-count" id="profileCommentsScrollCount">(0개)</span></span>
         <i class="fa-solid fa-chevron-down accordion-arrow" id="profileCommentsScrollArrow" style="display:none;"></i>
@@ -6735,7 +6726,7 @@ function confirmUnblock(targetId, nickname){
 }
 /* ===================== 회원탈퇴 ===================== */
 function triggerWithdraw(){
-  showMiniAlert('정말 탈퇴하시겠습니까? 작성한 게시글/스토리/릴스가 모두 삭제되며 되돌릴 수 없습니다. 탈퇴 처리된 개인정보는 30일 이내에 안전하게 폐기됩니다.', [
+  showMiniAlert('정말 탈퇴하시겠습니까? 작성한 게시글이 모두 삭제되며 되돌릴 수 없습니다. 탈퇴 처리된 개인정보는 30일 이내에 안전하게 폐기됩니다.', [
     {label:'취소', primary:false},
     {label:'탈퇴하기', primary:true, onClick:()=>{
       socket.emit('account:withdraw', {}, (res)=>{
