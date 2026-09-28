@@ -171,7 +171,8 @@ async function main() {
   const trendGuide = fs.existsSync(trendReportPath) ? fs.readFileSync(trendReportPath, 'utf8') : '';
   const format = FORMATS[dayIndex() % FORMATS.length];
 
-  const g = await generate(trendGuide, format);
+  let g = null;
+  try { g = await generate(trendGuide, format); } catch (e) { console.log('Gemini call failed:', e.message); }
   let report;
 
   if (!g) {
