@@ -3,8 +3,8 @@
 const nodemailer = require('nodemailer');
 
 const KEY = process.env.GEMINI_API_KEY;
-const TEXT_MODEL = process.env.YJ_TEXT_MODEL || 'gemini-2.5-flash';
-const IMG_MODELS = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image']; // 1순위 실패 시 폴백
+let TEXT_MODEL = process.env.YJ_TEXT_MODEL || 'gemini-3.8-flash';
+let IMG_MODELS = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image']; // 1순위 실패 시 폴백
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
 const STYLE = '스마트폰으로 몰래 찍은 듯한 극사실적 저화질 사진, 형광등 아래 어둡고 채도 낮은 청회색 톤, 강한 비네트, 필름 그레인, 사선 구도. 사람 얼굴은 절대 보이지 않게(뒷모습/실루엣만). 주소, 사업자등록번호, 실존 기업 로고는 넣지 말 것. 회사명은 ㈜영정철강.';
@@ -82,6 +82,28 @@ async function getCommunityTrends() {
   return lines.join('\n').slice(0, 2500);
 }
 
+async function discoverModels() {
+  try {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': KEY } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const j = await res.json();
+    const names = (j.models || [])
+      .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map((m) => m.name.replace('models/', ''));
+    const ver = (n) => { const m = n.match(/(\d+(?:\.\d+)?)/); return m ? parseFloat(m[1]) : 0; };
+    const stab = (n) => (/preview|exp/i.test(n) ? 0 : 1);
+    const texts = names
+      .filter((n) => /flash/i.test(n) && !/image|tts|live|audio|lite|8b|native|robotics|computer/i.test(n))
+      .sort((a, b) => ver(b) - ver(a) || stab(b) - stab(a));
+    const imgs = names
+      .filter((n) => /image/i.test(n) && !/tts|live|audio/i.test(n))
+      .sort((a, b) => (/pro/i.test(b) - /pro/i.test(a)) || ver(b) - ver(a) || stab(b) - stab(a));
+    if (texts.length && !process.env.YJ_TEXT_MODEL) TEXT_MODEL = texts[0];
+    if (imgs.length) IMG_MODELS = imgs.slice(0, 3);
+    console.log('사용 모델 - 텍스트:', TEXT_MODEL, '/ 이미지:', IMG_MODELS.join(', '));
+  } catch (e) { console.error('모델 목록 조회 실패(기본값 사용):', e.message); }
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function gem(model, body, tries = 3) {
@@ -153,6 +175,7 @@ const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt
 (async () => {
   try {
     if (!KEY) throw new Error('GEMINI_API_KEY 없음');
+    await discoverModels();
     const idea = await makeIdea();
     const atts = []; const notes = [];
     for (let i = 0; i < 3; i++) {
