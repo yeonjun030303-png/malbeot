@@ -11,6 +11,11 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap">
 <style>
+*,*::before,*::after{-webkit-tap-highlight-color:transparent;}
+.content-area,.fs-body,.full-screen-overlay,.tab-content{-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+button,.btn,.nav-item,.post-action-btn,.post-dots-btn,.icon-btn{transition:transform .12s ease;}
+button:active,.btn:active,.nav-item:active,.post-action-btn:active,.post-dots-btn:active{transform:scale(.94);}
+
 :root{
   --font-main:"Pretendard Variable",Pretendard,sans-serif;
   --bg-app:#ffffff; --bg-card:#ffffff; --bg-subtle:#f8f9fa;
@@ -93,16 +98,18 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 .interest-subacc-header .interest-subacc-arrow.open{transform:rotate(180deg);}
 .interest-subacc-current{color:var(--primary);font-weight:700;font-size:12px;margin-left:4px;}
 
-.post-row{padding:14px 4px;border-bottom:1px solid var(--border-color);cursor:pointer;}
-.post-row-top{display:flex;align-items:center;gap:8px;}
+.community-feed{padding:6px 0;}
+.post-row{background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:14px;margin:10px 12px;box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;}
+.post-row:active{transform:scale(.98);}
+.post-row-top{display:flex;align-items:center;gap:9px;}
 .post-meta{flex:1;min-width:0;}
 .post-meta-line1{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;}
-.post-meta-line1 .nick{font-size:13px;font-weight:700;color:var(--primary);cursor:pointer;}
+.post-meta-line1 .nick{font-size:14px;font-weight:800;color:var(--text-main);cursor:pointer;}
 .post-meta-line1 .tagxs{font-size:11px;color:var(--text-muted);}
 .post-time{font-size:11px;color:var(--text-muted);white-space:nowrap;}
 .post-dots-btn{background:none;border:none;color:var(--text-muted);font-size:14px;cursor:pointer;padding:4px 6px;}
-.post-preview{font-size:13px;color:var(--text-main);margin:8px 0 8px 0;line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-clamp:2;}
-.post-actions{display:flex;gap:16px;align-items:center;}
+.post-preview{font-size:14px;color:var(--text-main);margin:10px 0;line-height:1.5;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-clamp:2;}
+.post-actions{display:flex;gap:16px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-color);}
 .post-action-btn{background:none;border:none;font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;cursor:pointer;font-weight:600;}
 .post-action-btn.liked{color:var(--danger);}
 .post-action-btn.liked i{color:var(--danger);}
@@ -3540,8 +3547,8 @@ function renderPosts(list){
     const liked = currentUser && (p.likedBy||[]).includes(currentUser.id);
     const div = document.createElement('div'); div.className='post-row';
     const mediaHtml = (p.photo && !p.filtered && !p.deleted) ? (p.mediaType==='video'
-      ? `<video src="${p.photo}" muted controls playsinline style="width:100%;max-height:260px;border-radius:10px;display:block;margin:8px auto;object-fit:cover;"></video>`
-      : `<img src="${p.photo}" style="width:100%;max-height:260px;border-radius:10px;display:block;margin:8px auto;object-fit:cover;" onclick="event.stopPropagation();openPostDetailScreen('${p.id}')">`) : '';
+      ? `<video src="${p.photo}" muted controls playsinline style="width:100%;max-height:280px;border-radius:14px;display:block;margin:10px 0;object-fit:cover;"></video>`
+      : `<img src="${p.photo}" style="width:100%;max-height:280px;border-radius:14px;display:block;margin:10px 0;object-fit:cover;" onclick="event.stopPropagation();openPostDetailScreen('${p.id}')">`) : '';
     const previewHtml = p.filtered
       ? `<span style="color:var(--text-muted);">부적절한 단어로 삭제된 게시글입니다.</span>`
       : p.deleted
@@ -3550,7 +3557,7 @@ function renderPosts(list){
     const matchedCommentsHtml = activeSearchQuery ? buildMatchedCommentsHtml(p, activeSearchQuery) : '';
     div.innerHTML = `
       <div class="post-row-top">
-        <span onclick="event.stopPropagation();openProfileDetailScreen('${p.authorId}')" style="cursor:pointer;">${avatarHtmlFor(postAuthorObj(p),'avatar-sm')}</span>
+        <span onclick="event.stopPropagation();openProfileDetailScreen('${p.authorId}')" style="cursor:pointer;">${avatarHtmlFor(postAuthorObj(p),'avatar-md')}</span>
         <div class="post-meta">
           <div class="post-meta-line1">
             <span class="nick" onclick="event.stopPropagation();openProfileDetailScreen('${p.authorId}')">${escapeHtml(p.authorNickname)}</span>
