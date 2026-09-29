@@ -21,3 +21,4 @@ jobs:
           MAIL_USER: ${{ secrets.MAIL_USER }}
           MAIL_PASS: ${{ secrets.MAIL_PASS }}
           MAIL_TO: ${{ secrets.MAIL_TO }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}

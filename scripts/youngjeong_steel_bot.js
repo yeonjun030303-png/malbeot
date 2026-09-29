@@ -18,6 +18,38 @@ const FORMATS = [
   '결재 문서 반려 사유 코드표(코드마다 엉뚱한 사유)',
   '사내 방송 멘트 대본(점심시간 안내 방송을 엄숙하게)',
 ];
+const YT_QUERIES = ['중소기업 사내규정 불만', '중소기업 명절 선물 현실', '중소기업 직장인 썰', '꼰대 상사 회사 현실', 'MZ 신입 퇴사 이유'];
+const THEMES = ['보수적인 사내 분위기', 'MZ 세대의 조용한 반란', '말도 안 되는 중소기업식 마인드'];
+
+async function yt(path, params) {
+  const u = new URL('https://www.googleapis.com/youtube/v3/' + path);
+  Object.entries({ ...params, key: process.env.YOUTUBE_API_KEY }).forEach(([k, v]) => u.searchParams.set(k, v));
+  const r = await fetch(u);
+  if (!r.ok) throw new Error(`YouTube ${path} HTTP ${r.status}`);
+  return r.json();
+}
+
+// 매일 최근 7일 인기 영상 제목 + 상위 댓글(시청자 불만)을 수집
+async function getTrends() {
+  if (!process.env.YOUTUBE_API_KEY) return '';
+  const after = new Date(Date.now() - 7 * 864e5).toISOString();
+  const lines = [];
+  for (const q of YT_QUERIES) {
+    try {
+      const s = await yt('search', { part: 'snippet', q, type: 'video', order: 'viewCount', publishedAfter: after, regionCode: 'KR', relevanceLanguage: 'ko', maxResults: 3 });
+      for (const it of s.items) lines.push(`[영상] ${it.snippet.title}`);
+      const vid = s.items[0] && s.items[0].id.videoId;
+      if (vid) {
+        try {
+          const c = await yt('commentThreads', { part: 'snippet', videoId: vid, order: 'relevance', maxResults: 5, textFormat: 'plainText' });
+          for (const t of c.items) lines.push(`[댓글] ${t.snippet.topLevelComment.snippet.textDisplay.slice(0, 120)}`);
+        } catch (_) { /* 댓글 막힌 영상은 건너뜀 */ }
+      }
+    } catch (e) { console.error('트렌드 수집 실패:', q, e.message); }
+  }
+  return lines.join('\n').slice(0, 3500);
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function gem(model, body, tries = 3) {
@@ -39,15 +71,20 @@ async function gem(model, body, tries = 3) {
 }
 
 async function makeIdea() {
+  const trends = await getTrends();
   const prompt = `너는 가상 중소기업 ㈜영정철강(철강 유통·가공, 1987년 설립)의 사내 소식 아카이브 인스타 계정 기획자다.
-오늘 올릴 "사내 실태점검" 콘텐츠 1건을 기획하라.
+오늘 올릴 콘텐츠 1건을 기획하라.
+[컨셉] 사원이 회사 몰래 사진 찍어 올린 내부고발/제보 톤. 캡션은 사원 1인칭 시점의 건조하고 억울한 말투.
+[오늘의 테마] ${THEMES[new Date().getUTCDate() % 3]} (보수적 분위기 / MZ의 반란 / 중소기업식 마인드: 명절 선물, 사내 규정, 직원 불만 등)
+[유튜브 트렌드 자료: 최근 화제 영상과 시청자 댓글] 흐름과 불만 포인트만 요약해 반영하고, 제목·댓글 문장을 그대로 베끼지 말 것. 실존 기업·인물 실명 금지.
+${trends || '(수집된 자료 없음. 일반적인 중소기업 직장인 불만 소재로 기획)'}
 - 딱딱한 관공서식 표/문서 형태 + 반전 요소(사소한 걸 국가기밀처럼 다룸 / 신조어가 공식 문서에 등장 / 예상 밖 결말) 중 하나
 - 구체적 숫자 포함 (예: "시간당 12회")
 - 얼굴 노출 금지, 주소·사업자번호 항목 금지
 - 오늘의 포맷 씨앗(이 방향으로만 기획): ${FORMATS[new Date().getUTCDate() % FORMATS.length]}
 - 다른 기업 계정(특히 태산금형)의 게시물을 따라 하거나 변형하지 말 것. 다음 소재는 이미 다른 계정이 쓴 것이므로 금지: MZ 어투 사용 현황표, 고사/제사 사진, 그림 시험지 만화, 명절 선물 증정식, 부서장 취임 인사문, 금속 조각 작품. 문구·구도·표 구성도 새로 만들 것
 - 5일 중 4일은 앱 언급 없이, 1일만 캡션 끝에 '말벗' 앱을 아주 약하게 연결. 오늘 요일 번호: ${new Date().getUTCDate() % 5} (0이면 약한 연결 포함)
-JSON만 출력: {"topic":"소재","hook":"반전 설명","caption":"캡션(해시태그 제외)","hashtags":["..."],"scenes":["이미지1 장면 묘사","이미지2 장면 묘사","이미지3 장면 묘사"]}
+JSON만 출력: {"topic":"소재","trend_summary":"오늘 반영한 트렌드 3줄 요약","hook":"반전 설명","caption":"캡션(해시태그 제외)","hashtags":["..."],"scenes":["이미지1 장면 묘사","이미지2 장면 묘사","이미지3 장면 묘사"]}
 scenes 3개는 서로 구도/소품이 확실히 다르게, 문서/표에 들어갈 한글 문구도 구체적으로 적어라.`;
   const j = await gem(TEXT_MODEL, {
     contents: [{ parts: [{ text: prompt }] }],
@@ -98,6 +135,7 @@ const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt
     }
     const tags = (idea.hashtags || []).map((h) => '#' + String(h).replace(/^#/, '')).join(' ');
     const html = `<h3>오늘의 소재: ${esc(idea.topic)}</h3><p>반전: ${esc(idea.hook)}</p>
+<p>트렌드 반영: ${esc(idea.trend_summary || '없음(YOUTUBE_API_KEY 미설정 또는 수집 실패)')}</p>
 <h4>캡션</h4><p style="white-space:pre-wrap">${esc(idea.caption)}\n\n${esc(tags)}</p>
 <h4>이미지 후보 / 프롬프트</h4><ol>${notes.join('')}</ol>
 <p>※ 자동 게시 없음. 마음에 드는 후보를 골라 직접 업로드하세요.</p>`;
