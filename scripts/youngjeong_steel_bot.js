@@ -50,6 +50,38 @@ async function getTrends() {
   return lines.join('\n').slice(0, 3500);
 }
 
+const NAVER_QUERIES = ['중소기업 사내규정', '회사 명절 선물 불만', '중소기업 꼰대 문화'];
+const NEWS_QUERIES = ['중소기업 직장인 불만', '회사 명절 선물 논란'];
+const stripTags = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/&quot;|&amp;|&#39;|&lt;|&gt;/g, ' ').trim();
+
+// 네이버 검색 API(카페/지식iN/블로그) + 구글 뉴스 RSS에서 최신 화제·불만 수집 (공식 API/RSS만 사용)
+async function getCommunityTrends() {
+  const lines = [];
+  const id = process.env.NAVER_CLIENT_ID, sec = process.env.NAVER_CLIENT_SECRET;
+  if (id && sec) {
+    for (const q of NAVER_QUERIES) {
+      for (const [ep, label] of [['cafearticle', '카페'], ['kin', '지식iN'], ['blog', '블로그']]) {
+        try {
+          const r = await fetch(`https://openapi.naver.com/v1/search/${ep}.json?query=${encodeURIComponent(q)}&display=3&sort=date`, { headers: { 'X-Naver-Client-Id': id, 'X-Naver-Client-Secret': sec } });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const j = await r.json();
+          for (const it of j.items || []) lines.push(`[${label}] ${stripTags(it.title)} - ${stripTags(it.description).slice(0, 80)}`);
+        } catch (e) { console.error('네이버 수집 실패:', ep, q, e.message); }
+      }
+    }
+  }
+  for (const q of NEWS_QUERIES) {
+    try {
+      const r = await fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ko&gl=KR&ceid=KR:ko`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const xml = await r.text();
+      const titles = [...xml.matchAll(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>/g)].slice(0, 3).map((m) => stripTags(m[1].replace(/<!\[CDATA\[|\]\]>/g, '')));
+      titles.forEach((t) => lines.push(`[뉴스] ${t}`));
+    } catch (e) { console.error('뉴스 수집 실패:', q, e.message); }
+  }
+  return lines.join('\n').slice(0, 2500);
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function gem(model, body, tries = 3) {
@@ -71,12 +103,12 @@ async function gem(model, body, tries = 3) {
 }
 
 async function makeIdea() {
-  const trends = await getTrends();
+  const trends = [await getTrends(), await getCommunityTrends()].filter(Boolean).join('\n').slice(0, 6000);
   const prompt = `너는 가상 중소기업 ㈜영정철강(철강 유통·가공, 1987년 설립)의 사내 소식 아카이브 인스타 계정 기획자다.
 오늘 올릴 콘텐츠 1건을 기획하라.
 [컨셉] 사원이 회사 몰래 사진 찍어 올린 내부고발/제보 톤. 캡션은 사원 1인칭 시점의 건조하고 억울한 말투.
 [오늘의 테마] ${THEMES[new Date().getUTCDate() % 3]} (보수적 분위기 / MZ의 반란 / 중소기업식 마인드: 명절 선물, 사내 규정, 직원 불만 등)
-[유튜브 트렌드 자료: 최근 화제 영상과 시청자 댓글] 흐름과 불만 포인트만 요약해 반영하고, 제목·댓글 문장을 그대로 베끼지 말 것. 실존 기업·인물 실명 금지.
+[트렌드 자료: 유튜브 화제 영상·댓글, 커뮤니티·뉴스 글] 흐름과 불만 포인트만 요약해 반영하고, 제목·댓글 문장을 그대로 베끼지 말 것. 실존 기업·인물 실명 금지.
 ${trends || '(수집된 자료 없음. 일반적인 중소기업 직장인 불만 소재로 기획)'}
 - 딱딱한 관공서식 표/문서 형태 + 반전 요소(사소한 걸 국가기밀처럼 다룸 / 신조어가 공식 문서에 등장 / 예상 밖 결말) 중 하나
 - 구체적 숫자 포함 (예: "시간당 12회")
