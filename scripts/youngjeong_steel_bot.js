@@ -99,9 +99,27 @@ async function discoverModels() {
       .filter((n) => /image/i.test(n) && !/tts|live|audio/i.test(n))
       .sort((a, b) => (/pro/i.test(b) - /pro/i.test(a)) || ver(b) - ver(a) || stab(b) - stab(a));
     if (texts.length && !process.env.YJ_TEXT_MODEL) TEXT_MODEL = texts[0];
+    TEXT_LIST = texts.slice(0, 4);
     if (imgs.length) IMG_MODELS = imgs.slice(0, 3);
     console.log('사용 모델 - 텍스트:', TEXT_MODEL, '/ 이미지:', IMG_MODELS.join(', '));
   } catch (e) { console.error('모델 목록 조회 실패(기본값 사용):', e.message); }
+}
+
+let TEXT_LIST = [];
+// 텍스트 모델이 과부하(503) 등으로 실패하면 다음 모델로 넘어가며 시도
+async function gemText(body) {
+  const order = [...new Set([TEXT_MODEL, ...TEXT_LIST])];
+  let last;
+  for (const m of order) {
+    try {
+      return await gem(m, body, 3);
+    } catch (e) {
+      last = e;
+      console.error('텍스트 모델 실패:', m, String(e.message).slice(0, 80));
+      await sleep(5000);
+    }
+  }
+  throw last;
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -141,7 +159,7 @@ ${trends || '(수집된 자료 없음. 일반적인 중소기업 직장인 불�
 JSON만 출력: {"topic":"소재","trend_summary":"오늘 반영한 트렌드 3줄 요약","hook":"반전 설명","caption":"캡션(해시태그 제외)","hashtags":["..."],"scenes":["이미지1 장면 묘사","이미지2 장면 묘사","이미지3 장면 묘사"],"bg":["글자 없는 배경 사진 묘사1","배경2","배경3"],"doc":{"title":"문서 제목","subtitle":"점검 기간 등 한 줄","columns":["열1","열2","열3"],"rows":[["행1열1","행1열2","행1열3"]],"footer":"각주 한 줄"}}
 scenes 3개는 서로 구도/소품이 확실히 다르게, 문서/표에 들어갈 한글 문구도 구체적으로 적어라.
 doc은 실제 관공서식 표(열 3~4개, 행 4~6개, 구체적 숫자 포함, 얼굴·실명 없음)로 작성하고, bg는 글자가 전혀 없는 배경 사진(창고, 회의실, 게시판 벽 등)을 3개 서로 다르게 묘사하라.`;
-  const j = await gem(TEXT_MODEL, {
+  const j = await gemText({
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: { responseMimeType: 'application/json' },
   });
