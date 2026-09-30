@@ -179,7 +179,7 @@ async function makeImage(scene) {
     try {
       const idx = Math.max(0, CUR_IDEA.scenes.indexOf(scene));
       const buf = await require('./yj_composite.js').compose(CUR_IDEA, idx);
-      return { buf, model: '자체합성(배경AI+문서렌더)', prompt: scene, mime: 'image/jpeg' };
+      return { buf, model: '자체합성 / Gemini 실패: ' + String(ge.message).slice(0, 300), prompt: scene, mime: 'image/jpeg' };
     } catch (ce) {
       throw new Error(`Gemini: ${String(ge.message).slice(0, 60)} / 합성: ${ce.message}`);
     }
