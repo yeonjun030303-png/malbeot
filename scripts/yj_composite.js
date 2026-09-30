@@ -144,7 +144,7 @@ function paper(x, y, w, h, rot, fill) {
 const pin = (x, y, c = '#c8302a') => `<circle cx="${x + 6}" cy="${y + 8}" r="14" fill="#000" opacity="0.45" filter="url(#b3)"/><circle cx="${x}" cy="${y}" r="14" fill="${c}"/><circle cx="${x - 4}" cy="${y - 5}" r="5" fill="#fff" opacity="0.6"/>`;
 const tape = (x, y, rot) => `<g transform="rotate(${rot} ${x} ${y})"><rect x="${x - 55}" y="${y - 20}" width="110" height="40" fill="#e8dcae" opacity="0.72"/><rect x="${x - 55}" y="${y - 20}" width="110" height="40" fill="#fff" opacity="0.12"/></g>`;
 
-const SCENES = [
+const BASE_SCENES = [
   // 0) 회의실 빔프로젝터 화면
   (aspect) => {
     const quad = fit([[170, 340], [915, 305], [930, 850], [150, 880]], aspect);
@@ -190,6 +190,106 @@ ${paper(650, 60, 230, 210, 2, '#e8e6db')}
   },
 ];
 
+// ---------- 4-2) 면담 몰카 시점 / 단톡방 캡처 장면 ----------
+const DEFAULT_CHAT = [
+  ['이 부장', '자재창고 재고실사표 봤나'],
+  ['이 부장', '[이미지]'],
+  ['이 부장', '수량 안 맞는 이유 오늘 중으로 보고해'],
+  ['박 대리', '네 확인하겠습니다'],
+  ['최 사원', '죄송합니다 바로 확인하겠습니다'],
+];
+async function renderChat(chat, docPng) {
+  const puppeteer = require('puppeteer');
+  const room = (chat && chat.room) || '생산관리팀 (12)';
+  const lines = chat && Array.isArray(chat.lines) && chat.lines.length ? chat.lines.slice(0, 8) : DEFAULT_CHAT;
+  const uri = 'data:image/png;base64,' + docPng.toString('base64');
+  const palette = ['#8fa4b8', '#b89f8f', '#9fb88f', '#a08fb8'];
+  const colorOf = {}; let ci = 0, prev = null;
+  const rows = lines.map(([who, text], i) => {
+    const time = `오전 10:${String(12 + Math.floor(i / 2)).padStart(2, '0')}`;
+    const isImg = text === '[이미지]';
+    const inner = isImg
+      ? `<img src="${uri}" style="width:450px;border-radius:14px;display:block"/>`
+      : `<div style="padding:16px 22px;font-size:32px;line-height:1.4;word-break:keep-all">${esc(text)}</div>`;
+    if (who === '나') {
+      return `<div style="display:flex;justify-content:flex-end;align-items:flex-end;margin:10px 0"><div style="font-size:20px;color:#4d5a66;margin-right:10px">${time}</div><div style="background:#fee500;border-radius:20px 6px 20px 20px;max-width:470px;overflow:hidden">${inner}</div></div>`;
+    }
+    if (!colorOf[who]) colorOf[who] = palette[ci++ % palette.length];
+    const first = prev !== who; prev = who;
+    const avatar = first ? `<div style="width:66px;height:66px;border-radius:26px;background:${colorOf[who]};flex:none"></div>` : `<div style="width:66px;flex:none"></div>`;
+    const name = first ? `<div style="font-size:23px;color:#33414d;margin:0 0 6px 4px">${esc(who)}</div>` : '';
+    return `<div style="display:flex;gap:14px;margin:${first ? 22 : 8}px 0">${avatar}<div>${name}<div style="display:flex;align-items:flex-end;gap:10px"><div style="background:#fff;border-radius:${first ? '6px 20px 20px 20px' : '20px'};max-width:470px;overflow:hidden">${inner}</div><div style="font-size:20px;color:#4d5a66;line-height:1.25;text-align:left"><span style="color:#e0a000">${i % 3 === 0 ? '2' : '1'}</span><br>${time}</div></div></div></div>`;
+  }).join('');
+  const html = `<html><body style="margin:0;width:750px;height:1400px;background:#abc1d1;font-family:'Noto Sans CJK KR','Noto Sans KR',sans-serif;position:relative;overflow:hidden">
+<div style="height:62px;padding:0 34px;display:flex;justify-content:space-between;align-items:center;font-size:26px;font-weight:700;color:#111"><span>10:15</span><span style="font-size:22px">LTE ▂▄▆</span></div>
+<div style="height:92px;padding:0 30px;display:flex;justify-content:space-between;align-items:center;color:#111"><span style="font-size:34px;font-weight:700">‹ &nbsp;${esc(room)}</span><span style="font-size:30px">⌕ &nbsp;☰</span></div>
+<div style="text-align:center;margin:14px 0 6px"><span style="background:rgba(0,0,0,0.22);color:#fff;font-size:22px;border-radius:24px;padding:8px 22px">2026년 9월 30일 수요일</span></div>
+<div style="padding:0 26px">${rows}</div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:118px;background:#fff;display:flex;align-items:center;gap:18px;padding:0 24px"><span style="font-size:44px;color:#555">＋</span><div style="flex:1;height:70px;border-radius:35px;background:#f1f1f1;line-height:70px;padding-left:26px;font-size:26px;color:#999">메시지 입력</div><span style="font-size:36px;color:#555">☺</span></div>
+</body></html>`;
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 750, height: 1400, deviceScaleFactor: 1 });
+    await page.setContent(html);
+    return await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 750, height: 1400 } });
+  } finally { await browser.close(); }
+}
+
+// 역광을 받은 뒷모습 실루엣 (고개 숙인 직원)
+function seated(x, y, s, bow) {
+  const d = bow * 26;
+  return `<g transform="translate(${x} ${y}) scale(${s})"><path d="M-150,330 Q-150,120 -70,98 Q-30,88 -22,70 L22,70 Q30,88 70,98 Q150,120 150,330 Z" fill="#07090d"/><ellipse cx="0" cy="${-8 + d}" rx="50" ry="62" fill="#050608"/><path d="M-150,330 Q-150,120 -70,98 Q-30,88 -22,70" fill="none" stroke="#6f93c4" stroke-opacity="0.28" stroke-width="4"/><path d="M-48,${-40 + d} Q0,${-78 + d} 48,${-40 + d}" fill="none" stroke="#6f93c4" stroke-opacity="0.32" stroke-width="4"/></g>`;
+}
+// 화면 옆에 서서 자료를 가리키는 부장 실루엣
+function boss(x, y, s) {
+  return `<g transform="translate(${x} ${y}) scale(${s})" fill="#06080c"><circle cx="0" cy="0" r="40"/><rect x="-16" y="30" width="32" height="30"/><path d="M-95,80 Q-95,52 -50,50 L50,50 Q95,52 95,80 L105,300 L-105,300 Z"/><path d="M-100,300 L-70,720 L-15,720 L0,420 L15,720 L70,720 L100,300 Z"/><path d="M-78,72 L-190,-20 L-206,-2 L-96,110 Z"/><line x1="-200" y1="-10" x2="-340" y2="-125" stroke="#0a0c10" stroke-width="7"/></g>`;
+}
+function sceneInterview(aspect) {
+  const quad = fit([[80, 240], [790, 212], [805, 690], [70, 725]], aspect);
+  const bg = svg(`<defs><linearGradient id="wa" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b222b"/><stop offset="1" stop-color="#0a0d12"/></linearGradient>
+<radialGradient id="beam" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#9cc2ff" stop-opacity="0.55"/><stop offset="1" stop-color="#9cc2ff" stop-opacity="0"/></radialGradient>
+<linearGradient id="tb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a241d"/><stop offset="1" stop-color="#0c0a08"/></linearGradient></defs>
+<rect width="${W}" height="${H}" fill="url(#wa)"/><polygon points="0,0 ${W},0 ${W - 90},170 90,170" fill="#262d36"/>
+<rect x="160" y="50" width="250" height="34" fill="#dfe8f2" opacity="0.75" filter="url(#b6)"/><rect x="640" y="56" width="250" height="34" fill="#dfe8f2" opacity="0.75" filter="url(#b6)"/>
+<ellipse cx="440" cy="480" rx="650" ry="470" fill="url(#beam)" filter="url(#b60)"/>
+<polygon points="${poly(grow(quad, 20))}" fill="#0b0b0c"/><polygon points="${poly(quad)}" fill="#e2e9f3"/>
+${boss(930, 430, 0.62)}
+<polygon points="0,800 ${W},775 ${W},1010 0,1010" fill="url(#tb)"/><polygon points="0,800 ${W},775 ${W},790 0,815" fill="#6d86a8" opacity="0.35"/>
+<polygon points="140,850 330,842 340,880 130,890" fill="#cfd6df" opacity="0.8"/><polygon points="560,840 760,834 768,872 552,880" fill="#c3cbd6" opacity="0.8"/>`);
+  const fg = svg(`<defs><linearGradient id="gl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.2"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+<polygon points="${poly(quad)}" fill="url(#gl)"/>
+<g filter="url(#b3)">${seated(20, 1010, 1.7, 1)}${seated(390, 1040, 1.45, 1.5)}${seated(800, 1000, 1.6, 0.6)}</g>
+<ellipse cx="90" cy="1340" rx="300" ry="130" fill="#000" opacity="0.85" filter="url(#b14)"/>`);
+  return { bg, fg, quad, tint: [0.92, 0.97, 1.04], cast: [0.94, 1, 1.08], tex: 'dark conference room wall' };
+}
+function sceneChat(aspect) {
+  const quad = fit([[290, 190], [815, 235], [795, 1180], [255, 1140]], aspect);
+  const bg = svg(`<defs><linearGradient id="dk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a3826"/><stop offset="1" stop-color="#17110c"/></linearGradient>
+<filter id="wd"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.35" numOctaves="3" seed="${Math.floor(rnd(1, 99))}"/><feColorMatrix type="matrix" values="0 0 0 0 0.1  0 0 0 0 0.06  0 0 0 0 0.03  0 0 0 1.3 -0.3"/></filter>
+<radialGradient id="lamp" cx="20%" cy="10%" r="70%"><stop offset="0" stop-color="#ffd9a0" stop-opacity="0.35"/><stop offset="1" stop-color="#ffd9a0" stop-opacity="0"/></radialGradient></defs>
+<rect width="${W}" height="${H}" fill="url(#dk)"/><rect width="${W}" height="${H}" filter="url(#wd)"/><rect width="${W}" height="${H}" fill="url(#lamp)"/>
+<g><circle cx="935" cy="1190" r="92" fill="#000" opacity="0.4" filter="url(#b14)"/><circle cx="935" cy="1190" r="82" fill="#e9e5dc"/><circle cx="935" cy="1190" r="62" fill="#3a2316"/><path d="M1015 1170 q45 5 40 40 q-5 30 -42 25" fill="none" stroke="#e9e5dc" stroke-width="16"/></g>
+<g transform="rotate(-24 150 1230)"><rect x="40" y="1224" width="300" height="14" rx="7" fill="#1c3a6e"/><rect x="300" y="1224" width="50" height="14" rx="7" fill="#d9d9d9"/></g>
+<polygon points="${poly(off(quad, 14, 20))}" fill="#000" opacity="0.5" filter="url(#b14)"/>
+<polygon points="${poly(grow(quad, 40))}" fill="#dbe7f5" opacity="0.5" filter="url(#b60)"/>
+<polygon points="${poly(grow(quad, 22))}" fill="#0a0a0b" stroke="#0a0a0b" stroke-width="30" stroke-linejoin="round"/>`);
+  const fg = svg(`<defs><linearGradient id="gl2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.16"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><polygon points="${poly(quad)}" fill="url(#gl2)"/>`);
+  return { bg, fg, quad, tint: [0.97, 0.97, 1], cast: [1.03, 1, 0.94], tex: 'dark wooden desk surface top view' };
+}
+const SCENE_DEFS = [
+  { kind: 'doc', make: sceneInterview },
+  { kind: 'chat', make: sceneChat },
+  { kind: 'doc', make: (a) => (new Date().getUTCDate() % 2 ? BASE_SCENES[1](a) : BASE_SCENES[2](a)) },
+];
+const docCache = new Map();
+function getDoc(idea, opts) {
+  if (opts.docPng) return Promise.resolve(opts.docPng);
+  const k = JSON.stringify(idea.doc || idea.topic || '');
+  if (!docCache.has(k)) docCache.set(k, renderDoc(idea.doc || { title: idea.topic, columns: [], rows: [] }));
+  return docCache.get(k);
+}
+
 // ---------- 5) 스마트폰 카메라 효과 ----------
 async function camera(img, cast) {
   const mask = Buffer.alloc(W * H);
@@ -218,9 +318,15 @@ async function camera(img, cast) {
 }
 
 async function compose(idea, idx, opts = {}) {
-  const docPng = opts.docPng || (await renderDoc(idea.doc || { title: idea.topic, columns: [], rows: [] }));
-  const { data, info } = await sharp(docPng).resize({ width: 900 }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const sc = SCENES[idx % 3](info.width / info.height);
+  const docPng = await getDoc(idea, opts);
+  let def = SCENE_DEFS[idx % 3], srcPng = docPng;
+  if (def.kind === 'chat') {
+    try { srcPng = opts.chatPng || (await renderChat(idea.chat, docPng)); }
+    catch (e) { console.error('단톡방 렌더 실패, 게시판 장면으로 대체:', e.message); def = { kind: 'doc', make: BASE_SCENES[1] }; }
+  }
+  const isChat = def.kind === 'chat';
+  const { data, info } = await sharp(srcPng).resize({ width: isChat ? 750 : 900 }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const sc = def.make(info.width / info.height);
   let base = await sharp(Buffer.from(sc.bg)).png().toBuffer();
   const tex = await tryTexture(sc.tex);
   if (tex) {
