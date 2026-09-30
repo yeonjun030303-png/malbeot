@@ -633,91 +633,90 @@ function weightedShuffleStories(stories, userId) {
   return withWeight.map(w => w.post);
 }
 
-// ===== AI 말벗도우미 (매일 1회 자동 게시글 업로드) =====
-const AI_BOT_ID = 'ai_malbeot_bot';
+// ===== AI 캐릭터 (구 AI 말벗도우미 대체) =====
+// 캐릭터는 채팅 답장만 서버에서 처리함. 매일 글/댓글은 GitHub Actions 스크립트가 담당.
+// 캐릭터 id는 'ai_c_' 로 시작. 이용자가 캐릭터에게 처음 채팅해도 쌀 50개를 차감하지 않음.
+let aiChars = null;
+try { aiChars = require('./ai-characters'); } catch (e) { console.error('[AI 캐릭터] 모듈 로드 실패(채팅 자동답장 비활성화):', e); }
+const aiReplyTimers = {};
+const aiRate = {}; // userId -> { times: [], warnedAt }
+const AI_REPLY_LIMIT_PER_HOUR = 40;
 
-// 실제 유행곡/챌린지명을 그대로 언급하면 저작권 문제가 될 수 있어,
-// 20~30대가 공감할 만한 순화된 일상 문구로 구성함 (필요하면 이 배열만 계속 늘려서 다양화 가능)
-const AI_BOT_POST_TEMPLATES = [
-  '오늘 날씨 완전 산책하기 좋은 날이네요! 다들 오늘 뭐하고 계신가요? 🍃',
-  '요즘 다들 어떤 챌린지 하고 계세요? 저도 하나 배워보고 싶어요 😊',
-  '점심시간! 오늘은 뭐 드셨나요? 저는 든든하게 챙겨 먹었어요 🍚',
-  '주말에 다들 뭐 하실 계획이세요? 저는 재밌는 영상 찾아볼 예정이에요 🎬',
-  '요즘 노래 뭐 듣고 계세요? 플레이리스트 추천 받아요 🎧',
-  '오늘 하루도 다들 힘내세요! 소소한 행복 찾으면서 지내요 ✨',
-  '커피 한 잔의 여유, 다들 즐기고 계신가요? ☕',
-  '요즘 다들 취미 뭐 있으세요? 저도 새로운 취미 만들어보려고요!'
-];
+function isAiCharId(id) { return typeof id === 'string' && id.indexOf('ai_c_') === 0; }
 
-const AI_BOT_PHOTO = "data:image/png;base64,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";
-
-async function ensureAiBotUser() {
-  let bot = await getUser(AI_BOT_ID);
-  if (!bot) {
-    bot = {
-      id: AI_BOT_ID, phone: '', nickname: 'AI 말벗도우미',
-      region: '전체', gender: 'female', age: 99,
-      bio: '매일 소소한 이야기를 전해드리는 AI 말벗도우미예요 :)',
-      photos: [AI_BOT_PHOTO], points: 999999, isOnline: true, lastSeen: Date.now(),
-      blockedUserIds: [], lastPostDate: null, adWatchCountToday: 0,
-      lastAdChargeDate: null, profileUpdatedAt: Date.now(),
-      followingIds: [], followerIds: [], profileLikedBy: [], notifyKeywords: []
-    };
-    await saveUser(bot);
-  } else if (!bot.photos || !bot.photos.length) {
-    bot.photos = [AI_BOT_PHOTO];
-    await saveUser(bot);
-  }
-  return bot;
-}
-
-// 핫토픽/밸런스게임을 "투표"로 통합하면서 두 템플릿 풀을 하나로 합침
-const AI_BOT_VOTE_TEMPLATES = [
-  { content: '요즘 제일 핫한 챌린지, 뭐가 제일 재밌어요? 🔥', options: ['댄스 챌린지', '먹방 챌린지', '운동 챌린지', '기타'] },
-  { content: '스트레스 풀리는 방법 뭐가 제일 좋아요? 😌', options: ['운동하기', '맛있는거 먹기', '잠자기', '친구랑 수다떨기'] },
-  { content: '주말에 제일 하고싶은 거 골라주세요! ✨', options: ['집에서 넷플릭스', '밖에서 나들이', '친구 만나기', '푹 자기'] },
-  { content: '치킨 vs 피자, 오늘 저녁 뭐 먹을까요? 🍗🍕', options: ['치킨', '피자'] },
-  { content: '여름 vs 겨울, 더 좋아하는 계절은? ☀️❄️', options: ['여름', '겨울'] },
-  { content: '아침형 인간 vs 밤형 인간, 나는 어느 쪽? 🌅🌙', options: ['아침형', '밤형'] },
-  { content: '국내여행 vs 해외여행, 다음 휴가는? ✈️', options: ['국내여행', '해외여행'] },
-];
-
-async function postAsAiBotIfNeeded() {
+async function aiStatInc(field, by) {
   try {
-    const bot = await ensureAiBotUser();
-    const todayStr = new Date().toISOString().slice(0, 10);
-    if (bot.lastPostDate === todayStr) return; // 오늘 이미 게시함
-
-    const roll = Math.random();
-    let content, category = 'normal', pollOptions = null, pollVotes = null;
-    if (roll < 0.4) {
-      const t = AI_BOT_VOTE_TEMPLATES[Math.floor(Math.random() * AI_BOT_VOTE_TEMPLATES.length)];
-      content = t.content; category = 'vote';
-      pollOptions = t.options.map((text, i) => ({ id: 'o' + i, text })); pollVotes = {};
-    } else {
-      content = AI_BOT_POST_TEMPLATES[Math.floor(Math.random() * AI_BOT_POST_TEMPLATES.length)];
-    }
-
-    const post = {
-      id: genId('p'), authorId: bot.id, content, photo: '', logType: 'story',
-      category, pollOptions, pollVotes,
-      createdAt: Date.now(), updatedAt: Date.now(), likes: 0, likedBy: [], comments: {},
-      viewCount: 0, viewedBy: {}
-    };
-    await savePost(post);
-    bot.lastPostDate = todayStr;
-    await saveUser(bot);
-    broadcastPosts();
-    notifyFollowersNewPost(bot, post, '작성');
-    notifyKeywordMatches(post, bot.id, '등록');
-    console.log('[AI 말벗도우미] 오늘의 이야기 게시 완료:', content);
-  } catch (e) { console.error('[AI 말벗도우미 게시 오류]', e); }
+    const day = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+    await db.ref('aiStats/' + day + '/' + field).transaction(v => (v || 0) + (by || 1));
+  } catch (e) {}
 }
 
-// 서버 시작 시 1회 체크 + 이후 1시간마다 날짜가 바뀌었는지 체크
-// (무료 호스팅 환경의 sleep을 고려해 별도 cron 라이브러리 없이 setInterval로 처리)
-ensureAiBotUser().then(() => postAsAiBotIfNeeded());
-setInterval(postAsAiBotIfNeeded, 60 * 60 * 1000);
+function scheduleAiReply(roomId, userId, charId) {
+  if (!aiChars || !roomId || !userId || !isAiCharId(charId)) return;
+  clearTimeout(aiReplyTimers[roomId]);
+  aiReplyTimers[roomId] = setTimeout(() => {
+    delete aiReplyTimers[roomId];
+    doAiReply(roomId, userId, charId).catch(e => console.error('[AI 캐릭터 답장 오류]', e));
+  }, 1800 + Math.floor(Math.random() * 1500));
+}
+
+async function sendAiMessage(room, roomId, userId, ch, text) {
+  const msg = await addMessage(roomId, { senderId: ch.id, text, timestamp: Date.now(), read: false });
+  const sId = userToSocket[userId];
+  if (sId) io.to(sId).emit('chat:new_message', { roomId, message: msg, senderNickname: aiChars.nickname(ch) });
+  else sendWebPush(userId, { title: aiChars.nickname(ch), body: text, type: 'chat', roomId });
+  return msg;
+}
+
+async function doAiReply(roomId, userId, charId) {
+  const ch = aiChars.getCharacter(charId);
+  if (!ch) return;
+  const room = await getRoom(roomId);
+  if (!room || !room.userIds || !room.userIds.includes(userId) || !room.userIds.includes(charId) || !room.messages) return;
+  const all = Object.values(room.messages)
+    .filter(m => m && m.senderId !== 'system' && !m.deleted)
+    .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+    .slice(-14);
+  const last = all[all.length - 1];
+  if (!last || last.senderId !== userId) return; // 마지막 말이 이용자 것이 아니면(이미 답했거나 삭제됨) 답장 안 함
+
+  // 이용자 1명당 시간당 답장 수 제한(무료 AI 한도 보호)
+  const now = Date.now();
+  const rate = aiRate[userId] || (aiRate[userId] = { times: [], warnedAt: 0 });
+  rate.times = rate.times.filter(x => now - x < 3600000);
+  if (rate.times.length >= AI_REPLY_LIMIT_PER_HOUR) {
+    if (now - rate.warnedAt > 3600000) {
+      rate.warnedAt = now;
+      await sendAiMessage(room, roomId, userId, ch, '나 잠깐 숨 돌릴게 ㅋㅋ 조금 이따 다시 말 걸어줘');
+    }
+    aiStatInc('chat_rate_limited');
+    return;
+  }
+  rate.times.push(now);
+
+  const history = all.map(m => ({
+    role: m.senderId === userId ? 'user' : 'assistant',
+    content: m.type === 'image' ? '[사진을 보냈어요]' : String(m.text || '').slice(0, 500)
+  }));
+  const r = await aiChars.generateChatReply(ch, history);
+
+  // 생성하는 사이 이용자가 새 메시지를 보냈으면 이 답장은 버림(새 메시지 쪽 타이머가 답함)
+  const lastSnap = await db.ref('chats/' + roomId + '/messages').orderByKey().limitToLast(1).once('value');
+  const lastKey = Object.keys(lastSnap.val() || {})[0];
+  if (last.id && lastKey && lastKey !== last.id) return;
+
+  await sendAiMessage(room, roomId, userId, ch, r.text);
+  aiStatInc('chat_replies');
+  if (r.fallback) aiStatInc('chat_fallback');
+  else aiStatInc('ok_' + r.provider);
+  (r.attempts || []).filter(a => !a.ok).forEach(a => aiStatInc('fail_' + a.provider));
+  if (r.fallback) {
+    try {
+      const day = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+      await db.ref('aiStats/' + day + '/lastError').set(JSON.stringify(r.attempts || []).slice(0, 900));
+    } catch (e) {}
+  }
+}
 
 // 필터링/삭제된 게시글·댓글 자동 정리: 각각의 시점으로부터 3일이 지나면 완전 삭제
 async function purgeExpiredFilteredPosts() {
@@ -1817,15 +1816,16 @@ io.on('connection', (socket) => {
       let room = await getRoom(roomId);
       const isNew = !room;
       if (isNew) {
-        if (user.points < 50) return cb({ success: false, needPoints: true });
-        user.points -= 50;
-        await saveUser(user);
+        const aiTarget = isAiCharId(target.id);
+        if (!aiTarget && user.points < 50) return cb({ success: false, needPoints: true });
+        if (!aiTarget) { user.points -= 50; await saveUser(user); }
         await saveRoomMeta(roomId, { roomId, userIds: [user.id, target.id] });
         await addUserChatIndex(roomId, [user.id, target.id]);
-        await addMessage(roomId, { senderId: 'system', text: '대화가 시작되었습니다. (쌀 50개 차감)', timestamp: Date.now() });
+        await addMessage(roomId, { senderId: 'system', text: aiTarget ? '대화가 시작되었어요. 이 친구는 AI 캐릭터예요 🤖 (쌀 차감 없음)' : '대화가 시작되었습니다. (쌀 50개 차감)', timestamp: Date.now() });
       }
       const msg = await addMessage(roomId, { senderId: user.id, text: data.text, timestamp: Date.now(), read: false });
       cb({ success: true, roomId, points: user.points });
+      if (isAiCharId(target.id)) scheduleAiReply(roomId, user.id, target.id);
       [user.id, target.id].forEach(uid => {
         const sId = userToSocket[uid];
         if (sId) io.to(sId).emit('chat:new_message', { roomId, message: msg, senderNickname: user.nickname });
@@ -1842,7 +1842,7 @@ io.on('connection', (socket) => {
       if (!room || !room.userIds.includes(userId)) return;
       const msgPayload = { senderId: userId, text: data.text, timestamp: Date.now(), read: false };
       if (data.replyTo && data.replyTo.preview) msgPayload.replyTo = { id: data.replyTo.id || null, preview: String(data.replyTo.preview).slice(0, 60) };
-      const msg = await addMessage(data.roomId, msgPayload);
+      const msg = await addMessage(data.roomId, msgPayload); { const _ai = room.userIds.find(id => id !== userId); if (isAiCharId(_ai)) scheduleAiReply(data.roomId, userId, _ai); }
       const sender = await getUser(userId);
       room.userIds.forEach(uid => {
         const sId = userToSocket[uid];
@@ -1863,7 +1863,7 @@ io.on('connection', (socket) => {
       if (!room || !room.userIds.includes(userId)) { clearTimeout(hardTimeout); return safeCb({ success: false }); }
       const nsfwResult = await checkImageNsfw(data.image);
       if (nsfwResult.isNsfw) { clearTimeout(hardTimeout); return safeCb({ success: false, blocked: true, message: '부적절한 사진으로 감지되어 전송할 수 없습니다.' }); }
-      const msg = await addMessage(data.roomId, { senderId: userId, type: 'image', data: data.image, timestamp: Date.now(), read: false });
+      const msg = await addMessage(data.roomId, { senderId: userId, type: 'image', data: data.image, timestamp: Date.now(), read: false }); { const _ai = room.userIds.find(id => id !== userId); if (isAiCharId(_ai)) scheduleAiReply(data.roomId, userId, _ai); }
       const sender = await getUser(userId);
       room.userIds.forEach(uid => {
         const sId = userToSocket[uid];
