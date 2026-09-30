@@ -138,8 +138,9 @@ ${trends || '(수집된 자료 없음. 일반적인 중소기업 직장인 불�
 - 오늘의 포맷 씨앗(이 방향으로만 기획): ${FORMATS[new Date().getUTCDate() % FORMATS.length]}
 - 다른 기업 계정(특히 태산금형)의 게시물을 따라 하거나 변형하지 말 것. 다음 소재는 이미 다른 계정이 쓴 것이므로 금지: MZ 어투 사용 현황표, 고사/제사 사진, 그림 시험지 만화, 명절 선물 증정식, 부서장 취임 인사문, 금속 조각 작품. 문구·구도·표 구성도 새로 만들 것
 - 5일 중 4일은 앱 언급 없이, 1일만 캡션 끝에 '말벗' 앱을 아주 약하게 연결. 오늘 요일 번호: ${new Date().getUTCDate() % 5} (0이면 약한 연결 포함)
-JSON만 출력: {"topic":"소재","trend_summary":"오늘 반영한 트렌드 3줄 요약","hook":"반전 설명","caption":"캡션(해시태그 제외)","hashtags":["..."],"scenes":["이미지1 장면 묘사","이미지2 장면 묘사","이미지3 장면 묘사"]}
-scenes 3개는 서로 구도/소품이 확실히 다르게, 문서/표에 들어갈 한글 문구도 구체적으로 적어라.`;
+JSON만 출력: {"topic":"소재","trend_summary":"오늘 반영한 트렌드 3줄 요약","hook":"반전 설명","caption":"캡션(해시태그 제외)","hashtags":["..."],"scenes":["이미지1 장면 묘사","이미지2 장면 묘사","이미지3 장면 묘사"],"bg":["글자 없는 배경 사진 묘사1","배경2","배경3"],"doc":{"title":"문서 제목","subtitle":"점검 기간 등 한 줄","columns":["열1","열2","열3"],"rows":[["행1열1","행1열2","행1열3"]],"footer":"각주 한 줄"}}
+scenes 3개는 서로 구도/소품이 확실히 다르게, 문서/표에 들어갈 한글 문구도 구체적으로 적어라.
+doc은 실제 관공서식 표(열 3~4개, 행 4~6개, 구체적 숫자 포함, 얼굴·실명 없음)로 작성하고, bg는 글자가 전혀 없는 배경 사진(창고, 회의실, 게시판 벽 등)을 3개 서로 다르게 묘사하라.`;
   const j = await gem(TEXT_MODEL, {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: { responseMimeType: 'application/json' },
@@ -148,7 +149,23 @@ scenes 3개는 서로 구도/소품이 확실히 다르게, 문서/표에 들어
   return JSON.parse(txt.replace(/```json|```/g, '').trim());
 }
 
+let CUR_IDEA = null;
+// 1순위: Gemini 이미지 / 실패 시: 배경AI + 한글 문서 렌더 + 합성으로 1장 완성
 async function makeImage(scene) {
+  try {
+    return await makeImageGemini(scene);
+  } catch (ge) {
+    try {
+      const idx = Math.max(0, CUR_IDEA.scenes.indexOf(scene));
+      const buf = await require('./yj_composite.js').compose(CUR_IDEA, idx);
+      return { buf, model: '자체합성(배경AI+문서렌더)', prompt: scene, mime: 'image/jpeg' };
+    } catch (ce) {
+      throw new Error(`Gemini: ${String(ge.message).slice(0, 60)} / 합성: ${ce.message}`);
+    }
+  }
+}
+
+async function makeImageGemini(scene) {
   const full = `${scene}\n\n${STYLE}\n비율 4:5 세로.`;
   let err;
   for (const m of IMG_MODELS) {
@@ -177,6 +194,7 @@ const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt
     if (!KEY) throw new Error('GEMINI_API_KEY 없음');
     await discoverModels();
     const idea = await makeIdea();
+    CUR_IDEA = idea;
     const atts = []; const notes = [];
     for (let i = 0; i < 3; i++) {
       try {
