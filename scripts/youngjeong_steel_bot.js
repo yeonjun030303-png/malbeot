@@ -7,7 +7,7 @@ let TEXT_MODEL = process.env.YJ_TEXT_MODEL || 'gemini-3.8-flash';
 let IMG_MODELS = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image']; // 1순위 실패 시 폴백
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
-const STYLE = '스마트폰으로 몰래 찍은 듯한 극사실적 저화질 사진, 형광등 아래 어둡고 채도 낮은 청회색 톤, 강한 비네트, 필름 그레인, 사선 구도. 사람 얼굴은 절대 보이지 않게(뒷모습/실루엣만). 주소, 사업자등록번호, 실존 기업 로고는 넣지 말 것. 회사명은 ㈜영정철강.';
+const STYLE = '스마트폰으로 몰래 찍은 듯한 극사실적 저화질 사진, 형광등 아래 어둡고 채도 낮은 청회색 톤, 강한 비네트, 필름 그레인, 사선 구도. 사람 얼굴은 절대 보이지 않게(뒤통수·어깨선·손 위주로, 실루엣 인물이나 마네킹 같은 인물은 금지). 광고 사진 같은 깨끗함, 완벽한 대칭, 플라스틱 피부, 깨진 한글, 영어로 바뀐 글자, 손가락 개수 오류, 로고 왜곡은 피할 것. 주소, 사업자등록번호, 실존 기업 로고는 넣지 말 것. 회사명은 ㈜영정철강.';
 
 // 차별화 원칙: 다른 계정 콘텐츠를 변형/재가공하지 않고 100% 자체 기획만 사용
 const FORMATS = [
