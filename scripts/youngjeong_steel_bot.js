@@ -147,6 +147,7 @@ async function makeIdea() {
   const prompt = `너는 가상 중소기업 ㈜영정철강(철강 유통·가공, 1987년 설립)의 사내 소식 아카이브 인스타 계정 기획자다.
 오늘 올릴 콘텐츠 1건을 기획하라.
 [컨셉] 사원이 회사 몰래 사진 찍어 올린 내부고발/제보 톤. 캡션은 사원 1인칭 시점의 건조하고 억울한 말투.
+[오늘 날짜] ${new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })} (extras·doc·chat의 날짜와 요일은 이 날짜 기준으로 맞출 것)
 [오늘의 테마] ${THEMES[new Date().getUTCDate() % 3]} (보수적 분위기 / MZ의 반란 / 중소기업식 마인드: 명절 선물, 사내 규정, 직원 불만 등)
 [트렌드 자료: 유튜브 화제 영상·댓글, 커뮤니티·뉴스 글] 흐름과 불만 포인트만 요약해 반영하고, 제목·댓글 문장을 그대로 베끼지 말 것. 실존 기업·인물 실명 금지.
 ${trends || '(수집된 자료 없음. 일반적인 중소기업 직장인 불만 소재로 기획)'}
