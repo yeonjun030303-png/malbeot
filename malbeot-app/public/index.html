@@ -7190,8 +7190,10 @@ function triggerLogout(){
 </body>
 <script>
 (function(){
-  var MALBEOT_BANNER_ID = 'ca-app-pub-1897610037138449/6722836306';
-  var MALBEOT_INTERSTITIAL_ID = 'ca-app-pub-1897610037138449/5653297216';
+  var MALBEOT_IS_ANDROID = !!(window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'android');
+  var MALBEOT_ADS_TEST = false; // 내 폰 테스트 때만 true (실제 광고 단위 직접 클릭 금지)
+  var MALBEOT_BANNER_ID = MALBEOT_IS_ANDROID ? 'ca-app-pub-1897610037138449/8136123774' : 'ca-app-pub-1897610037138449/6722836306';
+  var MALBEOT_INTERSTITIAL_ID = MALBEOT_IS_ANDROID ? 'ca-app-pub-1897610037138449/1403108742' : 'ca-app-pub-1897610037138449/5653297216';
   var MALBEOT_INTERSTITIAL_COOLDOWN_MS = 60 * 60 * 1000; // 1시간
 
   function isNative(){
@@ -7214,7 +7216,7 @@ function triggerLogout(){
     var AdMob = getAdMob();
     if (!AdMob || !admobReady) return;
     try {
-      await AdMob.prepareInterstitial({ adId: MALBEOT_INTERSTITIAL_ID, isTesting: false });
+      await AdMob.prepareInterstitial({ adId: MALBEOT_INTERSTITIAL_ID, isTesting: MALBEOT_ADS_TEST });
       interstitialLoaded = true;
     } catch(e){ interstitialLoaded = false; console.warn('[AdMob] 전면광고 준비 실패', e); }
   }
@@ -7245,7 +7247,7 @@ function triggerLogout(){
     if (shouldShow){
       if (currentAdTab === tab) return;
       try {
-        await AdMob.showBanner({ adId: MALBEOT_BANNER_ID, adSize: 'ADAPTIVE_BANNER', position: 'TOP_CENTER', isTesting: false });
+        await AdMob.showBanner({ adId: MALBEOT_BANNER_ID, adSize: 'ADAPTIVE_BANNER', position: 'TOP_CENTER', isTesting: MALBEOT_ADS_TEST });
         currentAdTab = tab;
       } catch(e){ console.warn('[AdMob] 배너 표시 실패', e); }
     } else if (currentAdTab){
