@@ -45,7 +45,7 @@ const CHARACTERS = [
 
 function getCharacter(id) { return CHARACTERS.find(c => c.id === id) || null; }
 function isAiCharId(id) { return typeof id === 'string' && id.indexOf(ID_PREFIX) === 0; }
-function nickname(c) { return `${c.name}·AI`; }
+function nickname(c) { return c.name; }
 
 // 프로필 사진이 없어도 되도록 색깔 동그라미 + 이름 첫 글자 SVG
 function avatarDataUri(c) {
