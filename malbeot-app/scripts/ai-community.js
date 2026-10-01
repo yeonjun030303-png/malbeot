@@ -69,12 +69,15 @@ ${RULES}`;
 }
 
 const clean = t => A.tidy(t, 1000).replace(/\s*\n+\s*/g, ' ').replace(/#\S+/g, '').replace(/\s{2,}/g, ' ').trim();
+// FORBIDDEN_FILTER: AI 티 나는 단어, 신체 훼손 표현은 저장 전에 걸러서 다시 생성
+const FORBIDDEN_RE = /\bA\.?I\b|에이아이|인공지능|챗봇|봇|코딩|프로그램|모델|학습|서버|머리\s*(를|가)?\s*(깨|박|부수|찧)|때리고\s*싶|패고\s*싶|죽고\s*싶|자해|손목\s*(을)?\s*(긋|그어)|뛰어내리|뼈\s*(를)?\s*부러/i;
+const forbidden = s => FORBIDDEN_RE.test(s);
 const same = (a, b) => a === b || (a.length >= 14 && b.length >= 14 && a.slice(0, 14) === b.slice(0, 14));
 
 async function gen(system, user, o) {
   const r = await llm.chat({
     system, messages: [{ role: 'user', content: user }], maxTokens: o.maxTokens || 200, temperature: 0.95,
-    validate: t => { const s = clean(t); return s.length >= o.min && s.length <= o.max && !containsBanned(s) && !(o.avoid || []).some(x => same(x, s)); }
+    validate: t => { const s = clean(t); return s.length >= o.min && s.length <= o.max && !containsBanned(s) && !forbidden(s) && !(o.avoid || []).some(x => same(x, s)); }
   });
   return { text: clean(r.text), provider: r.provider, model: r.model, attempts: r.attempts };
 }
