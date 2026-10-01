@@ -1,6 +1,6 @@
 {
   "appId": "com.cnsstudiokorea.malbeot",
-  "appName": "malbeot",
+  "appName": "말벗",
   "webDir": "public",
   "server": {
     "url": "https://malbeot-1.onrender.com",
