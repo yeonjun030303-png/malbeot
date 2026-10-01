@@ -1379,6 +1379,7 @@ io.on('connection', (socket) => {
       if (filters.region && filters.region !== '전체') list = list.filter(u => u.region === filters.region);
       if (filters.gender && filters.gender !== '전체') list = list.filter(u => u.gender === filters.gender);
       list = list.filter(u => u.age >= filters.ageMin && u.age <= filters.ageMax);
+      /* AI_LIST_EXCLUDE: 프로필 목록에서 본인과 AI 캐릭터 제외 */ { const _meId = socketToUser[socket.id]; list = list.filter(u => u.id !== _meId && !u.isAiCharacter && !isAiCharId(u.id)); }
       list.sort((a, b) => (b.profileUpdatedAt || b.lastSeen || 0) - (a.profileUpdatedAt || a.lastSeen || 0));
       const myUserId = socketToUser[socket.id];
       const myUser = myUserId ? await getUser(myUserId) : null;
@@ -1430,7 +1431,7 @@ io.on('connection', (socket) => {
       const q = ((data && data.query) || '').trim().toLowerCase();
       if (!q) return cb({ success: true, users: [] });
       const users = await getAllUsers();
-      const list = Object.values(users).filter(u => (u.nickname || '').toLowerCase().includes(q));
+      const list = Object.values(users).filter(u => (u.nickname || '').toLowerCase().includes(q) && !u.isAiCharacter && !isAiCharId(u.id)); /* AI_LIST_EXCLUDE */
       cb({ success: true, users: list });
     } catch (e) { console.error(e); cb({ success: false, users: [] }); }
   });
