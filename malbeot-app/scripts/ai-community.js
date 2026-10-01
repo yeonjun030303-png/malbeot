@@ -88,6 +88,7 @@ async function run(opts) {
     const att = (e && e.attempts) ? JSON.stringify(e.attempts).slice(0, 300) : '';
     report.failures.push(where + ': ' + (e && e.message ? e.message : e) + (att ? ' ' + att : ''));
     console.error('[실패] ' + where + ' ' + (e && e.message ? e.message : e));
+    if (e && e.attempts) e.attempts.forEach(a => console.error('    - ' + a.provider + ' ' + (a.model || '') + ' ' + (a.status || '') + ' ' + String(a.err || '').slice(0, 260)));
     if (e && e.attempts) (e.attempts || []).filter(a => !a.ok).forEach(a => { report.providerFails[a.provider] = (report.providerFails[a.provider] || 0) + 1; });
   };
 
