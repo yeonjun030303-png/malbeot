@@ -1992,7 +1992,9 @@ io.on('connection', (socket) => {
   socket.on('group:join', async (data, cb) => {
     try {
       const userId = socketToUser[socket.id];
-      const inviteCode = data && data.inviteCode;
+      const inviteCode = (data && typeof data.inviteCode === 'string') ? data.inviteCode.trim() : ''; /* INVITE_HARDEN */
+      if (!userId) return cb && cb({ success: false, message: '로그인이 필요합니다.' });
+      if (!/^[A-Za-z0-9_-]{4,32}$/.test(inviteCode)) return cb && cb({ success: false, message: '유효하지 않은 초대링크입니다.' });
       const roomIdSnap = await db.ref(`groupInviteCodes/${inviteCode}`).once('value');
       const roomId = roomIdSnap.val();
       if (!roomId) return cb && cb({ success: false, message: '유효하지 않은 초대링크입니다.' });
