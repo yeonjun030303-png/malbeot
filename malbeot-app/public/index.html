@@ -7273,7 +7273,7 @@ function triggerLogout(){
     try {
       await AdMob.prepareInterstitial({ adId: MALBEOT_INTERSTITIAL_ID, isTesting: MALBEOT_ADS_TEST });
       interstitialLoaded = true;
-    } catch(e){ interstitialLoaded = false; console.warn('[AdMob] 전면광고 준비 실패', e); adDiag("전면광고 준비 실패: " + (e && e.message ? e.message : JSON.stringify(e))); }
+    } catch(e){ interstitialLoaded = false; console.warn('[AdMob] 전면광고 준비 실패', e); }
   }
 
   async function initAdMob(){
@@ -7290,11 +7290,27 @@ function triggerLogout(){
       await AdMob.initialize({ initializeForTesting: false });
       admobReady = true;
       prepareInterstitial();
-    } catch(e){ console.warn('[AdMob] 초기화 실패', e); adDiag("초기화 실패: " + (e && e.message ? e.message : JSON.stringify(e))); }
+    } catch(e){ console.warn('[AdMob] 초기화 실패', e); }
   }
 
   // ===== 배너: 홈/채팅 탭 상단, 구독자(골드/플래티넘)는 제외 =====
-  async function malbeotUpdateAdBannerForTab(tab){
+  var malbeotAdReq = 0;
+  function malbeotBannerMargin(tab){
+    try{
+      var row = document.getElementById(tab === "tab-home" ? "homeAdBannerRow" : "chatAdBannerRow");
+      if (!row) return 0;
+      var top = Math.round(row.getBoundingClientRect().top + (parseFloat(getComputedStyle(row).paddingTop) || 0));
+      if (!(top > 0)) return 0;
+      var pr = document.createElement("div");
+      pr.style.cssText = "position:fixed;top:0;left:0;width:1px;height:env(safe-area-inset-top,0px);visibility:hidden";
+      document.body.appendChild(pr);
+      var safe = Math.round(pr.getBoundingClientRect().height);
+      pr.remove();
+      var d = Math.max(0, top - safe);
+      return MALBEOT_IS_ANDROID ? top : -d;
+    }catch(e){ return 0; }
+  }
+  async function malbeotUpdateAdBannerForTab(tab){ var myReq = ++malbeotAdReq;
     if (!isNative() || !admobReady) return;
     var AdMob = getAdMob();
     if (!AdMob) return;
@@ -7302,9 +7318,9 @@ function triggerLogout(){
     if (shouldShow){
       if (currentAdTab === tab) return;
       try {
-        await AdMob.showBanner({ adId: MALBEOT_BANNER_ID, adSize: 'ADAPTIVE_BANNER', position: 'TOP_CENTER', isTesting: MALBEOT_ADS_TEST });
+        if (currentAdTab) { try { await AdMob.hideBanner(); } catch(e){} currentAdTab = null; } await new Promise(function(r){ setTimeout(r, 150); }); if (myReq !== malbeotAdReq) return; await AdMob.showBanner({ adId: MALBEOT_BANNER_ID, adSize: 'ADAPTIVE_BANNER', position: 'TOP_CENTER', margin: malbeotBannerMargin(tab), isTesting: MALBEOT_ADS_TEST });
         currentAdTab = tab;
-      } catch(e){ console.warn('[AdMob] 배너 표시 실패', e); adDiag("배너 표시 실패: " + (e && e.message ? e.message : JSON.stringify(e))); }
+      } catch(e){ console.warn('[AdMob] 배너 표시 실패', e); }
     } else if (currentAdTab){
       try { await AdMob.hideBanner(); } catch(e){}
       currentAdTab = null;
@@ -7326,18 +7342,6 @@ function triggerLogout(){
     } catch(e){ console.warn('[AdMob] 전면광고 표시 실패', e); }
   }
   window.malbeotMaybeShowInterstitial = malbeotMaybeShowInterstitial;
-  /* ADS_DIAG_V1 */
-  function adDiag(msg){ try{ var d=document.createElement("div"); d.textContent="[광고] "+msg; d.style.cssText="position:fixed;left:8px;right:8px;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:99999;background:rgba(0,0,0,.85);color:#fff;font-size:12px;padding:8px 10px;border-radius:8px;pointer-events:none;"; document.body.appendChild(d); setTimeout(function(){ d.remove(); }, 6000); }catch(e){} }
-  setTimeout(function(){
-    if(!isNative()){ adDiag("네이티브 앱이 아님 (브라우저/홈화면 바로가기)"); return; }
-    var A=getAdMob();
-    if(!A){ adDiag("AdMob 플러그인 없음 - 옛 빌드 (새 빌드 설치 필요)"); return; }
-    try{
-      A.addListener("bannerAdLoaded",function(){ adDiag("배너 로드 성공"); });
-      A.addListener("bannerAdFailedToLoad",function(e){ adDiag("배너 로드 실패: "+JSON.stringify(e)); });
-    }catch(e){}
-  }, 800);
-  setTimeout(function(){ if(isNative() && getAdMob()){ adDiag("플러그인 OK / 초기화 "+(admobReady?"성공":"실패 또는 대기중")); } }, 6500);
 
   document.addEventListener('DOMContentLoaded', function(){
     initAdMob().then(function(){
