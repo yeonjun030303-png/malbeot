@@ -7246,7 +7246,7 @@ function triggerLogout(){
 <script>
 (function(){
   var MALBEOT_IS_ANDROID = !!(window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'android');
-  var MALBEOT_ADS_TEST = false; // 내 폰 테스트 때만 true (실제 광고 단위 직접 클릭 금지)
+  var MALBEOT_ADS_TEST = true; // 내 폰 테스트 때만 true (실제 광고 단위 직접 클릭 금지)
   var MALBEOT_BANNER_ID = MALBEOT_IS_ANDROID ? 'ca-app-pub-1897610037138449/8136123774' : 'ca-app-pub-1897610037138449/6722836306';
   var MALBEOT_INTERSTITIAL_ID = MALBEOT_IS_ANDROID ? 'ca-app-pub-1897610037138449/1403108742' : 'ca-app-pub-1897610037138449/5653297216';
   var MALBEOT_INTERSTITIAL_COOLDOWN_MS = 60 * 60 * 1000; // 1시간
@@ -7273,7 +7273,7 @@ function triggerLogout(){
     try {
       await AdMob.prepareInterstitial({ adId: MALBEOT_INTERSTITIAL_ID, isTesting: MALBEOT_ADS_TEST });
       interstitialLoaded = true;
-    } catch(e){ interstitialLoaded = false; console.warn('[AdMob] 전면광고 준비 실패', e); }
+    } catch(e){ interstitialLoaded = false; console.warn('[AdMob] 전면광고 준비 실패', e); adDiag("전면광고 준비 실패: " + (e && e.message ? e.message : JSON.stringify(e))); }
   }
 
   async function initAdMob(){
@@ -7290,7 +7290,7 @@ function triggerLogout(){
       await AdMob.initialize({ initializeForTesting: false });
       admobReady = true;
       prepareInterstitial();
-    } catch(e){ console.warn('[AdMob] 초기화 실패', e); }
+    } catch(e){ console.warn('[AdMob] 초기화 실패', e); adDiag("초기화 실패: " + (e && e.message ? e.message : JSON.stringify(e))); }
   }
 
   // ===== 배너: 홈/채팅 탭 상단, 구독자(골드/플래티넘)는 제외 =====
@@ -7304,7 +7304,7 @@ function triggerLogout(){
       try {
         await AdMob.showBanner({ adId: MALBEOT_BANNER_ID, adSize: 'ADAPTIVE_BANNER', position: 'TOP_CENTER', isTesting: MALBEOT_ADS_TEST });
         currentAdTab = tab;
-      } catch(e){ console.warn('[AdMob] 배너 표시 실패', e); }
+      } catch(e){ console.warn('[AdMob] 배너 표시 실패', e); adDiag("배너 표시 실패: " + (e && e.message ? e.message : JSON.stringify(e))); }
     } else if (currentAdTab){
       try { await AdMob.hideBanner(); } catch(e){}
       currentAdTab = null;
@@ -7326,6 +7326,18 @@ function triggerLogout(){
     } catch(e){ console.warn('[AdMob] 전면광고 표시 실패', e); }
   }
   window.malbeotMaybeShowInterstitial = malbeotMaybeShowInterstitial;
+  /* ADS_DIAG_V1 */
+  function adDiag(msg){ try{ var d=document.createElement("div"); d.textContent="[광고] "+msg; d.style.cssText="position:fixed;left:8px;right:8px;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:99999;background:rgba(0,0,0,.85);color:#fff;font-size:12px;padding:8px 10px;border-radius:8px;pointer-events:none;"; document.body.appendChild(d); setTimeout(function(){ d.remove(); }, 6000); }catch(e){} }
+  setTimeout(function(){
+    if(!isNative()){ adDiag("네이티브 앱이 아님 (브라우저/홈화면 바로가기)"); return; }
+    var A=getAdMob();
+    if(!A){ adDiag("AdMob 플러그인 없음 - 옛 빌드 (새 빌드 설치 필요)"); return; }
+    try{
+      A.addListener("bannerAdLoaded",function(){ adDiag("배너 로드 성공"); });
+      A.addListener("bannerAdFailedToLoad",function(e){ adDiag("배너 로드 실패: "+JSON.stringify(e)); });
+    }catch(e){}
+  }, 800);
+  setTimeout(function(){ if(isNative() && getAdMob()){ adDiag("플러그인 OK / 초기화 "+(admobReady?"성공":"실패 또는 대기중")); } }, 6500);
 
   document.addEventListener('DOMContentLoaded', function(){
     initAdMob().then(function(){
