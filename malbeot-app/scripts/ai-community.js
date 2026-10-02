@@ -72,12 +72,20 @@ const clean = t => A.tidy(t, 1000).replace(/\s*\n+\s*/g, ' ').replace(/#\S+/g, '
 // FORBIDDEN_FILTER: AI 티 나는 단어, 신체 훼손 표현은 저장 전에 걸러서 다시 생성
 const FORBIDDEN_RE = /\bA\.?I\b|에이아이|인공지능|챗봇|봇|코딩|프로그램|모델|학습|서버|머리\s*(를|가)?\s*(깨|박|부수|찧)|때리고\s*싶|패고\s*싶|죽고\s*싶|자해|손목\s*(을)?\s*(긋|그어)|뛰어내리|뼈\s*(를)?\s*부러/i;
 const forbidden = s => FORBIDDEN_RE.test(s);
+// ECHO_FILTER: 답글이 댓글 표현을 그대로 따라 하면(글자 2개 조합 50% 이상 겹침) 저장 전에 거름
+const echoes = (src, s) => {
+  const g = x => { x = String(x).replace(/[^가-힣a-z0-9]/gi, ''); const r = new Set(); for (let i = 0; i < x.length - 1; i++) r.add(x.slice(i, i + 2)); return r; };
+  const a = g(src), b = g(s);
+  if (!b.size) return false;
+  let n = 0; b.forEach(k => { if (a.has(k)) n++; });
+  return n / b.size >= 0.5;
+};
 const same = (a, b) => a === b || (a.length >= 14 && b.length >= 14 && a.slice(0, 14) === b.slice(0, 14));
 
 async function gen(system, user, o) {
   const r = await llm.chat({
     system, messages: [{ role: 'user', content: user }], maxTokens: o.maxTokens || 200, temperature: 0.95,
-    validate: t => { const s = clean(t); return s.length >= o.min && s.length <= o.max && !containsBanned(s) && !forbidden(s) && !(o.avoid || []).some(x => same(x, s)); }
+    validate: t => { const s = clean(t); return s.length >= o.min && s.length <= o.max && !containsBanned(s) && !forbidden(s) && !(o.avoid || []).some(x => same(x, s)) && !(o.echoOf && echoes(o.echoOf, s)); }
   });
   return { text: clean(r.text), provider: r.provider, model: r.model, attempts: r.attempts };
 }
@@ -99,6 +107,12 @@ async function run(opts) {
     if (e && e.attempts) (e.attempts || []).filter(a => !a.ok).forEach(a => { report.providerFails[a.provider] = (report.providerFails[a.provider] || 0) + 1; });
   };
 
+  // NIGHT_GUARD: 새벽(KST 08시 이전)에는 실제 쓰기 실행을 막음. dry/force는 예외
+const kstHour = new Date(now + 9 * 3600 * 1000).getUTCHours();
+  if (!dry && !force && kstHour < 8) {
+    report.skipped.push('KST ' + kstHour + '시: 새벽이라 실행 안 함 (08시 이후 실행하거나 force 사용)');
+    return report;
+  }
   const users = (await db.ref('users').once('value')).val() || {};
   const chars = A.CHARACTERS.filter(c => {
     if (!users[c.id]) { report.skipped.push(c.name + ': Firebase에 미등록 (register-ai-characters.js 먼저)'); return false; }
@@ -164,7 +178,7 @@ async function run(opts) {
     }
     if (first && Math.random() < 0.7) {
       try {
-        const g = await gen(replySystem(author), '내 글: ' + post.content + '\n' + A.nickname(first.cc) + '의 댓글: ' + first.cm.content + '\n\n이 댓글에 달 답글을 써줘.', { min: 8, max: 45, maxTokens: 120 });
+        const g = await gen(replySystem(author), '내 글: ' + post.content + '\n' + A.nickname(first.cc) + '의 댓글: ' + first.cm.content + '\n\n이 댓글에 달 답글을 써줘.', { min: 8, max: 45, maxTokens: 120, echoOf: first.cm.content });
         note(g);
         const tt = Date.now();
         const rp = { id: genId('c'), authorId: author.id, content: g.text, parentId: first.cm.id, createdAt: tt, updatedAt: tt, filtered: false, aiGenerated: true };
