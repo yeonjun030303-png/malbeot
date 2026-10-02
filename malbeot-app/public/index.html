@@ -7343,7 +7343,7 @@ function triggerLogout(){
     if (!isNative() || !admobReady) return;
     var AdMob = getAdMob();
     if (!AdMob) return;
-    var shouldShow = (tab === 'tab-home' || tab === 'tab-chat') && !hasAdFreeSubscription();
+    var shouldShow = (tab === 'tab-home') && !hasAdFreeSubscription();
     if (shouldShow){
       if (currentAdTab === tab) return;
       try {
@@ -7361,7 +7361,7 @@ function triggerLogout(){
   async function malbeotMaybeShowInterstitial(){
     if (!isNative() || !admobReady || !interstitialLoaded) return;
     if (hasAdFreeSubscription()) return;
-    var last = Number(localStorage.getItem('malbeotLastInterstitialAt') || 0);
+    try { if ((typeof activeRoomId !== 'undefined' && activeRoomId) || (typeof activeGroupRoomId !== 'undefined' && activeGroupRoomId)) return; var actTab = document.querySelector('.tab-content.active'); if (actTab && actTab.id !== 'tab-home' && actTab.id !== 'tab-community') return; } catch(e){} var last = Number(localStorage.getItem('malbeotLastInterstitialAt') || 0);
     if (Date.now() - last < MALBEOT_INTERSTITIAL_COOLDOWN_MS) return;
     var AdMob = getAdMob();
     try {
