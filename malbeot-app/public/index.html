@@ -361,6 +361,18 @@ body.dark-mode #ptrIndicator{background:var(--bg-card);}
 @keyframes mbFadeOut{from{opacity:1;}to{opacity:0;}}
 @keyframes mbCardPop{from{transform:scale(.94) translateY(8px);opacity:0;}to{transform:none;opacity:1;}}
 @keyframes mbSheetDown{from{transform:none;opacity:1;}to{transform:translateY(40px);opacity:0;}}
+/* UX_SMOOTH_V1: 스켈레톤 로딩 + 광고 자리표시자 숨김 */
+.mb-skel{position:absolute;inset:0;background:var(--bg-card,#fff);z-index:5;padding:calc(64px + env(safe-area-inset-top, 0px)) 16px 16px 16px;box-sizing:border-box;overflow:hidden;}
+.mb-skel-back{position:absolute;top:calc(10px + env(safe-area-inset-top, 0px));left:10px;width:40px;height:40px;border:none;border-radius:50%;background:transparent;color:var(--text-main,#222);font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.mb-skel-row{display:flex;gap:12px;align-items:center;padding:14px 4px;}
+.mb-skel-circle{width:56px;height:56px;border-radius:50%;flex-shrink:0;}
+.mb-skel-line{height:12px;border-radius:6px;margin:8px 0;}
+.mb-skel-block{width:100%;height:170px;border-radius:14px;margin:12px 0;}
+.mb-skel-circle,.mb-skel-line,.mb-skel-block{background:linear-gradient(90deg,#eceff3 25%,#f7f9fb 50%,#eceff3 75%);background-size:200% 100%;animation:mbShimmer 1.3s ease-in-out infinite;}
+@keyframes mbShimmer{from{background-position:200% 0;}to{background-position:-200% 0;}}
+body.dark-mode .mb-skel-circle,body.dark-mode .mb-skel-line,body.dark-mode .mb-skel-block{background:linear-gradient(90deg,#2a2f36 25%,#353b44 50%,#2a2f36 75%);background-size:200% 100%;}
+@media (prefers-reduced-motion:reduce){.mb-skel-circle,.mb-skel-line,.mb-skel-block{animation:none;}}
+#homeAdBannerRow > div,#chatAdBannerRow > div{border-color:transparent !important;background:transparent !important;color:transparent !important;}
 @media (prefers-reduced-motion:reduce){
   .tab-content.active,.full-screen-overlay.active,.modal-overlay.active,.modal-overlay.active .modal-card,.modal-overlay.active .mini-alert-card{animation:none !important;}
   .full-screen-overlay.closing:not(.active),.modal-overlay.closing:not(.active){display:none !important;}
@@ -1766,6 +1778,39 @@ function clearSession(){
 }
 function closeModal(id){ document.getElementById(id).classList.remove('active'); }
 function openModal(id){ document.getElementById(id).classList.add('active'); }
+/* UX_SMOOTH_V1: 화면을 즉시 열고 스켈레톤을 먼저 보여준 뒤 데이터가 오면 교체 */
+function mbSkeletonDone(id){
+  try {
+    var el = document.getElementById(id); if (!el) return;
+    Array.prototype.slice.call(el.children).forEach(function(s){
+      if (s.classList && s.classList.contains('mb-skel')) { clearTimeout(s._t); s.remove(); }
+    });
+  } catch(e){}
+}
+function mbSkeletonCancel(id){ mbSkeletonDone(id); closeFullScreen(id); }
+function mbOpenWithSkeleton(id, kind){
+  try {
+    var el = document.getElementById(id); if (!el) return;
+    mbSkeletonDone(id);
+    var s = document.createElement('div'); s.className = 'mb-skel';
+    var body = (kind === 'post')
+      ? '<div class="mb-skel-row"><div class="mb-skel-circle"></div><div style="flex:1;min-width:0;"><div class="mb-skel-line" style="width:30%;"></div><div class="mb-skel-line" style="width:45%;"></div></div></div><div class="mb-skel-line" style="width:94%;"></div><div class="mb-skel-line" style="width:82%;"></div><div class="mb-skel-line" style="width:60%;"></div><div class="mb-skel-block"></div>'
+      : '<div class="mb-skel-block" style="height:230px;"></div><div class="mb-skel-line" style="width:40%;height:16px;"></div><div class="mb-skel-line" style="width:28%;"></div><div class="mb-skel-line" style="width:80%;"></div><div class="mb-skel-line" style="width:66%;"></div>';
+    s.innerHTML = '<button type="button" class="mb-skel-back" onclick="mbSkeletonCancel(\'' + id + '\')"><i class="fa-solid fa-arrow-left"></i></button>' + body;
+    el.appendChild(s);
+    openFullScreen(id);
+    s._t = setTimeout(function(){ if (s.parentNode) mbSkeletonCancel(id); }, 8000);
+  } catch(e){}
+}
+function mbListSkeleton(id){
+  try {
+    var el = document.getElementById(id); if (!el || el.children.length) return;
+    var h = '';
+    for (var i = 0; i < 6; i++) h += '<div class="mb-skel-row"><div class="mb-skel-circle"></div><div style="flex:1;min-width:0;"><div class="mb-skel-line" style="width:38%;"></div><div class="mb-skel-line" style="width:62%;"></div><div class="mb-skel-line" style="width:48%;"></div></div></div>';
+    el.innerHTML = h;
+    setTimeout(function(){ if (el.querySelector('.mb-skel-row')) el.innerHTML = ''; }, 6000);
+  } catch(e){}
+}
 function openFullScreen(id){
   const el = document.getElementById(id);
   el.classList.add('active');
@@ -3007,7 +3052,7 @@ function applySortType(type){
 }
 
 /* ===================== 홈 (나 자신 포함, 서버에서 프로필 수정 최신순으로 옴) ===================== */
-function loadHomeUserList(){
+function loadHomeUserList(){ mbListSkeleton('homeUserList');
   socket.emit('users:get_list', getFilterValues(homeSortType), (res)=>{ if (res.success) renderUserCards(res.users); });
 }
 // 검색어와 닉네임의 일치도로 정렬 우선순위를 매김: 완전 일치(0) > 앞부분 일치(1) > 부분 일치(2)
@@ -3684,7 +3729,7 @@ function submitComposeCreate(confirmed){
 }
 
 let commentUIContext = 'detail'; // 'detail'(게시글 상세화면) 또는 'story'(말벗스토리 댓글시트)
-function openPostDetailScreen(id, focusComment){ currentPostId=id; commentUIContext='detail'; refreshPostDetail(focusComment); openFullScreen('postDetailScreen'); if (window.malbeotMaybeShowInterstitial) window.malbeotMaybeShowInterstitial(); }
+function openPostDetailScreen(id, focusComment){ currentPostId=id; commentUIContext='detail'; mbOpenWithSkeleton('postDetailScreen', 'post'); refreshPostDetail(focusComment); openFullScreen('postDetailScreen'); if (window.malbeotMaybeShowInterstitial) window.malbeotMaybeShowInterstitial(); }
 function closePostDetailScreen(){ closeFullScreen('postDetailScreen'); loadCommunityPosts(); }
 function refreshCommentsUI(focusComment){
   if (commentUIContext === 'story') refreshStoryComments();
@@ -3694,7 +3739,7 @@ function refreshPostDetail(focusComment){
   socket.emit('posts:get_list', {region:'전체', gender:'전체', ageMin:19, ageMax:99}, (res)=>{
     const p = (res.posts||[]).find(x=>x.id===currentPostId);
     if (!p) return;
-    currentPostCache = p; renderPostDetail(p);
+    currentPostCache = p; mbSkeletonDone('postDetailScreen'); renderPostDetail(p);
     if (focusComment){ setTimeout(()=>{ const el=document.getElementById('newCommentInput'); if (el) el.focus(); }, 60); }
   });
 }
@@ -3887,12 +3932,12 @@ function confirmDeletePostFully(id){
 
 /* ===================== 프로필 상세 ===================== */
 function openProfileDetailScreen(userId){
-  currentProfileUserId = userId; profilePhotoIndex = 0;
+  currentProfileUserId = userId; profilePhotoIndex = 0; mbOpenWithSkeleton('profileDetailScreen', 'profile');
   socket.emit('profile:record_visit', {targetUserId: userId});
   let fetchedUser = null, userLoaded = false, roomsLoaded = false;
   function tryOpenProfile(){
-    if (!userLoaded || !roomsLoaded || !fetchedUser) return;
-    currentProfileUserCache = fetchedUser;
+    if (!userLoaded || !roomsLoaded) return; if (!fetchedUser){ mbSkeletonDone('profileDetailScreen'); closeFullScreen('profileDetailScreen'); return; }
+    currentProfileUserCache = fetchedUser; mbSkeletonDone('profileDetailScreen');
     renderProfileDetail(fetchedUser);
     openFullScreen('profileDetailScreen');
   }
