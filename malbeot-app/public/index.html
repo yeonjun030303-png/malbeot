@@ -7292,7 +7292,7 @@ function triggerLogout(){
   var currentAdTab = null;
 
   function hasAdFreeSubscription(){
-    var sub = window.currentUser && window.currentUser.subscription;
+    var u = (typeof currentUser !== 'undefined') ? currentUser : null; if (u && u.isAdmin) return true; var sub = u && u.subscription;
     return !!(sub && sub.tier && sub.expiresAt && sub.expiresAt > Date.now());
   }
 
