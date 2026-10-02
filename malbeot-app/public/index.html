@@ -7275,7 +7275,7 @@ function triggerLogout(){
 <script>
 (function(){
   var MALBEOT_IS_ANDROID = !!(window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'android');
-  var MALBEOT_ADS_TEST = true; // 내 폰 테스트 때만 true (실제 광고 단위 직접 클릭 금지)
+  var MALBEOT_ADS_TEST = false; // 내 폰 테스트 때만 true (실제 광고 단위 직접 클릭 금지)
   var MALBEOT_BANNER_ID = MALBEOT_IS_ANDROID ? 'ca-app-pub-1897610037138449/8136123774' : 'ca-app-pub-1897610037138449/6722836306';
   var MALBEOT_INTERSTITIAL_ID = MALBEOT_IS_ANDROID ? 'ca-app-pub-1897610037138449/1403108742' : 'ca-app-pub-1897610037138449/5653297216';
   var MALBEOT_INTERSTITIAL_COOLDOWN_MS = 60 * 60 * 1000; // 1시간
