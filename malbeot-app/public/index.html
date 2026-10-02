@@ -2919,7 +2919,36 @@ document.addEventListener('keydown', (e)=>{
   }
 });
 
-function requestNotifyPermissionIfNeeded(){
+/* NATIVE_PUSH_V1 */
+var _nativePushInit = false;
+async function setupNativePush(){
+  try{
+    var C = window.Capacitor;
+    if (!C || !C.isNativePlatform || !C.isNativePlatform() || C.getPlatform() !== "ios") return;
+    var P = C.Plugins && C.Plugins.PushNotifications;
+    if (!P || !currentUser) return;
+    if (!_nativePushInit){
+      _nativePushInit = true;
+      P.addListener("registration", function(t){ try{ fetch("/api/push/native-register", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ userId: currentUser.id, token: t.value }) }); }catch(e){} });
+      P.addListener("registrationError", function(e){ console.warn("[푸시 등록 실패]", e); });
+      P.addListener("pushNotificationActionPerformed", function(a){
+        var d = (a && a.notification && a.notification.data) || {};
+        setTimeout(function(){ try{
+          if (d.roomId){
+            var one = (typeof currentChatRooms !== "undefined") && currentChatRooms.some(function(r){ return r.roomId === d.roomId; });
+            if (!one && typeof findCachedGroupRoom === "function" && findCachedGroupRoom(d.roomId)) openGroupChatRoom(d.roomId);
+            else openChatRoomById(d.roomId);
+          } else if (d.postId && typeof openPostDetailScreen === "function") openPostDetailScreen(d.postId);
+          else if (d.userId && typeof openProfileDetailScreen === "function") openProfileDetailScreen(d.userId);
+        }catch(e){} }, 400);
+      });
+    }
+    var perm = await P.checkPermissions();
+    if (perm.receive === "prompt") perm = await P.requestPermissions();
+    if (perm.receive === "granted") await P.register();
+  }catch(e){ console.warn("[네이티브 푸시 설정 실패]", e); }
+}
+function requestNotifyPermissionIfNeeded(){ try{ setupNativePush(); }catch(e){}
   if (!('Notification' in window)) return;
   if (Notification.permission === 'default') { Notification.requestPermission().then(()=>{ setupWebPush(); }); }
   else if (Notification.permission === 'granted') { setupWebPush(); }

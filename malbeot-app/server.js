@@ -51,7 +51,56 @@ if (PUSH_ENABLED) {
 
 // 유저가 앱을 꺼두었을 때(소켓 미접속)도 도착하는 실제 브라우저 푸시 발송
 // 만료/무효 구독(404/410)은 자동으로 정리함
+/* NATIVE_PUSH_V1 */
+const http2 = require("http2");
+const nodeCrypto = require("crypto");
+const APNS_KEY = (process.env.APNS_KEY_P8 || "").replace(/\\n/g, "\n");
+const APNS_KEY_ID = process.env.APNS_KEY_ID || "";
+const APNS_TEAM_ID = process.env.APNS_TEAM_ID || "";
+const APNS_TOPIC = process.env.APNS_BUNDLE_ID || "com.cnsstudiokorea.malbeot";
+const APNS_HOST = process.env.APNS_SANDBOX === "true" ? "https://api.sandbox.push.apple.com" : "https://api.push.apple.com";
+const NATIVE_PUSH_ENABLED = !!(APNS_KEY && APNS_KEY_ID && APNS_TEAM_ID);
+if (!NATIVE_PUSH_ENABLED) console.warn("[경고] APNS_KEY_P8/APNS_KEY_ID/APNS_TEAM_ID 미설정 - 아이폰 푸시 비활성화");
+let _apnsJwt = null, _apnsJwtAt = 0;
+function apnsJwt() {
+  const now = Math.floor(Date.now() / 1000);
+  if (_apnsJwt && now - _apnsJwtAt < 2400) return _apnsJwt;
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const data = b64({ alg: "ES256", kid: APNS_KEY_ID }) + "." + b64({ iss: APNS_TEAM_ID, iat: now });
+  const sig = nodeCrypto.sign("sha256", Buffer.from(data), { key: APNS_KEY, dsaEncoding: "ieee-p1363" }).toString("base64url");
+  _apnsJwt = data + "." + sig; _apnsJwtAt = now; return _apnsJwt;
+}
+function apnsSend(token, payload) {
+  return new Promise((resolve) => {
+    let done = false; const fin = (r) => { if (!done) { done = true; resolve(r); } };
+    let client;
+    try { client = http2.connect(APNS_HOST); } catch (e) { return fin({ status: 0, body: String(e) }); }
+    client.on("error", (e) => { fin({ status: 0, body: String(e) }); try { client.close(); } catch (x) {} });
+    const body = JSON.stringify({ aps: { alert: { title: payload.title || "말벗", body: payload.body || "" }, sound: "default" }, type: payload.type || null, roomId: payload.roomId || null, postId: payload.postId || null, userId: payload.userId || null });
+    const req = client.request({ ":method": "POST", ":path": "/3/device/" + token, authorization: "bearer " + apnsJwt(), "apns-topic": APNS_TOPIC, "apns-push-type": "alert", "apns-priority": "10", "content-type": "application/json" });
+    let status = 0, resp = "";
+    req.on("response", (h) => { status = h[":status"]; });
+    req.on("data", (c) => { resp += c; });
+    req.on("end", () => { fin({ status: status, body: resp }); try { client.close(); } catch (x) {} });
+    req.on("error", (e) => { fin({ status: 0, body: String(e) }); try { client.close(); } catch (x) {} });
+    req.setTimeout(8000, () => { fin({ status: 0, body: "timeout" }); try { req.close(); client.close(); } catch (x) {} });
+    req.end(body);
+  });
+}
+async function sendNativePush(userId, payload) {
+  if (!NATIVE_PUSH_ENABLED || !userId) return;
+  try {
+    const snap = await db.ref(`nativePushTokens/${userId}`).once("value");
+    const tokens = snap.val(); if (!tokens) return;
+    for (const [id, t] of Object.entries(tokens)) {
+      const r = await apnsSend(t.token, payload);
+      if (r.status === 410 || (r.status === 400 && /BadDeviceToken|Unregistered|DeviceTokenNotForTopic/.test(r.body))) await db.ref(`nativePushTokens/${userId}/${id}`).remove();
+      else if (r.status !== 200) console.error("[APNs 전송 오류]", r.status, r.body);
+    }
+  } catch (e) { console.error("[APNs 조회 오류]", e); }
+}
 async function sendWebPush(userId, payload) {
+  try { sendNativePush(userId, payload); } catch (e) {}
   if (!PUSH_ENABLED || !userId) return;
   try {
     const snap = await db.ref(`users/${userId}/pushSubscriptions`).once('value');
@@ -104,6 +153,15 @@ app.get('/api/push/vapid-public-key', (req, res) => {
 app.get('/api/push/test/:userId', (req, res) => {
   sendWebPush(req.params.userId, { title: '테스트 알림', body: '푸시 정상 작동 확인용', type: 'test' });
   res.json({ ok: true });
+});
+app.post("/api/push/native-register", async (req, res) => {
+  try {
+    const { userId, token } = req.body;
+    if (!userId || !token || typeof token !== "string" || token.length > 200) return res.status(400).json({ error: "필수 항목이 누락되었습니다." });
+    const id = nodeCrypto.createHash("sha1").update(token).digest("hex").slice(0, 24);
+    await db.ref(`nativePushTokens/${userId}/${id}`).set({ token: token, platform: "ios", at: Date.now() });
+    res.json({ success: true });
+  } catch (e) { console.error("[네이티브 푸시 토큰 저장 오류]", e); res.status(500).json({ error: "토큰 저장 실패" }); }
 });
 app.post('/api/push/subscribe', async (req, res) => {
   try {
