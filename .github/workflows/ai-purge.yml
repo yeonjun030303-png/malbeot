@@ -1,0 +1,37 @@
+name: ai-purge
+
+# AI 캐릭터 삭제. 기본은 DRY(개수만 보여줌). 실제 삭제는 dry=false 와 confirm=DELETE 둘 다 필요
+on:
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: 'true면 DB에 안 씀 (실제 삭제는 false)'
+        default: 'true'
+      confirm:
+        description: '실제 삭제하려면 DELETE 입력'
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: malbeot-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install --omit=dev --no-audit --no-fund
+      - name: Purge
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+          DRY: ${{ inputs.dry }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: node scripts/ai-purge.js

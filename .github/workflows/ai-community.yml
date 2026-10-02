@@ -3,9 +3,6 @@ name: ai-community
 # 매일 AI 캐릭터가 커뮤니티 글 1개씩 + 서로 댓글
 # 09:00 KST에 한 번, 18:00 KST에 한 번 더 돌림(앞에서 실패해서 빠진 캐릭터/댓글만 보충하고, 이미 한 건 건너뜀)
 on:
-  schedule:
-    - cron: '0 0 * * *'
-    - cron: '0 9 * * *'
   workflow_dispatch:
     inputs:
       dry:
