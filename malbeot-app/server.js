@@ -1559,7 +1559,7 @@ io.on('connection', (socket) => {
       if (filters.gender && filters.gender !== '전체') list = list.filter(u => u.gender === filters.gender);
       list = list.filter(u => u.age >= filters.ageMin && u.age <= filters.ageMax);
       /* AI_LIST_EXCLUDE: 프로필 목록에서 본인과 AI 캐릭터 제외 */ { const _meId = socketToUser[socket.id]; list = list.filter(u => u.id !== _meId && !u.isAiCharacter && !isAiCharId(u.id)); }
-      list.sort((a, b) => (b.profileUpdatedAt || b.lastSeen || 0) - (a.profileUpdatedAt || a.lastSeen || 0));
+      { const _now = Date.now(); const _act = u => u.isOnline ? _now : (u.lastSeen || u.profileUpdatedAt || 0); list.sort((a, b) => _act(b) - _act(a)); }
       const myUserId = socketToUser[socket.id];
       const myUser = myUserId ? await getUser(myUserId) : null;
       list = sortUsersByType(list, filters.sort, myUser && myUser.region);

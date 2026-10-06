@@ -690,7 +690,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
   <header class="app-header">
     <div style="display:flex;align-items:center;gap:9px;min-width:0;">
       <span class="brand-logo"><svg viewBox="0 0 160 110" width="26" height="18" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="15" width="80" height="55" rx="27" fill="url(#mbGrad1)"/><path d="M20 66 L13 85 L36 68 Z" fill="url(#mbGrad1)"/><circle cx="24" cy="42" r="6" fill="#fff"/><circle cx="42" cy="42" r="6" fill="#fff"/><circle cx="60" cy="42" r="6" fill="#fff"/><rect x="62" y="5" width="88" height="62" rx="30" fill="url(#mbGrad2)"/><path d="M132 63 L144 84 L116 67 Z" fill="url(#mbGrad2)"/><path d="M106 46c-11-7-17-14-17-21 0-5.5 4.5-10 10-10 3.4 0 6.4 1.7 8 4.3 1.6-2.6 4.6-4.3 8-4.3 5.5 0 10 4.5 10 10 0 7-6 14-17 21z" fill="#fff"/></svg>말벗</span>
-      <span class="header-title" id="headerTitle" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">친구 찾기</span>
+      <span class="header-title" id="headerTitle" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">주변 친구</span>
     </div>
     <div class="header-right">
       <div class="header-mini-search hidden" id="headerHomeSearchWrap" style="position:relative;display:flex;align-items:center;gap:4px;">
@@ -838,6 +838,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
               <button type="submit" class="btn btn-primary" style="flex:2;"><i class="fa-solid fa-floppy-disk"></i> 프로필 변경 저장</button>
             </div>
           </form>
+          <div id="profileEditInterestBox"></div>
         </div>
 
         <div class="settings-card" style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:16px;">
@@ -1660,7 +1661,8 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
   </div>
 
   <div id="onboardingTutorialScreen" class="modal-overlay">
-    <div class="modal-box" style="max-width:340px;padding:0;overflow:hidden;">
+    <div class="modal-card" style="max-width:340px;padding:0;overflow:hidden;border-radius:20px;background:#fff;">
+      <div style="background:linear-gradient(135deg,#4c6ef5,#7c8cff);color:#fff;text-align:center;padding:16px 12px;font-size:15px;font-weight:800;letter-spacing:-0.3px;">멀벗에 오신 걸 환영해요</div>
       <div id="onboardingSlides" style="position:relative;">
         <div class="onboarding-slide" data-step="0" style="padding:36px 24px 20px;text-align:center;">
           <div style="font-size:48px;margin-bottom:16px;"><i class="fa-solid fa-comments" style="color:var(--primary);"></i></div>
@@ -1684,8 +1686,8 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         <span id="onbDot2" class="onboarding-dot"></span>
       </div>
       <div style="display:flex;border-top:1px solid var(--border-color);">
-        <button type="button" style="flex:1;padding:14px;background:none;border:none;color:var(--text-muted);font-size:14px;cursor:pointer;" onclick="skipOnboarding()">건너뛰기</button>
-        <button type="button" id="onboardingNextBtn" style="flex:1;padding:14px;background:none;border:none;border-left:1px solid var(--border-color);color:var(--primary);font-weight:700;font-size:14px;cursor:pointer;" onclick="nextOnboardingStep()">다음</button>
+        <button type="button" style="flex:1;padding:14px;background:#f1f3f5;border:none;color:#495057;font-weight:600;font-size:14px;cursor:pointer;" onclick="skipOnboarding()">건너뛰기</button>
+        <button type="button" id="onboardingNextBtn" style="flex:1;padding:14px;background:var(--primary);border:none;color:#fff;font-weight:800;font-size:14px;cursor:pointer;" onclick="nextOnboardingStep()">다음</button>
       </div>
     </div>
   </div>
@@ -3353,7 +3355,7 @@ function updateHeaderForTab(tab){
   homeSearchWrap.classList.add('hidden'); homeAdBannerRow.classList.add('hidden'); communitySearchRow.classList.add('hidden');
   chatSearchBtn.classList.add('hidden'); chatCreateBtn.classList.add('hidden');
   document.getElementById('homeSearchDropdown').classList.add('hidden');
-  if (tab==='tab-home'){ title.textContent='친구 찾기'; ptsWrap.classList.remove('hidden'); homeSearchWrap.classList.remove('hidden'); homeAdBannerRow.classList.remove('hidden'); }
+  if (tab==='tab-home'){ title.textContent='주변 친구'; ptsWrap.classList.remove('hidden'); homeSearchWrap.classList.remove('hidden'); homeAdBannerRow.classList.remove('hidden'); }
   else if (tab==='tab-community'){ title.textContent='스토리'; writeBtn.classList.remove('hidden'); ptsWrap.classList.remove('hidden'); communitySearchRow.classList.remove('hidden'); }
   else if (tab==='tab-discover'){ title.textContent='관심사'; filterBar.classList.add('hidden'); }
   else if (tab==='tab-chat'){ title.textContent='채팅'; filterBar.classList.add('hidden'); chatSearchBtn.classList.remove('hidden'); chatCreateBtn.classList.remove('hidden'); }
@@ -3452,7 +3454,7 @@ function applySortType(type){
 
 /* ===================== 홈 (나 자신 포함, 서버에서 프로필 수정 최신순으로 옴) ===================== */
 function loadHomeUserList(){ mbListSkeleton('homeUserList');
-  socket.emit('users:get_list', getFilterValues(homeSortType), (res)=>{ if (res.success) renderUserCards(res.users); });
+  socket.emit('users:get_list', getFilterValues(homeSortType), (res)=>{ if (res.success){ var _l=(res.users||[]).filter(function(u){ return !currentUser || u.id!==currentUser.id; }); if (homeSortType==='default'){ var _myR=currentUser&&currentUser.region; _l.sort(function(a,b){ var _ra=(_myR&&a.region===_myR)?1:0, _rb=(_myR&&b.region===_myR)?1:0; if(_ra!==_rb) return _rb-_ra; var ta=a.isOnline?Date.now():(a.lastSeen||a.profileUpdatedAt||0); var tb=b.isOnline?Date.now():(b.lastSeen||b.profileUpdatedAt||0); return tb-ta; }); } renderUserCards(_l); } });
 }
 // 검색어와 닉네임의 일치도로 정렬 우선순위를 매김: 완전 일치(0) > 앞부분 일치(1) > 부분 일치(2)
 function nicknameMatchRank(nickname, q){
@@ -3469,7 +3471,7 @@ function handleHomeSearchInput(){
   socket.emit('users:get_list', {region:'전체', gender:'전체', ageMin:19, ageMax:99}, (res)=>{
     if (seq !== homeSearchReqSeq) return; // 그 사이 검색어가 바뀌었으면 이전 응답은 무시
     const all = (res && res.users) || [];
-    const matched = all.filter(u=>u.nickname && u.nickname.includes(q));
+    const matched = all.filter(u=>u.nickname && u.nickname.includes(q) && (!currentUser || u.id!==currentUser.id));
     matched.sort((a,b)=>{
       const ra = nicknameMatchRank(a.nickname,q), rb = nicknameMatchRank(b.nickname,q);
       if (ra!==rb) return ra-rb;
@@ -4458,7 +4460,7 @@ function renderProfileDetail(user){
       </div>
       <div class="profile-tags"><span class="tag">${user.region}</span><span class="tag">${user.gender==='female'?'여성':'남성'}</span><span class="tag">${user.age}세</span></div>
       ${buildInterestTagsHtml(user)}
-      ${isMe ? buildMyInterestEditorHtml() : ''}
+      
       <div class="profile-bio-box" id="profileBioBox" style="position:relative;">
         <span id="profileBioText">${escapeHtml(user.bio||'등록된 자기소개가 없습니다.')}</span>
         ${isMe?'<i class="fa-solid fa-pen" style="margin-left:8px;color:var(--text-muted);font-size:12px;cursor:pointer;" onclick="startInlineBioEdit()"></i>':''}
@@ -6375,6 +6377,7 @@ async function handleEditExtraPhotoUpload(e){
 function loadProfileToForm(){
   try{ loadMyReferralCode(); }catch(e){}
   if (!currentUser) return;
+  try{ var _ib=document.getElementById('profileEditInterestBox'); if (_ib && !_ib.firstChild) _ib.innerHTML = buildMyInterestEditorHtml(); renderMyInterestEditorUI(); }catch(e){ console.warn('interest editor', e); }
   document.getElementById('editNickname').value = currentUser.nickname;
   document.getElementById('editRegion').value = currentUser.region;
   document.getElementById('editAge').value = currentUser.age;
@@ -6437,7 +6440,25 @@ function submitProfileUpdate(confirmed){
     }
   });
 }
-document.getElementById('btnWatchAdModal').onclick = ()=>{ openModal('adModal'); playAdSequence(); };
+document.getElementById('btnWatchAdModal').onclick = ()=>{ watchRewardedAdForRice(); };
+function grantAdRice(){
+  const todayStr = new Date().toISOString().slice(0,10);
+  if (currentUser.lastAdChargeDate!==todayStr) currentUser.adWatchCountToday=0;
+  const newCount = (currentUser.adWatchCountToday||0)+1;
+  socket.emit('profile:update', { adWatchCountToday:newCount, lastAdChargeDate:todayStr, points: currentUser.points+20 }, (res)=>{
+    if (res && res.success){ currentUser = res.user; saveSession(); updateUserUI(); showMiniAlert('\uc300 20\uac1c\uac00 \ucda9\uc804\ub418\uc5c8\uc2b5\ub2c8\ub2e4. (\uc624\ub298 \ucda9\uc804 \ud69f\uc218: '+newCount+'/3)', [{label:'\ud655\uc778', primary:true}]); }
+  });
+}
+async function watchRewardedAdForRice(){
+  const todayStr = new Date().toISOString().slice(0,10);
+  if (currentUser.lastAdChargeDate!==todayStr) currentUser.adWatchCountToday=0;
+  if ((currentUser.adWatchCountToday||0)>=3){ showMiniAlert('\uc624\ub298 \ubb34\ub8cc \ucda9\uc804 \ud55c\ub3c4(\ud558\ub8e8 3\ud68c)\ub97c \ubaa8\ub450 \ucd08\uacfc\ud558\uc600\uc2b5\ub2c8\ub2e4.', [{label:'\ud655\uc778', primary:true}]); return; }
+  const R = window.malbeotRewarded;
+  if (!R || !R.ready()){ showMiniAlert('\uad11\uace0\ub97c \ubd88\ub7ec\uc62c \uc218 \uc5c6\uc5b4\uc694. \uc571\uc5d0\uc11c \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.', [{label:'\ud655\uc778', primary:true}]); return; }
+  const ok = await R.show();
+  if (ok) grantAdRice();
+  else showMiniAlert('\uad11\uace0\ub97c \ub05d\uae4c\uc9c0 \uc2dc\uccad\ud574\uc57c \uc300\uc774 \uc9c0\uae09\ub3fc\uc694.', [{label:'\ud655\uc778', primary:true}]);
+}
 // 30초짜리 광고 1개 = 20포인트 지급 (3초 광고 없음)
 function playAdSequence(){
   document.getElementById('adStageText').textContent = '광고 재생 중... (30초)';
@@ -7674,6 +7695,27 @@ function triggerLogout(){
     } catch(e){ interstitialLoaded = false; console.warn('[AdMob] 전면광고 준비 실패', e); }
   }
 
+  // ===== 0-127: rewarded video (free rice charge). Fill in the unit IDs from AdMob console =====
+  var MALBEOT_REWARDED_ID = MALBEOT_IS_ANDROID ? 'ca-app-pub-1897610037138449/7883916299' : 'ca-app-pub-1897610037138449/4742747630';
+  var rewardedLoaded = false, rewardedGot = false;
+  async function prepareRewarded(){
+    var AdMob = getAdMob();
+    if (!AdMob || !admobReady || !MALBEOT_REWARDED_ID) return;
+    try { await AdMob.prepareRewardVideoAd({ adId: MALBEOT_REWARDED_ID, isTesting: MALBEOT_ADS_TEST }); rewardedLoaded = true; }
+    catch(e){ rewardedLoaded = false; console.warn('[AdMob] rewarded prepare failed', e); }
+  }
+  window.malbeotRewarded = {
+    ready: function(){ return isNative() && admobReady && !!MALBEOT_REWARDED_ID && rewardedLoaded; },
+    show: async function(){
+      var AdMob = getAdMob(); rewardedGot = false;
+      try {
+        var item = await AdMob.showRewardVideoAd();
+        if (item && (item.amount || item.type)) rewardedGot = true;
+      } catch(e){ console.warn('[AdMob] rewarded show failed', e); }
+      rewardedLoaded = false; prepareRewarded();
+      return rewardedGot;
+    }
+  };
   async function initAdMob(){
     if (!isNative()) return;
     var AdMob = getAdMob();
@@ -7688,6 +7730,7 @@ function triggerLogout(){
       await AdMob.initialize({ initializeForTesting: false });
       admobReady = true;
       prepareInterstitial();
+      prepareRewarded();
     } catch(e){ console.warn('[AdMob] 초기화 실패', e); }
   }
 
@@ -7747,6 +7790,7 @@ function triggerLogout(){
       if (!AdMob) return;
       try {
         AdMob.addListener('interstitialAdDismissed', function(){ prepareInterstitial(); });
+        AdMob.addListener('onRewardedVideoAdReward', function(){ rewardedGot = true; });
         AdMob.addListener('interstitialAdFailedToLoad', function(){ interstitialLoaded = false; });
         AdMob.addListener('bannerAdSizeChanged', function(info){
           var h = (info && info.height) || 0;
