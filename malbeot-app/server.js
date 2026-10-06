@@ -791,7 +791,7 @@ async function purgeExpiredFilteredPosts() {
         purgedAny = true;
         continue;
       }
-      if (p.deleted && p.deletedAt && (now - p.deletedAt) > THREE_DAYS) {
+      if (p.deleted && p.deletedAt && (!p.deletedByAdmin || (now - p.deletedAt) > THREE_DAYS)) {
         await deletePostDb(p.id);
         purgedAny = true;
         continue;
@@ -1455,6 +1455,7 @@ io.on('connection', (socket) => {
       const now = Date.now();
       let list = await enrichPosts(await getRawPosts());
       list = list.filter(p => (now - (p.updatedAt || p.createdAt)) < THIRTY_DAYS);
+      list = list.filter(p => !p.deleted);
       if (filters.region && filters.region !== '전체') list = list.filter(p => p.authorRegion === filters.region);
       if (filters.gender && filters.gender !== '전체') list = list.filter(p => p.authorGender === filters.gender);
       list = list.filter(p => p.authorAge >= filters.ageMin && p.authorAge <= filters.ageMax);
@@ -1502,7 +1503,7 @@ io.on('connection', (socket) => {
     try {
       const q = ((data && data.query) || '').trim().toLowerCase();
       if (!q) return cb({ success: true, results: [] });
-      const list = await enrichPosts(await getRawPosts());
+      const list = (await enrichPosts(await getRawPosts())).filter(p => !p.deleted);
       const results = [];
       list.forEach(p => {
         const contentMatch = (p.content || '').toLowerCase().includes(q);
@@ -1626,10 +1627,15 @@ io.on('connection', (socket) => {
       const requester = await getUser(userId);
       const admin = requester && isAdmin(requester);
       if (post.authorId !== userId && !admin) return cb({ success: false });
-      post.deleted = true;
-      post.deletedAt = Date.now();
-      post.deletedByAdmin = !!(admin && post.authorId !== userId);
-      await savePost(post);
+      const byAdmin = !!(admin && post.authorId !== userId);
+      if (!byAdmin) {
+        await deletePostDb(post.id);
+      } else {
+        post.deleted = true;
+        post.deletedAt = Date.now();
+        post.deletedByAdmin = true;
+        await savePost(post);
+      }
       cb({ success: true });
       broadcastPosts();
     } catch (e) { console.error(e); cb({ success: false }); }
