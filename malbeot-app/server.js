@@ -840,10 +840,13 @@ async function notifySubscriptionsExpiringSoon() {
       const sub = user.subscription;
       if (!sub || !sub.tier || !sub.expiresAt) continue;
       const remaining = sub.expiresAt - now;
-      if (remaining <= 0 || remaining > oneDay) continue;
+      if (remaining <= 0) { await maybePushExpired(user); continue; }
+      if (remaining > oneDay) continue;
       if (sub.expiryNotifiedAt) continue; // 이미 알림 보냄
       const tierLabel = sub.tier === 'platinum' ? '플래티넘' : '골드';
-      const msg = `${tierLabel} 구독이 곧 만료돼요. 계속 이용하시려면 다시 구독해주세요.`;
+      const msg = SUB_DISCOUNT_PERCENT > 0
+        ? `${tierLabel} 구독이 내일 만료돼요! 지금 다시 구독하면 ${SUB_DISCOUNT_PERCENT}% 할인돼요.`
+        : `${tierLabel} 구독이 내일 만료돼요. 계속 이용하시려면 다시 구독해주세요.`;
       const sId = userToSocket[user.id];
       if (sId) io.to(sId).emit('subscription:expiring_soon_notify', { message: msg, tier: sub.tier });
       else sendWebPush(user.id, { title: '구독 만료 임박', body: msg, type: 'subscription_expiring' });
@@ -853,6 +856,45 @@ async function notifySubscriptionsExpiringSoon() {
   } catch (e) { console.error('[구독 만료임박 알림 오류]', e); }
 }
 setInterval(notifySubscriptionsExpiringSoon, 60 * 60 * 1000);
+
+/* 0-128: subscription expiry notices. Discount wording is shown only when env SUBSCRIPTION_DISCOUNT_PERCENT > 0 */
+const SUB_DISCOUNT_PERCENT = Math.max(0, parseInt(process.env.SUBSCRIPTION_DISCOUNT_PERCENT || '0', 10) || 0);
+const EXPIRED_NOTICE_WINDOW = 7 * 24 * 60 * 60 * 1000;
+function subExpiredMessage(sub) {
+  const tierLabel = sub.tier === 'platinum' ? '플래티넘' : '골드';
+  return SUB_DISCOUNT_PERCENT > 0
+    ? `${tierLabel} 구독이 만료되었어요. 지금 다시 구독하면 ${SUB_DISCOUNT_PERCENT}% 할인돼요.`
+    : `${tierLabel} 구독이 만료되었어요. 다시 구독하면 혜택을 이어서 받을 수 있어요.`;
+}
+function isRecentlyExpired(sub) {
+  return !!(sub && sub.tier && sub.expiresAt && sub.expiresAt <= Date.now() && Date.now() - sub.expiresAt <= EXPIRED_NOTICE_WINDOW);
+}
+async function maybePushExpired(user) {
+  try {
+    const sub = user && user.subscription;
+    if (!isRecentlyExpired(sub) || sub.expiredPushedAt || sub.expiredNotifiedAt) return;
+    if (userToSocket[user.id]) return; // connected users get the in-app popup instead
+    sendWebPush(user.id, { title: '구독 만료', body: subExpiredMessage(sub), type: 'subscription_expired' });
+    user.subscription.expiredPushedAt = Date.now();
+    await saveUser(user);
+  } catch (e) { console.error('[구독 만료 푸시 오류]', e); }
+}
+async function notifyExpiredInApp(user) {
+  try {
+    const sub = user && user.subscription;
+    if (!isRecentlyExpired(sub) || sub.expiredNotifiedAt) return;
+    const sId = userToSocket[user.id];
+    if (!sId) return;
+    io.to(sId).emit('subscription:expired_notify', { message: subExpiredMessage(sub), tier: sub.tier });
+    user.subscription.expiredNotifiedAt = Date.now();
+    await saveUser(user);
+  } catch (e) { console.error('[구독 만료 인앱 알림 오류]', e); }
+}
+setInterval(async () => {
+  try {
+    for (const uid of Object.keys(userToSocket)) { notifyExpiredInApp(await getUser(uid)); }
+  } catch (e) { console.error('[구독 만료 점검 오류]', e); }
+}, 60 * 1000);
 
 /* =====================================================================
    오늘의 인기 투표 자동 선정 + 포인트 100 지급
@@ -3081,6 +3123,7 @@ io.on('connection', (socket) => {
       } else if (!userToSocket[uid]) {
         userToSocket[uid] = socket.id;
       }
+      if (!(data && data.active === false)) getUser(uid).then(notifyExpiredInApp).catch(() => {});
     } catch (e) {}
   });
   socket.on('disconnect', async () => {
