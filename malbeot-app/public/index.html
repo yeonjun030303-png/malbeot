@@ -1368,7 +1368,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
       <button class="chat-search-nav-btn" onclick="navigateChatSearch(-1)"><i class="fa-solid fa-chevron-down"></i></button>
       <button class="chat-search-nav-btn" onclick="closeChatSearchBar()"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div class="chat-warning-banner">
+    <div id="chatWarningBanner" class="chat-warning-banner" style="display:none;">
       <b>성매매·성추행·성희롱</b> 등 범죄 관련 대화, <b>아동 대상 간음·성적 알선</b> 발생 시 수사기관에 신고될 수 있습니다. 사진 전송, 외부 링크 클릭, 카톡 아이디·전화번호 등 <b>개인정보 유출을 미끼로 금전을 요구</b>하는 피싱 범죄에 주의하세요.
     </div>
     <div id="chatMessageArea" class="chat-messages-area"></div>
@@ -5435,7 +5435,7 @@ function openChatModal(roomId, target, messages){
     avatarDefaultEl.style.color = isFemale ? 'var(--pink-avatar)' : 'var(--blue-avatar)';
     avatarDefaultEl.innerHTML = `<i class="fa-solid ${isFemale ? 'fa-person-dress' : 'fa-person'}" style="font-size:14px;"></i>`;
   }
-  document.getElementById('chatTargetName').textContent = target.nickname || '';
+  document.getElementById('chatTargetName').textContent = target.nickname || ''; try{ var _wb=document.getElementById('chatWarningBanner'); if(_wb){ _wb.style.display = localStorage.getItem('malbeot_chatWarnSeen_'+roomId) ? 'none' : ''; } }catch(e){}
   chatMaxSeenTs = 0;
   // 0-78: 이전 방에서 아직 안 읽혀서 감시 중이던 말풍선들을 여기서 한 번에 정리(누적 방지)
   if (chatReadObserver) chatReadObserver.disconnect();
@@ -5456,7 +5456,7 @@ function openChatModal(roomId, target, messages){
 // 채팅방을 나갈 때는 반드시 이 함수를 사용해야 함.
 // activeRoomId를 초기화하지 않으면 홈 등 다른 화면에 있어도 해당 방의 새 메시지가
 // "채팅방을 보고 있는 중"으로 착각되어 알림 배너 없이 자동으로 읽음 처리되는 문제가 있었음.
-function closeChatModal(){
+function closeChatModal(){ try{ if(activeRoomId){ localStorage.setItem('malbeot_chatWarnSeen_'+activeRoomId,'1'); } }catch(e){}
   closeModal('chatModal');
   closeFullScreen('chatInfoScreen');
   closeFullScreen('chatGalleryScreen');
