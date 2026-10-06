@@ -1035,6 +1035,7 @@ io.on('connection', (socket) => {
       const user = await findUserByPhone(data.phone);
       if (!user) return cb({ success: false, notFound: true, wrongField: 'phone' });
       if (user.isBanned) return cb({ success: false, banned: true, message: '이용이 제한된 계정입니다.' });
+      if (!user.passwordHash) return cb({ success: false, notFound: true, wrongField: 'phone' });
       if (user.passwordHash) {
         const ok = await comparePassword(data.password || '', user.passwordHash);
         if (!ok) return cb({ success: false, wrongField: 'password' });
