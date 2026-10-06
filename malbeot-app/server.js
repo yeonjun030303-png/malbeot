@@ -1037,8 +1037,17 @@ io.on('connection', (socket) => {
       if (user.isBanned) return cb({ success: false, banned: true, message: '이용이 제한된 계정입니다.' });
       if (!user.passwordHash) return cb({ success: false, notFound: true, wrongField: 'phone' });
       if (user.passwordHash) {
+        const _lf = (global.__loginFail = global.__loginFail || new Map());
+        const _lk = String(data.phone || '');
+        const _lr = _lf.get(_lk);
+        if (_lr && _lr.count >= 8 && (Date.now() - _lr.first) < 600000) return cb({ success: false, message: '로그인 시도가 너무 많아요. 10분 뒤에 다시 시도해주세요.' });
         const ok = await comparePassword(data.password || '', user.passwordHash);
-        if (!ok) return cb({ success: false, wrongField: 'password' });
+        if (!ok) {
+          const _nr = (_lr && (Date.now() - _lr.first) < 600000) ? _lr : { count: 0, first: Date.now() };
+          _nr.count++; _lf.set(_lk, _nr);
+          return cb({ success: false, wrongField: 'password' });
+        }
+        _lf.delete(_lk);
       }
       user.isOnline = true;
       user.lastSeen = Date.now();
@@ -1094,6 +1103,7 @@ io.on('connection', (socket) => {
       }
       const existing = await findUserByPhone(data.phone);
       if (existing) return cb({ success: false, alreadyExists: true });
+      if (ADMIN_PHONES.includes(data.phone)) return cb({ success: false, message: '사용할 수 없는 번호입니다.' });
       const passwordHash = await hashPassword(String(data.password));
       const user = {
         id: genId('u'), phone: data.phone, passwordHash, nickname: data.nickname,
@@ -2823,6 +2833,9 @@ io.on('connection', (socket) => {
       if (!target) return cb && cb({ success: false });
       if (target.phone && !target.phoneChangeApproved) return cb && cb({ success: false, message: '이미 등록된 전화번호가 있습니다. 변경은 고객센터로 문의해주세요.' });
       if (!/^01[0-9]{9}$/.test((data && data.phone) || '')) return cb && cb({ success: false, message: '휴대폰 번호를 정확히 입력해주세요. (예: 010-0000-0000)' });
+      const _dup = await findUserByPhone(data.phone);
+      if (_dup && _dup.id !== target.id) return cb && cb({ success: false, message: '이미 사용 중인 번호입니다.' });
+      if (ADMIN_PHONES.includes(data.phone) && !isAdminKakao(target.kakaoId)) return cb && cb({ success: false, message: '사용할 수 없는 번호입니다.' });
       target.phone = data.phone;
       if (target.phoneChangeApproved) delete target.phoneChangeApproved;
       await saveUser(target);

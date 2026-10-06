@@ -504,10 +504,22 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     <h1 style="font-size:36px;color:var(--primary);font-weight:900;margin-bottom:6px;">말벗</h1>
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:40px;">지금 이 순간, 실시간으로 이어지는 편안한 대화</p>
     <button class="btn btn-kakao btn-block" style="height:52px;margin-top:10px;font-size:16px;font-weight:700;border-radius:12px;" onclick="startKakaoLogin()"><i class="fa-solid fa-comment"></i> 카카오톡으로 시작하기</button>
+    <button type="button" class="btn btn-block" style="height:46px;margin-top:10px;background:#f1f3f5;color:#343a40;font-weight:600;" onclick="openPhoneLogin()">전화번호로 로그인 / 가입</button>
   </div>
 </div>
 
 <!-- 로그인 (전화번호 + 비밀번호) -->
+<div id="phoneLoginModal" class="modal-overlay">
+  <div class="modal-card">
+    <h3 style="margin-bottom:12px;">전화번호로 로그인</h3>
+    <div class="form-group"><label>휴대폰 번호</label><input type="tel" id="loginPhone" inputmode="numeric" placeholder="010-0000-0000" maxlength="13"></div>
+    <div class="form-group"><label>비밀번호</label><input type="password" id="loginPassword" placeholder="비밀번호" autocomplete="current-password"></div>
+    <div id="loginPhoneErr" style="color:var(--danger);font-size:12px;min-height:16px;margin-bottom:8px;"></div>
+    <button type="button" class="btn btn-primary btn-block" onclick="submitPhoneLogin()">로그인</button>
+    <button type="button" class="btn btn-secondary btn-block" style="margin-top:8px;" onclick="openPhoneSignup()">처음이에요 (가입하기)</button>
+    <button type="button" class="btn btn-block" style="margin-top:8px;background:none;color:var(--text-muted);" onclick="closePhoneLogin()">돌아가기</button>
+  </div>
+</div>
 
 <!-- 회원가입 -->
 <div id="authModal" class="modal-overlay">
@@ -531,6 +543,14 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     <form id="authForm" onsubmit="return false;">
       <div id="authStep2" class="hidden">
         <h4 style="font-size:14px;margin-bottom:10px;"><i class="fa-solid fa-user-plus"></i> 회원 정보 입력</h4>
+        <div id="regPhoneBlock" class="hidden">
+          <div class="form-group">
+            <label>휴대폰 번호</label>
+            <input type="tel" id="regPhone" inputmode="numeric" placeholder="010-0000-0000" maxlength="13" oninput="onRegPhoneInput()">
+            <div id="regPhoneNotice" style="font-size:10px;color:var(--text-muted);margin-top:4px;line-height:1.4;">본인 번호만 입력해주세요. 타인의 전화번호를 무단으로 사용하면 개인정보 보호 관련 법령에 따라 법적 책임을 질 수 있어요.</div>
+          </div>
+          <div class="form-group"><label>비밀번호</label><input type="password" id="regPassword" placeholder="비밀번호 (4자 이상)" autocomplete="new-password"></div>
+        </div>
         <div style="display:flex;gap:8px;">
           <div class="form-group" style="flex:1;">
             <label>별명 (이름/개인번호 사용 금지)</label>
@@ -2776,15 +2796,84 @@ function startKakaoLogin(){
 })();
 
 /* ===================== 회원가입 (3단계) ===================== */
-function setAuthStep(n){
+/* 0-118b: phone + password signup/login (no SMS verification) */
+var authMode = 'kakao';
+function openPhoneLogin(){ closeModal('landingScreen'); openModal('phoneLoginModal'); }
+function closePhoneLogin(){ closeModal('phoneLoginModal'); openModal('landingScreen'); }
+function openPhoneSignup(){ authMode='phone'; closeModal('phoneLoginModal'); openModal('authModal'); setAuthStep(2); }
+function onRegPhoneInput(){
+  var el=document.getElementById('regPhone'), nt=document.getElementById('regPhoneNotice');
+  if(el){ el.style.borderColor=''; }
+  if(el && nt){ nt.style.display = el.value.trim() ? 'none' : ''; }
+}
+function _markErr(id, on){ var e=document.getElementById(id); if(e) e.style.borderColor = on ? 'var(--danger)' : ''; }
+function validatePhoneSignupFields(){
+  var phone=(document.getElementById('regPhone').value||'').replace(/[^0-9]/g,'');
+  var pw=document.getElementById('regPassword').value||'';
+  var nick=(document.getElementById('regNickname').value||'').trim();
+  var badPhone=!/^01[0-9]{9}$/.test(phone), badPw=pw.length<4, badNick=!nick;
+  _markErr('regPhone', badPhone); _markErr('regPassword', badPw); _markErr('regNickname', badNick);
+  if(badPhone || badPw || badNick){
+    var msg = badPhone ? '휴대폰 번호를 정확히 입력해주세요.' : (badPw ? '비밀번호를 4자 이상 입력해주세요.' : '별명을 입력해주세요.');
+    showMiniAlert(msg, [{label:'확인', primary:true}]);
+    return false;
+  }
+  return true;
+}
+function submitPhoneSignup(confirmed){
+  var data = {
+    phone: (document.getElementById('regPhone').value||'').replace(/[^0-9]/g,''),
+    password: document.getElementById('regPassword').value,
+    nickname: document.getElementById('regNickname').value.trim(),
+    region: document.getElementById('regRegion').value,
+    gender: document.getElementById('regGender').value,
+    age: document.getElementById('regAge').value,
+    bio: '반갑습니다!',
+    photos: regPhotoBase64 ? [regPhotoBase64] : [],
+    confirmed: !!confirmed
+  };
+  socket.emit('auth:signup', data, function(res){
+    if(res && res.success){
+      currentUser = res.user; saveSession(res.token); closeModal('authModal'); initApp();
+      if(!currentUser.onboardingSeen) setTimeout(showOnboardingTutorial, 400);
+    } else if(res && res.alreadyExists){
+      showMiniAlert('이미 가입된 번호예요. 로그인해주세요.', [{label:'확인', primary:true, onClick:function(){ closeModal('authModal'); openModal('phoneLoginModal'); }}]);
+    } else if(res && res.needsConfirm){
+      showMiniAlert('닉네임에 부적절한 단어가 발견되었습니다. "삭제된 닉네임입니다"로 표기됩니다. 그래도 사용하시겠습니까?', [
+        {label:'취소', primary:false},
+        {label:'확인', primary:true, onClick:function(){ submitPhoneSignup(true); }}
+      ]);
+    } else {
+      showMiniAlert((res && res.message) || '가입 중 오류가 발생했습니다.', [{label:'확인', primary:true}]);
+    }
+  });
+}
+function submitPhoneLogin(){
+  var phone=(document.getElementById('loginPhone').value||'').replace(/[^0-9]/g,'');
+  var pw=document.getElementById('loginPassword').value;
+  var err=document.getElementById('loginPhoneErr'); err.textContent='';
+  if(!/^01[0-9]{9}$/.test(phone)){ err.textContent='휴대폰 번호를 정확히 입력해주세요.'; return; }
+  if(!pw){ err.textContent='비밀번호를 입력해주세요.'; return; }
+  socket.emit('auth:login', {phone: phone, password: pw, deviceId: getDeviceId()}, function(res){
+    if(res && res.success){
+      currentUser = res.user; saveSession(res.token); closeModal('phoneLoginModal'); closeModal('landingScreen'); initApp();
+      if(res.dailyRewardNotify){ showMiniAlert('오늘의 접속 보상으로 쌀 '+res.dailyRewardNotify.amount+'개가 지급되었습니다!', [{label:'확인', primary:true}]); }
+      if(res.warningNotify){ showWarningModal(res.warningNotify.message); }
+    } else if(res && res.banned){ err.textContent = res.message || '이용이 제한된 계정입니다.';
+    } else if(res && res.notFound){ err.textContent = '가입되지 않은 번호이거나 비밀번호가 없는 계정이에요. 카카오로 가입하셨다면 "카카오톡으로 시작하기"를 눌러주세요.';
+    } else if(res && res.wrongField==='password'){ err.textContent = '비밀번호가 맞지 않아요.';
+    } else { err.textContent = (res && res.message) || '로그인에 실패했습니다.'; }
+  });
+}
+function setAuthStep(n){ try{ var _pb=document.getElementById('regPhoneBlock'); if(_pb) _pb.classList.toggle('hidden', authMode!=='phone'); var _rg=document.getElementById('regReferralCode'); var _fg=_rg && _rg.closest ? _rg.closest('.form-group') : null; if(_fg) _fg.style.display = (authMode==='phone') ? 'none' : ''; }catch(e){}
   if (n===2){ try{ const refEl=document.getElementById('regReferralCode'); const savedRef=localStorage.getItem('pendingReferralCode'); if (refEl && !refEl.value && savedRef) refEl.value=savedRef; }catch(e){} }
   document.getElementById('authStep2').classList.toggle('hidden', n!==2);
   document.getElementById('authStep3').classList.toggle('hidden', n!==3);
   document.getElementById('authStepIndicator').textContent = {2:'1 / 2 단계 · 기본 정보',3:'2 / 2 단계 · 사진 등록'}[n];
 }
-document.getElementById('btnBackStep1').onclick = ()=>{ closeModal('authModal'); openModal('landingScreen'); };
+document.getElementById('btnBackStep1').onclick = ()=>{ closeModal('authModal'); openModal(authMode==='phone' ? 'phoneLoginModal' : 'landingScreen'); };
 document.getElementById('btnBackStep2').onclick = ()=>setAuthStep(2);
-document.getElementById('btnGoStep3').onclick = ()=>{
+document.getElementById('btnGoStep3').onclick = ()=>{ if (authMode==='phone' && !validatePhoneSignupFields()) return;
   if (!document.getElementById('regNickname').value.trim()) { showMiniAlert('별명을 입력하세요.', [{label:'확인', primary:true}]); return; }
   if (!document.getElementById('agreeLegal').checked) { showMiniAlert('이용 약관에 동의해주세요.', [{label:'확인', primary:true}]); return; }
   setAuthStep(3);
@@ -2796,7 +2885,7 @@ async function handleRegPhotoUpload(e){
   const p=document.getElementById('regPhotoPreview'); p.src=regPhotoBase64; p.classList.remove('hidden'); document.getElementById('regPhotoPlaceholder').classList.add('hidden');
 }
 document.getElementById('authForm').onsubmit = ()=>{
-  submitKakaoSignup(false, false);
+  if (authMode==='phone') { submitPhoneSignup(false); } else { submitKakaoSignup(false, false); }
 };
 function submitKakaoSignup(confirmed, deviceConfirmed){
   const kakaoData = {
