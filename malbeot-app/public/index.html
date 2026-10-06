@@ -48,13 +48,13 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 #splashScreen .splash-dots span:nth-child(3){animation-delay:.44s;}
 @keyframes splashDotMove{0%{left:0;opacity:0;}18%{opacity:1;}82%{opacity:1;}100%{left:56px;opacity:0;}}
 
-#notifyBanner{position:absolute;top:0;left:0;right:0;background:#212529;color:#fff;padding:calc(env(safe-area-inset-top, 0px) + 8px) 18px 12px 18px;z-index:500;transform:translateY(-100%);transition:transform .25s ease;line-height:1.4;cursor:pointer;display:flex;align-items:center;gap:10px;}
-#notifyBanner.show{transform:translateY(0);}
-#notifyBanner .nb-avatar{flex-shrink:0;width:36px;height:36px;border-radius:50%;overflow:hidden;}
+#notifyBanner{position:fixed;top:0;left:50%;width:100%;max-width:480px;box-sizing:border-box;border-radius:0 0 16px 16px;box-shadow:0 6px 18px rgba(0,0,0,.25);background:rgba(33,37,41,.96);color:#fff;padding:calc(env(safe-area-inset-top, 0px) + 6px) 14px 10px 14px;z-index:3000;transform:translate(-50%,-110%);transition:transform .25s ease;line-height:1.4;cursor:pointer;display:flex;align-items:center;gap:10px;}
+#notifyBanner.show{transform:translate(-50%,0);}
+#notifyBanner .nb-avatar{flex-shrink:0;width:32px;height:32px;border-radius:50%;overflow:hidden;}
 #notifyBanner .nb-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
 #notifyBanner .nb-text{flex:1;min-width:0;}
-#notifyBanner .nb-title{font-weight:800;font-size:15px;margin-bottom:2px;}
-#notifyBanner .nb-body{font-size:13px;color:#f1f3f5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#notifyBanner .nb-title{font-weight:800;font-size:14px;margin-bottom:1px;}
+#notifyBanner .nb-body{font-size:12.5px;color:#f1f3f5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
 .app-header{min-height:56px;background:#fff;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;padding:env(safe-area-inset-top) 16px 0 16px;z-index:10;flex-shrink:0;}
 .header-title{font-size:17px;font-weight:800;color:var(--text-main);}
@@ -1871,7 +1871,6 @@ function hideNotifyBanner(){
   clearTimeout(notifyBannerTimer);
   if (notifyBannerOnClick){ const cb = notifyBannerOnClick; notifyBannerOnClick = null; cb(); }
 }
-function hideNotifyBanner(){ document.getElementById('notifyBanner').classList.remove('show'); clearTimeout(notifyBannerTimer); }
 
 /* 로그인 세션이 끊겼을 때, 지금 보고 있던 화면 위에 로그인 화면이 겹쳐 뜨지 않도록
    열려 있던 모든 모달/전체화면을 닫고 최초 화면(landingScreen)만 보이게 함 */
