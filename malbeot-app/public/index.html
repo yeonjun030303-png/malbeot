@@ -504,16 +504,17 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
     <h1 style="font-size:36px;color:var(--primary);font-weight:900;margin-bottom:6px;">말벗</h1>
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:40px;">지금 이 순간, 실시간으로 이어지는 편안한 대화</p>
     <button class="btn btn-kakao btn-block" style="height:52px;margin-top:10px;font-size:16px;font-weight:700;border-radius:12px;" onclick="startKakaoLogin()"><i class="fa-solid fa-comment"></i> 카카오톡으로 시작하기</button>
-    <button type="button" class="btn btn-block" style="height:46px;margin-top:10px;background:#f1f3f5;color:#343a40;font-weight:600;" onclick="openPhoneLogin()">전화번호로 로그인 / 가입</button>
+    <button type="button" class="btn btn-block" style="height:46px;margin-top:10px;background:#f1f3f5;color:#343a40;font-weight:600;" onclick="openPhoneLogin()">아이디로 로그인 / 가입</button>
   </div>
 </div>
 
 <!-- 로그인 (전화번호 + 비밀번호) -->
 <div id="phoneLoginModal" class="modal-overlay">
   <div class="modal-card">
-    <h3 style="margin-bottom:12px;">전화번호로 로그인</h3>
-    <div class="form-group"><label>휴대폰 번호</label><input type="tel" id="loginPhone" inputmode="numeric" placeholder="010-0000-0000" maxlength="13"></div>
+    <h3 style="margin-bottom:12px;">아이디로 로그인</h3>
+    <div class="form-group"><label>아이디</label><input type="text" id="loginPhone" placeholder="아이디 (대소문자 구분)" maxlength="20" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="form-group"><label>비밀번호</label><input type="password" id="loginPassword" placeholder="비밀번호" autocomplete="current-password"></div>
+    <div style="font-size:11px;color:var(--text-muted);margin:-4px 0 8px;line-height:1.4;">기존에 휴대폰 번호로 가입하셨다면 번호(숫자만)를 아이디 칸에 입력하세요.</div>
     <div id="loginPhoneErr" style="color:var(--danger);font-size:12px;min-height:16px;margin-bottom:8px;"></div>
     <button type="button" class="btn btn-primary btn-block" onclick="submitPhoneLogin()">로그인</button>
     <button type="button" class="btn btn-secondary btn-block" style="margin-top:8px;" onclick="openPhoneSignup()">처음이에요 (가입하기)</button>
@@ -612,6 +613,76 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
         </div>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- 0-124: 아이디 회원가입 (전체 화면) -->
+<div id="idSignupScreen" class="full-screen-overlay">
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top,0px));border-bottom:1px solid var(--border-color);flex-shrink:0;background:#fff;">
+    <button type="button" class="icon-round-btn" onclick="closeIdSignup()" aria-label="뒤로"><i class="fa-solid fa-chevron-left"></i></button>
+    <div style="flex:1;text-align:center;font-size:16px;font-weight:800;margin-right:36px;">회원가입</div>
+  </div>
+  <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:22px 20px calc(28px + env(safe-area-inset-bottom,0px));">
+    <div style="max-width:420px;margin:0 auto;">
+      <div style="text-align:center;margin-bottom:24px;">
+        <div onclick="document.getElementById('suPhotoInput').click()" style="width:108px;height:108px;border-radius:50%;margin:0 auto;background:var(--bg-subtle);border:2px dashed var(--border-color);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;">
+          <img id="suPhotoPreview" class="hidden" alt="" style="width:100%;height:100%;object-fit:cover;">
+          <span id="suPhotoPlaceholder" style="color:var(--text-muted);font-size:12px;line-height:1.6;text-align:center;"><i class="fa-solid fa-camera" style="font-size:24px;"></i><br>사진 등록</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:10px;line-height:1.5;">프로필 사진 (선택)<br>등록하지 않으면 성별 기본 이미지가 적용돼요</div>
+        <input type="file" id="suPhotoInput" accept="image/*" class="hidden" onchange="handleSuPhoto(event)">
+      </div>
+
+      <div style="font-size:12px;font-weight:800;color:var(--primary);margin-bottom:10px;">계정 정보</div>
+      <div class="form-group">
+        <label>아이디</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="suLoginId" placeholder="영문/숫자/_ 4~20자 (대소문자 구분)" maxlength="20" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" oninput="suOnIdInput()" style="flex:1;min-width:0;">
+          <button type="button" class="btn btn-secondary" style="flex-shrink:0;padding:0 14px;" onclick="suCheckIdOnly()">중복확인</button>
+        </div>
+        <div id="suIdMsg" style="font-size:11px;min-height:15px;margin-top:5px;"></div>
+      </div>
+      <div class="form-group"><label>비밀번호</label><input type="password" id="suPassword" placeholder="4자 이상 (대소문자 구분)" maxlength="64" autocomplete="new-password" oninput="suOnPwInput()"></div>
+      <div class="form-group">
+        <label>비밀번호 확인</label>
+        <input type="password" id="suPassword2" placeholder="비밀번호를 한 번 더 입력" maxlength="64" autocomplete="new-password" oninput="suOnPwInput()">
+        <div id="suPwMsg" style="font-size:11px;min-height:15px;margin-top:5px;"></div>
+      </div>
+
+      <div style="font-size:12px;font-weight:800;color:var(--primary);margin:18px 0 10px;">프로필 정보</div>
+      <div class="form-group"><label>닉네임</label><input type="text" id="suNickname" placeholder="예: 구름나그네 (이름/개인번호 사용 금지)" maxlength="10" oninput="_markErr('suNickname', false)"></div>
+      <div class="form-group">
+        <label>전화번호</label>
+        <input type="tel" id="suPhone" inputmode="numeric" placeholder="010-0000-0000" maxlength="13" oninput="suOnPhoneInput()">
+        <div id="suPhoneNotice" style="font-size:10px;color:var(--text-muted);margin-top:4px;line-height:1.4;">본인 번호만 입력해주세요. 타인의 전화번호를 무단으로 사용하면 개인정보 보호 관련 법령에 따라 법적 책임을 질 수 있어요.</div>
+      </div>
+      <div class="form-group">
+        <label>성별</label>
+        <div style="display:flex;gap:8px;">
+          <button type="button" id="suGender_female" onclick="setSuGender('female')" style="flex:1;height:44px;border-radius:10px;border:1.5px solid var(--border-color);background:#fff;font-size:14px;font-weight:700;">여성</button>
+          <button type="button" id="suGender_male" onclick="setSuGender('male')" style="flex:1;height:44px;border-radius:10px;border:1.5px solid var(--border-color);background:#fff;font-size:14px;font-weight:700;">남성</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <div class="form-group" style="flex:1;"><label>나이</label><select id="suAge" onchange="_markErr('suAge', false)"></select></div>
+        <div class="form-group" style="flex:1;"><label>사는 지역</label><select id="suRegion"></select></div>
+      </div>
+
+      <div style="font-size:12px;font-weight:800;color:var(--primary);margin:10px 0 10px;">동의사항</div>
+      <div style="background:var(--bg-subtle);border:1px solid var(--border-color);border-radius:10px;padding:14px;margin-bottom:18px;">
+        <label style="display:flex;gap:10px;align-items:center;font-size:14px;font-weight:800;cursor:pointer;padding-bottom:12px;border-bottom:1px solid var(--border-color);">
+          <input type="checkbox" id="suAgreeAll" onchange="suToggleAll()"> 전체 동의
+        </label>
+        <label style="display:flex;gap:10px;align-items:flex-start;font-size:12px;cursor:pointer;margin-top:12px;line-height:1.5;">
+          <input type="checkbox" id="suAgree1" onchange="suSyncAll()" style="margin-top:2px;"> <span><strong>[필수]</strong> 만 19세 이상 본인입니다.</span>
+        </label>
+        <label style="display:flex;gap:10px;align-items:flex-start;font-size:12px;cursor:pointer;margin-top:10px;line-height:1.5;">
+          <input type="checkbox" id="suAgree2" onchange="suSyncAll()" style="margin-top:2px;"> <span><strong>[필수]</strong> 불법/성적 음란 대화가 발각되면 경고 없이 영구정지될 수 있음에 동의합니다.</span>
+        </label>
+      </div>
+
+      <button type="button" class="btn btn-primary btn-block" style="height:50px;font-size:16px;font-weight:700;border-radius:12px;" onclick="submitIdSignup()">가입하기</button>
+    </div>
   </div>
 </div>
 
@@ -2814,7 +2885,164 @@ function startKakaoLogin(){
 var authMode = 'kakao';
 function openPhoneLogin(){ closeModal('landingScreen'); openModal('phoneLoginModal'); }
 function closePhoneLogin(){ closeModal('phoneLoginModal'); openModal('landingScreen'); }
-function openPhoneSignup(){ authMode='phone'; closeModal('phoneLoginModal'); openModal('authModal'); setAuthStep(2); }
+function openPhoneSignup(){ closeModal('phoneLoginModal'); openIdSignup(); }
+/* 0-124: 아이디 가입 전체 화면 / 아이디 로그인 */
+var suGender = 'female', suPhotoBase64 = null, suBusy = false;
+var SU_REGIONS = ['서울','경기','인천','부산','대구','대전','광주','울산','세종','강원','충북','충남','전북','전남','경북','경남','제주'];
+function openIdSignup(){
+  suPhotoBase64 = null; suBusy = false;
+  ['suLoginId','suPassword','suPassword2','suNickname','suPhone'].forEach(function(id){ var e=document.getElementById(id); if(e){ e.value=''; e.style.borderColor=''; } });
+  ['suIdMsg','suPwMsg'].forEach(function(id){ var e=document.getElementById(id); if(e) e.textContent=''; });
+  var p=document.getElementById('suPhotoPreview'); p.removeAttribute('src'); p.classList.add('hidden');
+  document.getElementById('suPhotoPlaceholder').classList.remove('hidden');
+  ['suAgreeAll','suAgree1','suAgree2'].forEach(function(id){ document.getElementById(id).checked=false; });
+  var nt=document.getElementById('suPhoneNotice'); if(nt) nt.style.display='';
+  var a=document.getElementById('suAge');
+  if(a){ populateAgeDropdown('suAge'); var ph=document.createElement('option'); ph.value=''; ph.textContent='나이 선택'; a.insertBefore(ph, a.firstChild); a.value=''; a.style.borderColor=''; }
+  var r=document.getElementById('suRegion');
+  if(r && !r.options.length){ SU_REGIONS.forEach(function(n){ var o=document.createElement('option'); o.value=n; o.textContent=n; r.appendChild(o); }); }
+  setSuGender('female');
+  openModal('idSignupScreen');
+  var sc=document.querySelector('#idSignupScreen > div:nth-child(2)'); if(sc) sc.scrollTop=0;
+}
+function closeIdSignup(){ closeModal('idSignupScreen'); openModal('phoneLoginModal'); }
+function setSuGender(g){
+  suGender = g;
+  ['female','male'].forEach(function(k){
+    var b=document.getElementById('suGender_'+k); if(!b) return;
+    var on=(k===g);
+    b.style.background = on ? 'var(--primary)' : '#fff';
+    b.style.color = on ? '#fff' : '#343a40';
+    b.style.borderColor = on ? 'var(--primary)' : 'var(--border-color)';
+  });
+}
+function suIdFormatError(id){
+  if(!id) return '아이디를 입력해주세요.';
+  if(!/^[A-Za-z0-9_]{4,20}$/.test(id)) return '아이디는 영문, 숫자, 밑줄(_) 4~20자로 입력해주세요.';
+  if(/^01[0-9]{8,9}$/.test(id)) return '전화번호 형식은 아이디로 사용할 수 없어요.';
+  return '';
+}
+function suSetIdMsg(text, ok){ var m=document.getElementById('suIdMsg'); if(!m) return; m.style.color = ok ? 'var(--success)' : 'var(--danger)'; m.textContent = text; }
+function suOnIdInput(){ _markErr('suLoginId', false); var m=document.getElementById('suIdMsg'); if(m) m.textContent=''; }
+function suOnPwInput(){
+  var p=document.getElementById('suPassword').value, p2=document.getElementById('suPassword2').value, m=document.getElementById('suPwMsg');
+  _markErr('suPassword', false); _markErr('suPassword2', false);
+  if(!m) return;
+  if(p && p.length<4){ m.style.color='var(--danger)'; m.textContent='비밀번호는 4자 이상이어야 해요.'; }
+  else if(p2 && p!==p2){ m.style.color='var(--danger)'; m.textContent='비밀번호가 서로 달라요.'; }
+  else if(p2 && p===p2){ m.style.color='var(--success)'; m.textContent='비밀번호가 일치해요.'; }
+  else m.textContent='';
+}
+function suOnPhoneInput(){
+  var el=document.getElementById('suPhone'), d=(el.value||'').replace(/[^0-9]/g,'').slice(0,11), f=d;
+  if(d.length>7) f=d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7); else if(d.length>3) f=d.slice(0,3)+'-'+d.slice(3);
+  el.value=f; el.style.borderColor='';
+  var nt=document.getElementById('suPhoneNotice'); if(nt) nt.style.display = d ? 'none' : '';
+}
+function suToggleAll(){ var on=document.getElementById('suAgreeAll').checked; document.getElementById('suAgree1').checked=on; document.getElementById('suAgree2').checked=on; }
+function suSyncAll(){ document.getElementById('suAgreeAll').checked = document.getElementById('suAgree1').checked && document.getElementById('suAgree2').checked; }
+async function handleSuPhoto(e){
+  var file=e.target.files[0]; if(!file) return;
+  try{ suPhotoBase64 = await compressImageFile(file); }
+  catch(err){ showMiniAlert('사진을 불러오지 못했어요. 다른 사진을 선택해주세요.', [{label:'확인', primary:true}]); return; }
+  var p=document.getElementById('suPhotoPreview'); p.src=suPhotoBase64; p.classList.remove('hidden');
+  document.getElementById('suPhotoPlaceholder').classList.add('hidden');
+  e.target.value='';
+}
+function suCheckIdOnly(){
+  var id=(document.getElementById('suLoginId').value||'').trim();
+  var bad=suIdFormatError(id);
+  if(bad){ _markErr('suLoginId', true); suSetIdMsg(bad, false); return; }
+  socket.emit('auth:check_id', {loginId:id}, function(res){
+    if(!res || !res.valid){ _markErr('suLoginId', true); suSetIdMsg((res && res.message) || '확인 중 오류가 발생했어요.', false); return; }
+    if(res.available){ _markErr('suLoginId', false); suSetIdMsg('사용 가능한 아이디입니다.', true); }
+    else { _markErr('suLoginId', true); suSetIdMsg('이미 사용 중인 아이디입니다.', false); }
+  });
+}
+function suCollect(){
+  var g=function(id){ return document.getElementById(id); };
+  var loginId=(g('suLoginId').value||'').trim(), pw=g('suPassword').value||'', pw2=g('suPassword2').value||'';
+  var nick=(g('suNickname').value||'').trim(), phone=(g('suPhone').value||'').replace(/[^0-9]/g,''), age=g('suAge').value;
+  var checks=[
+    [suIdFormatError(loginId), 'suLoginId'],
+    [pw.length<4 ? '비밀번호를 4자 이상 입력해주세요.' : '', 'suPassword'],
+    [pw!==pw2 ? '비밀번호 확인이 일치하지 않아요.' : '', 'suPassword2'],
+    [!nick ? '닉네임을 입력해주세요.' : '', 'suNickname'],
+    [!/^01[0-9]{9}$/.test(phone) ? '휴대폰 번호를 정확히 입력해주세요.' : '', 'suPhone'],
+    [!age ? '나이를 선택해주세요.' : '', 'suAge'],
+    [!(g('suAgree1').checked && g('suAgree2').checked) ? '필수 동의 항목에 모두 동의해주세요.' : '', 'suAgreeAll']
+  ];
+  ['suLoginId','suPassword','suPassword2','suNickname','suPhone','suAge'].forEach(function(id){ _markErr(id, false); });
+  for(var i=0;i<checks.length;i++){
+    if(checks[i][0]){
+      _markErr(checks[i][1], true);
+      var el=g(checks[i][1]); try{ el.scrollIntoView({block:'center', behavior:'smooth'}); }catch(e){}
+      showMiniAlert(checks[i][0], [{label:'확인', primary:true}]);
+      return null;
+    }
+  }
+  return {loginId:loginId, password:pw, nickname:nick, phone:phone, region:g('suRegion').value, age:age};
+}
+function submitIdSignup(){
+  if(suBusy) return;
+  var v=suCollect(); if(!v) return;
+  suBusy=true;
+  socket.emit('auth:check_id', {loginId:v.loginId}, function(res){
+    if(!res || !res.valid){ suBusy=false; _markErr('suLoginId', true); showMiniAlert((res && res.message) || '확인 중 오류가 발생했어요. 다시 시도해주세요.', [{label:'확인', primary:true}]); return; }
+    if(!res.available){ suBusy=false; _markErr('suLoginId', true); suSetIdMsg('이미 사용 중인 아이디입니다.', false); showMiniAlert('이미 사용 중인 아이디입니다. 다른 아이디를 입력해주세요.', [{label:'확인', primary:true}]); return; }
+    socket.emit('auth:check_phone', {phone:v.phone}, function(pr){
+      suBusy=false;
+      if(pr && pr.exists){ _markErr('suPhone', true); showMiniAlert('이미 가입된 휴대폰 번호예요. 가입하신 아이디로 로그인해주세요.', [{label:'확인', primary:true}]); return; }
+      suSetIdMsg('사용 가능한 아이디입니다.', true);
+      showMiniAlert('"'+v.loginId+'"은(는) 사용 가능한 아이디입니다. 이 아이디를 사용하시겠습니까?', [
+        {label:'취소', primary:false},
+        {label:'예', primary:true, onClick:function(){ suSend(v, false); }}
+      ]);
+    });
+  });
+}
+function suSend(v, confirmed){
+  if(suBusy) return;
+  suBusy=true;
+  var data={loginId:v.loginId, password:v.password, phone:v.phone, nickname:v.nickname, region:v.region, gender:suGender, age:v.age, bio:'반갑습니다!', photos: suPhotoBase64 ? [suPhotoBase64] : [], confirmed: !!confirmed};
+  socket.emit('auth:signup', data, function(res){
+    suBusy=false;
+    if(res && res.success){
+      currentUser = res.user; saveSession(res.token); closeModal('idSignupScreen'); closeModal('landingScreen'); initApp();
+      if(!currentUser.onboardingSeen) setTimeout(showOnboardingTutorial, 400);
+    } else if(res && res.idTaken){
+      _markErr('suLoginId', true); suSetIdMsg('이미 사용 중인 아이디입니다.', false);
+      showMiniAlert('방금 다른 사람이 이 아이디를 사용했어요. 다른 아이디를 입력해주세요.', [{label:'확인', primary:true}]);
+    } else if(res && res.alreadyExists){
+      _markErr('suPhone', true);
+      showMiniAlert('이미 가입된 휴대폰 번호예요. 가입하신 아이디로 로그인해주세요.', [{label:'확인', primary:true}]);
+    } else if(res && res.needsConfirm){
+      showMiniAlert('닉네임에 부적절한 단어가 발견되었습니다. "삭제된 닉네임입니다"로 표기됩니다. 그래도 사용하시겠습니까?', [
+        {label:'취소', primary:false},
+        {label:'확인', primary:true, onClick:function(){ suSend(v, true); }}
+      ]);
+    } else {
+      showMiniAlert((res && res.message) || '가입 중 오류가 발생했습니다.', [{label:'확인', primary:true}]);
+    }
+  });
+}
+function submitPhoneLogin(){
+  var idv=(document.getElementById('loginPhone').value||'').trim();
+  var pw=document.getElementById('loginPassword').value;
+  var err=document.getElementById('loginPhoneErr'); err.textContent='';
+  if(!idv){ err.textContent='아이디를 입력해주세요.'; return; }
+  if(!pw){ err.textContent='비밀번호를 입력해주세요.'; return; }
+  socket.emit('auth:login', {loginId: idv, password: pw, deviceId: getDeviceId()}, function(res){
+    if(res && res.success){
+      currentUser = res.user; saveSession(res.token); closeModal('phoneLoginModal'); closeModal('landingScreen'); initApp();
+      if(res.dailyRewardNotify){ showMiniAlert('오늘의 접속 보상으로 쌀 '+res.dailyRewardNotify.amount+'개가 지급되었습니다!', [{label:'확인', primary:true}]); }
+      if(res.warningNotify){ showWarningModal(res.warningNotify.message); }
+    } else if(res && res.banned){ err.textContent = res.message || '이용이 제한된 계정입니다.';
+    } else if(res && res.notFound){ err.textContent = '등록되지 않은 아이디입니다.';
+    } else if(res && res.wrongField==='password'){ err.textContent = '비밀번호가 다릅니다.';
+    } else { err.textContent = (res && res.message) || '로그인에 실패했습니다.'; }
+  });
+}
 function onRegPhoneInput(){
   var el=document.getElementById('regPhone'), nt=document.getElementById('regPhoneNotice');
   if(el){ el.style.borderColor=''; }
@@ -2862,7 +3090,7 @@ function submitPhoneSignup(confirmed){
     }
   });
 }
-function submitPhoneLogin(){
+function submitPhoneLogin_legacy(){
   var phone=(document.getElementById('loginPhone').value||'').replace(/[^0-9]/g,'');
   var pw=document.getElementById('loginPassword').value;
   var err=document.getElementById('loginPhoneErr'); err.textContent='';

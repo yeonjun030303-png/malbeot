@@ -383,6 +383,38 @@ async function findUserByKakaoId(kakaoId) {
   const users = await getAllUsers();
   return Object.values(users).find(u => u.kakaoId === kakaoId);
 }
+/* LOGINID_V1: 0-124 아이디(대소문자 구분)+비밀번호 로그인. loginIds/<아이디> -> userId 인덱스로 중복 방지와 조회 */
+const LOGIN_ID_RE = /^[A-Za-z0-9_]{4,20}$/;
+function validateLoginId(id) {
+  const s = String(id || '');
+  if (!LOGIN_ID_RE.test(s)) return 'ID_FORMAT';
+  if (/^01[0-9]{8,9}$/.test(s)) return 'ID_PHONELIKE';
+  return null;
+}
+function loginIdMessage(code) {
+  if (code === 'ID_PHONELIKE') return '전화번호 형식은 아이디로 사용할 수 없어요.';
+  return '아이디는 영문, 숫자, 밑줄(_) 4~20자로 입력해주세요.';
+}
+async function findUserByLoginId(loginId) {
+  const s = String(loginId || '');
+  if (!LOGIN_ID_RE.test(s)) return null;
+  const snap = await db.ref('loginIds/' + s).once('value');
+  const uid = snap.val();
+  if (!uid) return null;
+  const u = await getUser(uid);
+  return (u && u.loginId === s) ? u : null;
+}
+async function reserveLoginId(loginId, userId) {
+  const ref = db.ref('loginIds/' + loginId);
+  const cur = (await ref.once('value')).val();
+  if (cur && cur !== userId) {
+    const owner = await getUser(cur);
+    if (owner && owner.loginId === loginId) return false;
+    await ref.remove();
+  }
+  const tx = await ref.transaction(c => (c && c !== userId) ? undefined : userId);
+  return !!tx.committed;
+}
 async function getUser(id) {
   const snap = await db.ref(`users/${id}`).once('value');
   return snap.val();
@@ -1075,13 +1107,21 @@ io.on('connection', (socket) => {
   // - 비밀번호를 설정한 회원(신규 가입자)은 반드시 비밀번호까지 일치해야 로그인됨
   socket.on('auth:login', async (data, cb) => {
     try {
-      const user = await findUserByPhone(data.phone);
-      if (!user) return cb({ success: false, notFound: true, wrongField: 'phone' });
+      let user = null;
+      const _lid = String(data.loginId || '').trim();
+      if (_lid) {
+        user = await findUserByLoginId(_lid);
+        const _lidDigits = _lid.replace(/[^0-9]/g, '');
+        if (!user && /^01[0-9]{9}$/.test(_lidDigits)) user = await findUserByPhone(_lidDigits);
+      } else {
+        user = await findUserByPhone(data.phone);
+      }
+      if (!user) return cb({ success: false, notFound: true, wrongField: _lid ? 'id' : 'phone' });
       if (user.isBanned) return cb({ success: false, banned: true, message: '이용이 제한된 계정입니다.' });
       if (!user.passwordHash) return cb({ success: false, notFound: true, wrongField: 'phone' });
       if (user.passwordHash) {
         const _lf = (global.__loginFail = global.__loginFail || new Map());
-        const _lk = String(data.phone || '');
+        const _lk = String(data.loginId || data.phone || '');
         const _lr = _lf.get(_lk);
         if (_lr && _lr.count >= 8 && (Date.now() - _lr.first) < 600000) return cb({ success: false, message: '로그인 시도가 너무 많아요. 10분 뒤에 다시 시도해주세요.' });
         const ok = await comparePassword(data.password || '', user.passwordHash);
@@ -1136,7 +1176,12 @@ io.on('connection', (socket) => {
   // 회원가입 (이미 등록된 번호면 거부). 비밀번호는 형식 제한 없이 받되, 반드시 입력해야 함(대소문자 구분은
   // bcrypt 해시 비교 특성상 자동으로 지켜짐 - 원문 그대로 비교하므로 대/소문자가 다르면 다른 비밀번호로 처리됨).
   socket.on('auth:signup', async (data, cb) => {
+    let _reservedLid = null;
     try {
+      data.loginId = String(data.loginId || '').trim();
+      const _lidErr = validateLoginId(data.loginId);
+      if (_lidErr) return cb({ success: false, message: loginIdMessage(_lidErr) });
+      if (!data.password || String(data.password).length < 4 || String(data.password).length > 64) return cb({ success: false, message: '비밀번호는 4자 이상 64자 이하로 입력해주세요.' });
       if (!/^01[0-9]{9}$/.test(data.phone || '')) return cb({ success: false, message: '휴대폰 번호를 정확히 입력해주세요. (예: 010-0000-0000)' });
       if (!data.password || !String(data.password).length) return cb({ success: false, message: '비밀번호를 입력해주세요.' });
       const profileError = validateProfileInput(data);
@@ -1147,9 +1192,12 @@ io.on('connection', (socket) => {
       const existing = await findUserByPhone(data.phone);
       if (existing) return cb({ success: false, alreadyExists: true });
       if (ADMIN_PHONES.includes(data.phone)) return cb({ success: false, message: '사용할 수 없는 번호입니다.' });
+      const _newUid = genId('u');
+      if (!(await reserveLoginId(data.loginId, _newUid))) return cb({ success: false, idTaken: true, message: '이미 사용 중인 아이디입니다.' });
+      _reservedLid = { lid: data.loginId, uid: _newUid };
       const passwordHash = await hashPassword(String(data.password));
       const user = {
-        id: genId('u'), phone: data.phone, passwordHash, nickname: data.nickname,
+        id: _newUid, loginId: data.loginId, phone: data.phone, passwordHash, nickname: data.nickname,
         nicknameFiltered: containsBannedWord(data.nickname),
         region: data.region, gender: data.gender, age: parseInt(data.age, 10),
         bio: data.bio || '반갑습니다!', photos: data.photos || [], points: 100,
@@ -1164,7 +1212,11 @@ io.on('connection', (socket) => {
       const token = issueSessionToken(user.id);
       cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, token });
       broadcastUsers();
-    } catch (e) { console.error(e); cb({ success: false }); }
+    } catch (e) {
+      console.error(e);
+      try { if (_reservedLid) { const _ex = await getUser(_reservedLid.uid); if (!_ex) await db.ref('loginIds/' + _reservedLid.lid).remove(); } } catch (_e) {}
+      cb({ success: false });
+    }
   });
 
   // 0-90: 내 추천코드 조회(없으면 생성) + 지금까지 추천으로 가입한 인원 수
@@ -1182,6 +1234,16 @@ io.on('connection', (socket) => {
   });
 
   // 회원가입 전 번호 중복 체크
+  socket.on('auth:check_id', async (data, cb) => {
+    try {
+      const s = String((data && data.loginId) || '').trim();
+      const bad = validateLoginId(s);
+      if (bad) return cb({ valid: false, message: loginIdMessage(bad) });
+      const u = await findUserByLoginId(s);
+      cb({ valid: true, available: !u });
+    } catch (e) { console.error(e); cb({ valid: false, message: '확인 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.' }); }
+  });
+
   socket.on('auth:check_phone', async (data, cb) => {
     try {
       const user = await findUserByPhone(data.phone);
