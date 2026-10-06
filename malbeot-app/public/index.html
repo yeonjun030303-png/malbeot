@@ -690,7 +690,7 @@ body.font-gothic, body.font-gothic *:not([class*="fa-"]){font-family:"Nanum Goth
   <header class="app-header">
     <div style="display:flex;align-items:center;gap:9px;min-width:0;">
       <span class="brand-logo"><svg viewBox="0 0 160 110" width="26" height="18" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="15" width="80" height="55" rx="27" fill="url(#mbGrad1)"/><path d="M20 66 L13 85 L36 68 Z" fill="url(#mbGrad1)"/><circle cx="24" cy="42" r="6" fill="#fff"/><circle cx="42" cy="42" r="6" fill="#fff"/><circle cx="60" cy="42" r="6" fill="#fff"/><rect x="62" y="5" width="88" height="62" rx="30" fill="url(#mbGrad2)"/><path d="M132 63 L144 84 L116 67 Z" fill="url(#mbGrad2)"/><path d="M106 46c-11-7-17-14-17-21 0-5.5 4.5-10 10-10 3.4 0 6.4 1.7 8 4.3 1.6-2.6 4.6-4.3 8-4.3 5.5 0 10 4.5 10 10 0 7-6 14-17 21z" fill="#fff"/></svg>말벗</span>
-      <span class="header-title" id="headerTitle" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">주변 친구</span>
+      <span class="header-title" id="headerTitle" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">친구 찾기</span>
     </div>
     <div class="header-right">
       <div class="header-mini-search hidden" id="headerHomeSearchWrap" style="position:relative;display:flex;align-items:center;gap:4px;">
@@ -3355,7 +3355,7 @@ function updateHeaderForTab(tab){
   homeSearchWrap.classList.add('hidden'); homeAdBannerRow.classList.add('hidden'); communitySearchRow.classList.add('hidden');
   chatSearchBtn.classList.add('hidden'); chatCreateBtn.classList.add('hidden');
   document.getElementById('homeSearchDropdown').classList.add('hidden');
-  if (tab==='tab-home'){ title.textContent='주변 친구'; ptsWrap.classList.remove('hidden'); homeSearchWrap.classList.remove('hidden'); homeAdBannerRow.classList.remove('hidden'); }
+  if (tab==='tab-home'){ title.textContent='친구 찾기'; ptsWrap.classList.remove('hidden'); homeSearchWrap.classList.remove('hidden'); homeAdBannerRow.classList.remove('hidden'); }
   else if (tab==='tab-community'){ title.textContent='스토리'; writeBtn.classList.remove('hidden'); ptsWrap.classList.remove('hidden'); communitySearchRow.classList.remove('hidden'); }
   else if (tab==='tab-discover'){ title.textContent='관심사'; filterBar.classList.add('hidden'); }
   else if (tab==='tab-chat'){ title.textContent='채팅'; filterBar.classList.add('hidden'); chatSearchBtn.classList.remove('hidden'); chatCreateBtn.classList.remove('hidden'); }
@@ -3454,7 +3454,7 @@ function applySortType(type){
 
 /* ===================== 홈 (나 자신 포함, 서버에서 프로필 수정 최신순으로 옴) ===================== */
 function loadHomeUserList(){ mbListSkeleton('homeUserList');
-  socket.emit('users:get_list', getFilterValues(homeSortType), (res)=>{ if (res.success){ var _l=(res.users||[]).filter(function(u){ return !currentUser || u.id!==currentUser.id; }); if (homeSortType==='default'){ var _myR=currentUser&&currentUser.region; _l.sort(function(a,b){ var _ra=(_myR&&a.region===_myR)?1:0, _rb=(_myR&&b.region===_myR)?1:0; if(_ra!==_rb) return _rb-_ra; var ta=a.isOnline?Date.now():(a.lastSeen||a.profileUpdatedAt||0); var tb=b.isOnline?Date.now():(b.lastSeen||b.profileUpdatedAt||0); return tb-ta; }); } renderUserCards(_l); } });
+  socket.emit('users:get_list', getFilterValues(homeSortType), (res)=>{ if (res.success){ var _l=(res.users||[]).filter(function(u){ return !currentUser || u.id!==currentUser.id; }); if (homeSortType==='default'){ _l.sort(function(a,b){ var ta=a.isOnline?Date.now():(a.lastSeen||a.profileUpdatedAt||0); var tb=b.isOnline?Date.now():(b.lastSeen||b.profileUpdatedAt||0); return tb-ta; }); } renderUserCards(_l); } });
 }
 // 검색어와 닉네임의 일치도로 정렬 우선순위를 매김: 완전 일치(0) > 앞부분 일치(1) > 부분 일치(2)
 function nicknameMatchRank(nickname, q){
