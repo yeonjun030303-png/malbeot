@@ -54,7 +54,8 @@ if (PUSH_ENABLED) {
 /* NATIVE_PUSH_V1 */
 const http2 = require("http2");
 const nodeCrypto = require("crypto");
-const APNS_KEY = (process.env.APNS_KEY_P8 || "").replace(/\\n/g, "\n");
+const APNS_KEY_RAW = (process.env.APNS_KEY_P8 || "").replace(/\\n/g, "\n").trim();
+const APNS_KEY = (APNS_KEY_RAW && APNS_KEY_RAW.indexOf("BEGIN") === -1) ? ("-----BEGIN PRIVATE KEY-----\n" + (APNS_KEY_RAW.replace(/\s+/g, "").match(/.{1,64}/g) || []).join("\n") + "\n-----END PRIVATE KEY-----") : APNS_KEY_RAW;
 const APNS_KEY_ID = process.env.APNS_KEY_ID || "";
 const APNS_TEAM_ID = process.env.APNS_TEAM_ID || "";
 const APNS_TOPIC = process.env.APNS_BUNDLE_ID || "com.cnsstudiokorea.malbeot";
@@ -70,6 +71,7 @@ function apnsJwt() {
   const sig = nodeCrypto.sign("sha256", Buffer.from(data), { key: APNS_KEY, dsaEncoding: "ieee-p1363" }).toString("base64url");
   _apnsJwt = data + "." + sig; _apnsJwtAt = now; return _apnsJwt;
 }
+if (NATIVE_PUSH_ENABLED) { try { apnsJwt(); console.log("[APNs] key signing OK"); } catch (e) { console.error("[APNs key error]", e.message); } }
 function apnsSend(token, payload) {
   return new Promise((resolve) => {
     let done = false; const fin = (r) => { if (!done) { done = true; resolve(r); } };
