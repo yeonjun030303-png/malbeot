@@ -2607,6 +2607,7 @@ socket.on('connect', ()=>{
 });
 /* PRESENCE_V1 */
 function emitAppState(){
+  try{ var C0 = window.Capacitor; if (!(C0 && C0.isNativePlatform && C0.isNativePlatform())) return; }catch(e){ return; }
   try{ if (socket && socket.connected && currentUser) socket.emit('app:state', { active: document.visibilityState === 'visible' }); }catch(e){}
 }
 document.addEventListener('visibilitychange', emitAppState);
@@ -2720,9 +2721,9 @@ socket.on('chat:new_message', ({roomId, message, senderNickname})=>{
     const avatarHtml = room && room.targetUser ? avatarHtmlFor(room.targetUser, 'avatar-sm') : '';
     showNotifyBanner({ title: senderNickname || '메시지', body: preview, avatarHtml, onClick: ()=>{ switchTab('tab-chat'); openChatRoomById(roomId); } });
   }
-  if (document.hidden && message.senderId !== 'system' && !isMine) {
+  if (isPageInBackground() && message.senderId !== 'system' && !isMine && getEffectiveSettings().notifyChat && !mutedChatRoomIds.has(roomId)) {
     const preview = message.type === 'image' ? '사진을 보냈습니다' : (message.text || '');
-    showOsNotification(senderNickname || '말벗', preview);
+    showOsNotification(senderNickname || '말벗', preview, ()=>{ switchTab('tab-chat'); openChatRoomById(roomId); });
   }
   loadChatRoomList();
 });
@@ -2744,7 +2745,7 @@ socket.on('notify:new', (n)=>{
   if (n.type === 'follow' && n.userId) onClick = ()=>{ openProfileDetailScreen(n.userId); };
   else if (n.postId) onClick = ()=>{ switchTab('tab-community'); openPostDetailScreen(n.postId, n.type==='reply'); };
   showNotifyBanner({ title: n.title, body: n.body || n.text, onClick });
-  if (document.hidden) showOsNotification(n.title || '말벗', n.body || n.text || '');
+  if (isPageInBackground()) showOsNotification(n.title || '말벗', n.body || n.text || '', onClick);
 });
 socket.on('chat:ended_notify', ({roomId})=>{
   if (activeRoomId === roomId) appendChatBubble({senderId:'system', text:'상대방이 대화를 종료하였습니다.', timestamp:Date.now()});
@@ -3084,10 +3085,21 @@ async function setupWebPush(){
     await fetch('/api/push/subscribe', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ userId: currentUser.id, subscription: sub }) });
   }catch(e){ console.warn('[웹푸시 구독 실패]', e); }
 }
-function showOsNotification(title, body){
+/* 0-130: desktop browser OS notification (shown when the window is hidden OR not focused) */
+function isPageInBackground(){
+  try{ return document.hidden || !document.hasFocus(); }catch(e){ return !!document.hidden; }
+}
+function showOsNotification(title, body, onClick){
   if (!getEffectiveSettings().notificationsEnabled) return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  try{ new Notification(title, {body}); }catch(e){}
+  try{
+    var n = new Notification(title, { body: body, icon: '/icon-192.png' });
+    n.onclick = function(){
+      try{ window.focus(); }catch(e){}
+      try{ n.close(); }catch(e){}
+      if (onClick){ try{ onClick(); }catch(e){} }
+    };
+  }catch(e){}
 }
 function updateUserUI(){
   if (!currentUser) return;
