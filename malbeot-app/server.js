@@ -195,6 +195,7 @@ app.get('/join/:code', (req, res) => {
 
 let socketToUser = {};
 let userToSocket = {};
+const bgSocket = {}; /* PRESENCE_V1 */
 
 /* =====================================================================
    RevenueCat 웹훅 (구글 플레이/애플 앱스토어 인앱결제 완료 알림 수신)
@@ -3069,9 +3070,24 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
 
+  socket.on('app:state', (data) => {
+    try {
+      const uid = socketToUser[socket.id];
+      if (!uid) return;
+      if (data && data.active === false) {
+        if (userToSocket[uid] === socket.id) { delete userToSocket[uid]; bgSocket[uid] = socket.id; }
+      } else if (bgSocket[uid] === socket.id) {
+        userToSocket[uid] = socket.id; delete bgSocket[uid];
+      } else if (!userToSocket[uid]) {
+        userToSocket[uid] = socket.id;
+      }
+    } catch (e) {}
+  });
   socket.on('disconnect', async () => {
     try {
       const userId = socketToUser[socket.id];
+      if (userId && userToSocket[userId] === socket.id) delete userToSocket[userId];
+      if (userId && bgSocket[userId] === socket.id) delete bgSocket[userId];
       if (userId) {
         const user = await getUser(userId);
         if (user) {

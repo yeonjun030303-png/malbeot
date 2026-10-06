@@ -2604,7 +2604,13 @@ function attemptSessionResume(){
 }
 socket.on('connect', ()=>{
   attemptSessionResume();
+  setTimeout(emitAppState, 1500);
 });
+/* PRESENCE_V1 */
+function emitAppState(){
+  try{ if (socket && socket.connected && currentUser) socket.emit('app:state', { active: document.visibilityState === 'visible' }); }catch(e){}
+}
+document.addEventListener('visibilitychange', emitAppState);
 socket.on('users:updated', ()=>{ loadHomeUserList(); if (currentProfileUserId) refreshOpenProfileIfNeeded(); });
 // 서버(RevenueCat 웹훅)가 인앱결제 완료를 확인하고 쌀을 지급하면, 접속 중인 클라이언트에 실시간으로 알려줌
 // 0-20: 구독 상품 결제였다면 subscription 필드도 함께 실려오므로 같이 반영함
