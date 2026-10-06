@@ -595,6 +595,9 @@ function broadcastPosts() { io.emit('posts:updated'); }
 function notifyUser(userId, payload) {
   if (!userId) return;
   const sId = userToSocket[userId];
+  if (payload && ['like','comment','reply','follow','follow_post','keyword','referral_reward'].includes(payload.type)) {
+    db.ref('communityUnread/' + userId).transaction(n => (n || 0) + 1).catch(() => {});
+  }
   if (sId) io.to(sId).emit('notify:new', payload);
   // 소켓 미접속(=앱이 꺼져있음) 상태일 때만 웹 푸시로 대신 알림 (앱 켜져있을 땐 인앱 알림으로 충분)
   else sendWebPush(userId, { title: payload.title || '말벗', body: payload.body || payload.text || '', type: payload.type || null, postId: payload.postId || null, userId: payload.userId || null });
@@ -1619,6 +1622,23 @@ io.on('connection', (socket) => {
     } catch (e) { console.error(e); cb({ success: false }); }
   });
 
+  // 0-108: bottom tab badge - get/clear community unread count
+  socket.on('badge:get', async (data, cb) => {
+    try {
+      const uid = socketToUser[socket.id];
+      if (!uid) return cb && cb({ success: false });
+      const s = await db.ref('communityUnread/' + uid).once('value');
+      cb && cb({ success: true, communityUnread: s.val() || 0 });
+    } catch (e) { cb && cb({ success: false }); }
+  });
+  socket.on('badge:clear_community', async (data, cb) => {
+    try {
+      const uid = socketToUser[socket.id];
+      if (!uid) return cb && cb({ success: false });
+      await db.ref('communityUnread/' + uid).set(0);
+      cb && cb({ success: true });
+    } catch (e) { cb && cb({ success: false }); }
+  });
   socket.on('posts:delete', async (data, cb) => {
     try {
       const userId = socketToUser[socket.id];

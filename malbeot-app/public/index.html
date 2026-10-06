@@ -2834,7 +2834,7 @@ function submitKakaoSignup(confirmed, deviceConfirmed){
 }
 
 /* ===================== 앱 초기화 / 탭 ===================== */
-function initApp(){
+function initApp(){ try{ refreshBadges(); }catch(e){}
   updateUserUI(); loadHomeUserList(); loadCommunityPosts(); loadProfileToForm(); switchTab('tab-home'); requestNotifyPermissionIfNeeded();
   // 구글/애플 인앱결제(RevenueCat)가 이 유저에게 쌀을 지급할 수 있도록 계정 연결
   if (window.linkIAPUser && currentUser) window.linkIAPUser(currentUser.id);
@@ -3017,6 +3017,33 @@ function updateHeaderForTab(tab){
   else if (tab==='tab-chat'){ title.textContent='채팅'; filterBar.classList.add('hidden'); chatSearchBtn.classList.remove('hidden'); chatCreateBtn.classList.remove('hidden'); }
   else { title.textContent='설정'; filterBar.classList.add('hidden'); }
 }
+/* 0-108: bottom tab badges (chat=unread count, community=red !) */
+(function(){ var s=document.createElement('style'); s.textContent='.bottom-nav .nav-item{position:relative;} .nav-badge{position:absolute;top:6px;left:calc(50% + 6px);background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;pointer-events:none;} .nav-badge.hidden{display:none;}'; document.head.appendChild(s); })();
+function setNavBadge(tab, text){
+  var b=document.querySelector('.bottom-nav .nav-item[data-tab="'+tab+'"]'); if(!b) return;
+  var el=b.querySelector('.nav-badge');
+  if(!el){ el=document.createElement('span'); el.className='nav-badge'; b.appendChild(el); }
+  if(!text){ el.classList.add('hidden'); } else { el.classList.remove('hidden'); el.textContent=text; }
+}
+function updateChatNavBadge(){
+  var n=0;
+  (currentChatRooms||[]).forEach(function(r){ if(!r.muted) n+=(r.unreadCount||0); });
+  (currentGroupChatRooms||[]).forEach(function(r){ n+=(r.unreadCount||0); });
+  setNavBadge('tab-chat', n>0 ? (n>99 ? '99+' : String(n)) : '');
+}
+var communityUnread = 0;
+function setCommunityBadge(n){ communityUnread=n; setNavBadge('tab-community', n>0 ? '!' : ''); }
+function clearCommunityBadge(){ if(communityUnread>0){ setCommunityBadge(0); socket.emit('badge:clear_community', {}, function(){}); } }
+function refreshBadges(){
+  try{ socket.emit('badge:get', {}, function(res){ if(res && res.success){ setCommunityBadge(res.communityUnread||0); var t=document.getElementById('tab-community'); if(t && t.classList.contains('active')) clearCommunityBadge(); } }); }catch(e){}
+  loadChatRoomList();
+}
+socket.on('notify:new', function(n){
+  if(!n || ['like','comment','reply','follow','follow_post','keyword','referral_reward'].indexOf(n.type)===-1) return;
+  var t=document.getElementById('tab-community');
+  if(t && t.classList.contains('active')){ socket.emit('badge:clear_community', {}, function(){}); }
+  else { setCommunityBadge(communityUnread+1); }
+});
 function switchTab(tab){
   // 채팅방을 보다가 하단 탭으로 이동하면 activeRoomId가 안 지워져서
   // 홈 등 다른 화면에 있어도 새 메시지가 자동 읽음 처리되는 버그가 있었음 -> 탭 이동 시 채팅모달 강제로 닫기
@@ -3031,7 +3058,7 @@ function switchTab(tab){
   if (homeSearchInput) homeSearchInput.value = '';
   if (communitySearchInput) communitySearchInput.value = '';
   if (tab==='tab-home') loadHomeUserList();
-  if (tab==='tab-community') { loadCommunityPosts(); maybeShowCommunityDailyAlert(); }
+  if (tab==='tab-community') { loadCommunityPosts(); maybeShowCommunityDailyAlert(); clearCommunityBadge(); }
   if (tab==='tab-discover') openDiscoverTab();
   if (tab==='tab-chat') loadChatRoomList();
   if (tab==='tab-mypage') { loadProfileToForm(); refreshMyPageVisitorCount(); refreshMypageSubLabel(); }
@@ -4452,7 +4479,7 @@ function loadChatRoomList(){
   socket.emit('chat:get_list', (res)=>{ if (res.success){ currentChatRooms = res.rooms; renderChatRoomList(); } });
   socket.emit('group:get_list', (res)=>{ if (res && res.success){ currentGroupChatRooms = res.rooms; renderChatRoomList(); } });
 }
-function renderChatRoomList(){
+function renderChatRoomList(){ try{ updateChatNavBadge(); }catch(e){}
   currentlySwipedWrap = null;
   mutedChatRoomIds = new Set(currentChatRooms.filter(r=>r.muted).map(r=>r.roomId));
   const c = document.getElementById('chatRoomList'); c.innerHTML='';
@@ -5456,7 +5483,7 @@ function openChatModal(roomId, target, messages){
 // 채팅방을 나갈 때는 반드시 이 함수를 사용해야 함.
 // activeRoomId를 초기화하지 않으면 홈 등 다른 화면에 있어도 해당 방의 새 메시지가
 // "채팅방을 보고 있는 중"으로 착각되어 알림 배너 없이 자동으로 읽음 처리되는 문제가 있었음.
-function closeChatModal(){ try{ if(activeRoomId){ localStorage.setItem('malbeot_chatWarnSeen_'+activeRoomId,'1'); } }catch(e){}
+function closeChatModal(){ setTimeout(function(){ try{ loadChatRoomList(); }catch(e){} }, 800); try{ if(activeRoomId){ localStorage.setItem('malbeot_chatWarnSeen_'+activeRoomId,'1'); } }catch(e){}
   closeModal('chatModal');
   closeFullScreen('chatInfoScreen');
   closeFullScreen('chatGalleryScreen');
