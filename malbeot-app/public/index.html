@@ -48,7 +48,7 @@ body{background:#dee2e6;color:var(--text-main);display:flex;justify-content:cent
 #splashScreen .splash-dots span:nth-child(3){animation-delay:.44s;}
 @keyframes splashDotMove{0%{left:0;opacity:0;}18%{opacity:1;}82%{opacity:1;}100%{left:56px;opacity:0;}}
 
-#notifyBanner{position:absolute;top:0;left:0;right:0;background:#212529;color:#fff;padding:14px 18px;z-index:500;transform:translateY(-100%);transition:transform .25s ease;line-height:1.4;cursor:pointer;display:flex;align-items:center;gap:10px;}
+#notifyBanner{position:absolute;top:0;left:0;right:0;background:#212529;color:#fff;padding:calc(env(safe-area-inset-top, 0px) + 8px) 18px 12px 18px;z-index:500;transform:translateY(-100%);transition:transform .25s ease;line-height:1.4;cursor:pointer;display:flex;align-items:center;gap:10px;}
 #notifyBanner.show{transform:translateY(0);}
 #notifyBanner .nb-avatar{flex-shrink:0;width:36px;height:36px;border-radius:50%;overflow:hidden;}
 #notifyBanner .nb-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
