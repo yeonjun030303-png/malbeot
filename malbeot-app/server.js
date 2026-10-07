@@ -1060,6 +1060,25 @@ setInterval(awardDailyVoteWinnerIfNeeded, 10 * 60 * 1000);
 // 콤마로 구분해서 등록해두면, 그 번호로 로그인한 사람은 커뮤니티 글/댓글을 누구 것이든
 // 삭제할 수 있게 됨 (신고 시스템과 별개로 즉시 삭제 가능한 권한).
 const ADMIN_PHONES = (process.env.ADMIN_PHONES || '').split(',').map(s => s.trim()).filter(Boolean);
+/* SEC-2: never send other users' private fields (phone, password hash, kakaoId, loginId...) to clients */
+const PRIVATE_USER_FIELDS = ['passwordHash', 'phone', 'kakaoId', 'loginId', 'referralCode', 'referredBy', 'blockedUserIds', 'points', 'adWatchCountToday', 'lastAdChargeDate', 'lastAdRewardAt', 'notifyKeywords', 'phoneChangeApproved', 'onboardingSeen', 'lastPostDate', 'deviceIds', 'deviceId', 'lastIp', 'ip'];
+function publicUser(u, viewerId) {
+  if (!u || typeof u !== 'object') return u;
+  const o = { ...u };
+  if (viewerId && u.id === viewerId) { delete o.passwordHash; return o; }
+  for (const k of PRIVATE_USER_FIELDS) delete o[k];
+  return o;
+}
+/* last line of defense: the password hash never leaves the server in any socket callback (copies, never mutates cached objects) */
+function stripSecrets(v, depth) {
+  depth = depth || 0;
+  if (depth > 6 || v === null || typeof v !== 'object') return v;
+  if (Array.isArray(v)) return v.map(x => stripSecrets(x, depth + 1));
+  if (Object.getPrototypeOf(v) !== Object.prototype) return v;
+  const o = {};
+  for (const k of Object.keys(v)) { if (k === 'passwordHash') continue; o[k] = stripSecrets(v[k], depth + 1); }
+  return o;
+}
 /* SEC-1: profile:update accepts only these fields (blocks points/subscription/phone/kakaoId/isBanned overwrite) */
 function sanitizeProfileUpdate(d) {
   const o = {};
@@ -1127,6 +1146,7 @@ async function exchangeKakaoCode(code, redirectUri) {
 }
 
 io.on('connection', (socket) => {
+  { const _origOn = socket.on.bind(socket); socket.on = function (ev, fn) { return _origOn(ev, function (...args) { const li = args.length - 1; if (li >= 0 && typeof args[li] === 'function') { const cb0 = args[li]; args[li] = function (...r) { return cb0.apply(this, r.map(x => stripSecrets(x))); }; } return fn.apply(this, args); }); }; }
 
   // 전화번호+비밀번호 로그인
   // - 기존(비밀번호 없이 가입한) 회원은 그대로 전화번호만으로 로그인 가능(마이그레이션 배려)
@@ -1522,7 +1542,7 @@ io.on('connection', (socket) => {
       const rawLikers = likerIds.map(id => users[id]).filter(Boolean);
       const locked = !hasTierAtLeast(me, 'gold');
       // 0-28: locked이면 실제 닉네임/사진 대신 마스킹된 정보만 내려보냄(브라우저에서 실제 데이터 노출 방지)
-      const likers = locked ? rawLikers.map(maskUserForLockedTeaser) : rawLikers;
+      const likers = locked ? rawLikers.map(maskUserForLockedTeaser) : rawLikers.map(u => publicUser(u, myId));
       cb && cb({ success: true, locked, count: likerIds.length, likers });
     } catch (e) { console.error(e); cb && cb({ success: false, count: 0, likers: [] }); }
   });
@@ -1582,7 +1602,7 @@ io.on('connection', (socket) => {
     try {
       const user = await getUser(data.userId);
       if (!user) return cb({ success: false });
-      const result = user.nicknameFiltered ? { ...user, nickname: "삭제된 닉네임입니다" } : user;
+      const result = publicUser(user.nicknameFiltered ? { ...user, nickname: "삭제된 닉네임입니다" } : user, socketToUser[socket.id]);
       cb({ success: true, user: result });
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -1592,7 +1612,7 @@ io.on('connection', (socket) => {
     try {
       const user = await getUser(data.userId);
       if (!user) return cb({ success: false });
-      const result = user.nicknameFiltered ? { ...user, nickname: "삭제된 닉네임입니다" } : user;
+      const result = publicUser(user.nicknameFiltered ? { ...user, nickname: "삭제된 닉네임입니다" } : user, socketToUser[socket.id]);
       cb({ success: true, user: result });
     } catch (e) { console.error(e); cb({ success: false }); }
   });
@@ -1609,7 +1629,7 @@ io.on('connection', (socket) => {
       const myUserId = socketToUser[socket.id];
       const myUser = myUserId ? await getUser(myUserId) : null;
       list = sortUsersByType(list, filters.sort, myUser && myUser.region);
-      list = list.map(u => u.nicknameFiltered ? { ...u, nickname: "삭제된 닉네임입니다" } : u);
+      list = list.map(u => publicUser(u.nicknameFiltered ? { ...u, nickname: "삭제된 닉네임입니다" } : u, myUserId));
       cb({ success: true, users: list });
     } catch (e) { console.error(e); cb({ success: false, users: [] }); }
   });
@@ -1658,7 +1678,7 @@ io.on('connection', (socket) => {
       if (!q) return cb({ success: true, users: [] });
       const users = await getAllUsers();
       const list = Object.values(users).filter(u => (u.nickname || '').toLowerCase().includes(q) && !u.isAiCharacter && !isAiCharId(u.id)); /* AI_LIST_EXCLUDE */
-      cb({ success: true, users: list });
+      cb({ success: true, users: list.map(u => publicUser(u, socketToUser[socket.id])) });
     } catch (e) { console.error(e); cb({ success: false, users: [] }); }
   });
 
@@ -1904,7 +1924,7 @@ io.on('connection', (socket) => {
       const ids = Object.keys(post.pollVotes).filter(uid => post.pollVotes[uid] === data.optionId);
       const users = await getAllUsers();
       let list = ids.map(id => users[id]).filter(Boolean);
-      list = list.map(u => u.nicknameFiltered ? { ...u, nickname: "삭제된 닉네임입니다" } : u);
+      list = list.map(u => publicUser(u.nicknameFiltered ? { ...u, nickname: "삭제된 닉네임입니다" } : u, socketToUser[socket.id]));
       cb && cb({ success: true, users: list });
     } catch (e) { console.error(e); cb && cb({ success: false, users: [] }); }
   });
@@ -2012,7 +2032,7 @@ io.on('connection', (socket) => {
         const room = await getRoom(roomId);
         if (!room || !room.userIds || !room.userIds.includes(userId)) continue;
         const otherId = room.userIds.find(id => id !== userId);
-        const targetUser = await getUser(otherId);
+        const targetUser = publicUser(await getUser(otherId), userId);
         const messages = (room.messages ? Object.values(room.messages) : []).filter(m => !(m.deletedFor || []).includes(userId));
         const unreadCount = messages.filter(m => m.senderId !== userId && m.senderId !== 'system' && !m.read).length;
         const muted = !!(room.muted && room.muted[userId]);
@@ -2540,7 +2560,7 @@ io.on('connection', (socket) => {
       const ids = (target && target.followerIds) || [];
       const users = await getAllUsers();
       let list = ids.map(id => users[id]).filter(Boolean);
-      list = list.map(u => u.nicknameFiltered ? { ...u, nickname: "삭제된 닉네임입니다" } : u);
+      list = list.map(u => publicUser(u.nicknameFiltered ? { ...u, nickname: "삭제된 닉네임입니다" } : u, socketToUser[socket.id]));
       cb && cb({ success: true, users: list });
     } catch (e) { console.error(e); cb && cb({ success: false, users: [] }); }
   });
@@ -2552,7 +2572,7 @@ io.on('connection', (socket) => {
       const ids = (target && target.followingIds) || [];
       const users = await getAllUsers();
       let list = ids.map(id => users[id]).filter(Boolean);
-      list = list.map(u => u.nicknameFiltered ? { ...u, nickname: "삭제된 닉네임입니다" } : u);
+      list = list.map(u => publicUser(u.nicknameFiltered ? { ...u, nickname: "삭제된 닉네임입니다" } : u, socketToUser[socket.id]));
       cb && cb({ success: true, users: list });
     } catch (e) { console.error(e); cb && cb({ success: false, users: [] }); }
   });
@@ -2579,7 +2599,7 @@ io.on('connection', (socket) => {
       const target = await getUser(targetId);
       const ids = (target && target.profileLikedBy) || [];
       const users = await getAllUsers();
-      const list = ids.map(id => users[id]).filter(Boolean);
+      const list = ids.map(id => users[id]).filter(Boolean).map(u => publicUser(u, socketToUser[socket.id]));
       cb && cb({ success: true, users: list });
     } catch (e) { console.error(e); cb && cb({ success: false, users: [] }); }
   });
@@ -2592,7 +2612,7 @@ io.on('connection', (socket) => {
       if (!user) return cb({ success: false, users: [] });
       const ids = user.blockedUserIds || [];
       const users = await getAllUsers();
-      const list = ids.map(id => users[id]).filter(Boolean);
+      const list = ids.map(id => users[id]).filter(Boolean).map(u => publicUser(u, userId));
       cb({ success: true, users: list });
     } catch (e) { console.error(e); cb({ success: false, users: [] }); }
   });
@@ -2620,7 +2640,7 @@ io.on('connection', (socket) => {
       const raw = snap.val() || {};
       const visitorIds = Object.keys(raw).sort((a, b) => raw[b] - raw[a]);
       const users = await getAllUsers();
-      const visitors = visitorIds.map(id => users[id]).filter(Boolean);
+      const visitors = visitorIds.map(id => users[id]).filter(Boolean).map(u => publicUser(u, userId));
       cb && cb({ success: true, count: visitorIds.length, visitors });
     } catch (e) { console.error(e); cb && cb({ success: false, count: 0, visitors: [] }); }
   });
@@ -2646,7 +2666,7 @@ io.on('connection', (socket) => {
       const rawVisitors = visitorIds.map(id => users[id]).filter(Boolean);
       const locked = !hasTierAtLeast(me, 'gold');
       // 0-28: locked이면 실제 닉네임/사진 대신 마스킹된 정보만 내려보냄(브라우저에서 실제 데이터 노출 방지)
-      const visitors = locked ? rawVisitors.map(maskUserForLockedTeaser) : rawVisitors;
+      const visitors = locked ? rawVisitors.map(maskUserForLockedTeaser) : rawVisitors.map(u => publicUser(u, userId));
       cb && cb({ success: true, locked, count: visitorIds.length, visitors });
     } catch (e) { console.error(e); cb && cb({ success: false, count: 0, visitors: [] }); }
   });
