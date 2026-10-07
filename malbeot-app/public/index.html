@@ -6442,15 +6442,13 @@ function submitProfileUpdate(confirmed){
 }
 document.getElementById('btnWatchAdModal').onclick = ()=>{ watchRewardedAdForRice(); };
 function grantAdRice(){
-  const todayStr = new Date().toISOString().slice(0,10);
-  if (currentUser.lastAdChargeDate!==todayStr) currentUser.adWatchCountToday=0;
-  const newCount = (currentUser.adWatchCountToday||0)+1;
-  socket.emit('profile:update', { adWatchCountToday:newCount, lastAdChargeDate:todayStr, points: currentUser.points+20 }, (res)=>{
-    if (res && res.success){ currentUser = res.user; saveSession(); updateUserUI(); showMiniAlert('\uc300 20\uac1c\uac00 \ucda9\uc804\ub418\uc5c8\uc2b5\ub2c8\ub2e4. (\uc624\ub298 \ucda9\uc804 \ud69f\uc218: '+newCount+'/3)', [{label:'\ud655\uc778', primary:true}]); }
+  socket.emit('ad:reward', {}, (res)=>{
+    if (res && res.success){ currentUser = res.user; saveSession(); updateUserUI(); showMiniAlert('쌀 20개가 충전되었습니다. (오늘 충전 횟수: '+res.count+'/3)', [{label:'확인', primary:true}]); }
+    else { showMiniAlert((res && res.message) || '충전에 실패했어요. 잠시 후 다시 시도해주세요.', [{label:'확인', primary:true}]); }
   });
 }
 async function watchRewardedAdForRice(){
-  const todayStr = new Date().toISOString().slice(0,10);
+  const todayStr = new Date(Date.now()+9*3600*1000).toISOString().slice(0,10);
   if (currentUser.lastAdChargeDate!==todayStr) currentUser.adWatchCountToday=0;
   if ((currentUser.adWatchCountToday||0)>=3){ showMiniAlert('\uc624\ub298 \ubb34\ub8cc \ucda9\uc804 \ud55c\ub3c4(\ud558\ub8e8 3\ud68c)\ub97c \ubaa8\ub450 \ucd08\uacfc\ud558\uc600\uc2b5\ub2c8\ub2e4.', [{label:'\ud655\uc778', primary:true}]); return; }
   const R = window.malbeotRewarded;

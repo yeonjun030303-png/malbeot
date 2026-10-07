@@ -1060,6 +1060,32 @@ setInterval(awardDailyVoteWinnerIfNeeded, 10 * 60 * 1000);
 // 콤마로 구분해서 등록해두면, 그 번호로 로그인한 사람은 커뮤니티 글/댓글을 누구 것이든
 // 삭제할 수 있게 됨 (신고 시스템과 별개로 즉시 삭제 가능한 권한).
 const ADMIN_PHONES = (process.env.ADMIN_PHONES || '').split(',').map(s => s.trim()).filter(Boolean);
+/* SEC-1: profile:update accepts only these fields (blocks points/subscription/phone/kakaoId/isBanned overwrite) */
+function sanitizeProfileUpdate(d) {
+  const o = {};
+  if (!d || typeof d !== 'object') return o;
+  if (typeof d.nickname === 'string' && d.nickname.trim()) o.nickname = d.nickname.trim().slice(0, 10);
+  if (typeof d.region === 'string' && d.region.length <= 10) o.region = d.region;
+  if (d.gender === 'female' || d.gender === 'male') o.gender = d.gender;
+  if (Number.isInteger(d.age) && d.age >= 0 && d.age <= 120) o.age = d.age;
+  if (typeof d.bio === 'string') o.bio = d.bio.slice(0, 500);
+  if (Array.isArray(d.photos)) o.photos = d.photos.filter(p => typeof p === 'string').slice(0, 6);
+  if (d.photoPosition === null) o.photoPosition = null;
+  else if (d.photoPosition && typeof d.photoPosition === 'object') {
+    const cl = v => Math.max(0, Math.min(100, Number(v) || 0));
+    o.photoPosition = { x: cl(d.photoPosition.x), y: cl(d.photoPosition.y) };
+  }
+  if (d.interests && typeof d.interests === 'object' && !Array.isArray(d.interests)) {
+    const it = {};
+    if (typeof d.interests.mbti === 'string') it.mbti = d.interests.mbti.slice(0, 4);
+    if (typeof d.interests.purpose === 'string') it.purpose = d.interests.purpose.slice(0, 20);
+    if (Array.isArray(d.interests.hobbies)) it.hobbies = d.interests.hobbies.filter(h => typeof h === 'string').map(h => h.slice(0, 20)).slice(0, 20);
+    o.interests = it;
+  }
+  if (Array.isArray(d.notifyKeywords)) o.notifyKeywords = d.notifyKeywords.filter(k => typeof k === 'string').map(k => k.trim().slice(0, 30)).filter(Boolean).slice(0, 30);
+  if (d.confirmed === true) o.confirmed = true;
+  return o;
+}
 function isAdminPhone(phone) { return !!phone && ADMIN_PHONES.includes(phone); }
 const ADMIN_KAKAO_IDS = (process.env.ADMIN_KAKAO_IDS || "").split(",").map(s => s.trim()).filter(Boolean); function isAdminKakao(kakaoId) { return !!kakaoId && ADMIN_KAKAO_IDS.includes(String(kakaoId)); } function isAdmin(user) { return !!user && (isAdminPhone(user.phone) || isAdminKakao(user.kakaoId)); }
 
@@ -1380,6 +1406,7 @@ io.on('connection', (socket) => {
       const userId = socketToUser[socket.id];
       const user = await getUser(userId);
       if (!user) { clearTimeout(hardTimeout); return safeCb({ success: false }); }
+      data = sanitizeProfileUpdate(data);
 
       if (data.nickname && containsBannedWord(data.nickname) && data.confirmed !== true) {
         clearTimeout(hardTimeout); return safeCb({ success: false, needsConfirm: true });
@@ -1404,13 +1431,32 @@ io.on('connection', (socket) => {
       // 안전하게 초기화함(좋아요 자체가 사라지는 게 아니라 새 구성 기준으로 다시 쌓이는 것)
       const photosChanged = data.photos && JSON.stringify(data.photos) !== JSON.stringify(user.photos || []);
 
-      Object.assign(user, data, { profileUpdatedAt: Date.now() });
+      { const { confirmed: _cf, ...safeData } = data; Object.assign(user, safeData, { profileUpdatedAt: Date.now() }); }
       if (photosChanged) user.photoLikes = {};
       await saveUser(user);
       clearTimeout(hardTimeout);
       safeCb({ success: true, user: { ...user, isAdmin: isAdmin(user) } });
       broadcastUsers();
     } catch (e) { console.error(e); clearTimeout(hardTimeout); safeCb({ success: false }); }
+  });
+  /* SEC-1: rewarded-ad rice is granted by the server (limit 3/day, min 20s between claims). Client can no longer set points. */
+  socket.on('ad:reward', async (data, cb) => {
+    try {
+      const userId = socketToUser[socket.id];
+      const user = userId ? await getUser(userId) : null;
+      if (!user) return cb && cb({ success: false, message: '\ub85c\uadf8\uc778\uc774 \ud544\uc694\ud574\uc694.' });
+      const now = Date.now();
+      const today = new Date(now + 9 * 3600 * 1000).toISOString().slice(0, 10);
+      if (user.lastAdChargeDate !== today) user.adWatchCountToday = 0;
+      if ((user.adWatchCountToday || 0) >= 3) return cb && cb({ success: false, limit: true, message: '\uc624\ub298 \ubb34\ub8cc \ucda9\uc804 \ud55c\ub3c4(\ud558\ub8e8 3\ud68c)\ub97c \ubaa8\ub450 \uc0ac\uc6a9\ud558\uc600\uc2b5\ub2c8\ub2e4.' });
+      if (user.lastAdRewardAt && now - user.lastAdRewardAt < 20000) return cb && cb({ success: false, message: '\uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.' });
+      user.adWatchCountToday = (user.adWatchCountToday || 0) + 1;
+      user.lastAdChargeDate = today;
+      user.lastAdRewardAt = now;
+      user.points = (user.points || 0) + 20;
+      await saveUser(user);
+      cb && cb({ success: true, user: { ...user, isAdmin: isAdmin(user) }, count: user.adWatchCountToday });
+    } catch (e) { console.error(e); cb && cb({ success: false }); }
   });
   // 프로필 사진별 개별 좋아요 토글 (본인 사진은 좋아요 불가)
   socket.on('photo:like', async (data, cb) => {
